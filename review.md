@@ -22,15 +22,15 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-06 (Session 002) |
-| Days to deadline | 25 (as of 2026-10-06) |
-| Current stage / phase | Stage A / **A1 Done** (A1.1 + A1.2 ticked; docs/PARITY.md written) · A2 gate 1 green, skeleton in place |
-| Sessions logged | 2 entries (000, 002). Session 001 has no entry — see Time Ledger |
-| Hours used / budget | 7.3 / 34 (S000 1.5 + S001 1.0 reported + S002 4.8) — 26.7 h remaining; day 1 of W1, on pace (~7.5 h/week) |
-| Test status | **final ./verify.sh at Session 002 close: exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 121 passed / 0 failed** (116 baseline + 5 determinism gate) |
-| Parity checks passing | 0 / 8 — reference values now recorded in tracked docs/PARITY.md (Q1); ours pending gates 2–3 |
-| Open blockers | 1: gameplay-behavior **observation** pending (binary now builds and runs; screenshot observation done). Outstanding decisions: commit grouping, plan.md:432 note fix. (Q1, SDLPoP build, S001 hours, Q2 — all resolved in Session 002.) |
-| Cut line status | Nothing cut yet; W1 exit criteria 1/4 met so far (refs removed ✅; PARITY.md, CI, sandbox pending — day 1 of W1) |
+| Last updated | 2026-10-07 (Session 003) |
+| Days to deadline | 24 (as of 2026-10-07) |
+| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** (pop_tables + step function, acceptance green) · A2.3 next |
+| Sessions logged | 3 entries (000, 002, 003). Session 001 has no entry — see Time Ledger |
+| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining; W1 day 2 |
+| Test status | **final ./verify.sh at Session 003 close: exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 189 passed / 0 failed** (121 at S002 close + 68 A2.1/A2.2) |
+| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P4–P7 pending their gates |
+| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). Outstanding decisions: S003 commit grouping, push (never without approval), S002 hours figure [N]. |
+| Cut line status | Nothing cut yet; W1 exit criteria 2/4 met (refs removed ✅, PARITY.md v1 ✅; sandbox playable + CI pending — W1 day 2) |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
 ### Weekly checkpoints (from plan §9)
@@ -51,7 +51,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 |---|---|---|---|---|
 | §2.4 | Repo cleanup and licensing actions | n/a | In progress | 000, 002 |
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
-| A2 | Sim core | 8 | In progress (gate 1 + stand/run/turn skeleton only) | 002 |
+| A2 | Sim core | 8 | In progress — **A2.1 + A2.2 done & verified** (189/0); gate 2 partially covered; A2.3 next | 002, 003 |
 | A3 | Presentation shell | 6 | Not started | |
 | A4 | Traps, tiles, duels | 12 | Not started | |
 | A5 | Parity verification | 7 | Not started | |
@@ -87,12 +87,134 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | 000 | 2026-10-06 | 1.5 | 1.5 | 32.5 | Baseline capture, §2.4 .gitignore, A1.1 extractor built + study output generated |
 | 001 | 2026-10-06 | 1 | 2.5 | 31.5 | Figure reported by the user post-close in Session 002 (placeholder filled: "1 h"). No entry was opened for this session (process miss; recorded here in Session 002). Believed scope: commit 947cbbb (refs partitioned out of the tree + extractor) and the plan.md Session-000 notes/checkbox ticks [not verified — from artifacts, not from a log]. |
 | 002 | 2026-10-06 | 4.8 | 7.3 | 26.7 | A1.1 fix (selftest + negative control + TILE_NAMES), A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered post-close), SDLPoP built locally without sudo, --screenshot-level cross-check passed, tick model corrected to 12/10 fps, determinism gate green, A1.1+A1.2 ticked, plan+review committed (02c6a29). Hours = wall clock 17:10–21:58 from file mtimes (includes post-close extension). |
+| 003 | 2026-10-06/07 | 3.0 | 10.3 | 23.7 | Pre-commit audit + 4 user-approved commits (`b6dd845`, `e0814bc`, `ec27e2a`, `fc03e94` — **not pushed**); plan.md:432 note corrected (approved); A2.1 `pop_tables.gd` + drift test; A2.2 step function + acceptance tests (189/0, verify exit 0); Step 5 observation: tick **12.00 Hz** and standing jump **≈38 u** observed [O]; run-jump/fall NOT observed. Hours = wall clock 22:09–01:10 from file mtimes. S002 hours figure `[N]` still blank — row 002 keeps 4.8 until reported. |
 
 ---
 
 ## Session Log
 
 <!-- Newest first. Copy the template below for each new session. -->
+
+### Session 003: 2026-10-06/07 — 4 approved commits; A2.1 + A2.2 built and verified (189/0); first gameplay observation (12.00 Hz, standing jump)
+
+| Field | Value |
+|---|---|
+| Date | 2026-10-06 22:09 → 2026-10-07 close |
+| Session # | 003 |
+| Hours spent | 3.0 (wall clock 22:09–01:10 from file mtimes) |
+| Agent / tool | Buffy (Freebuff) |
+| Plan phase | Housekeeping commits (S002 work) → Q2 re-check → A2.1 pop_tables → A2.2 step function + acceptance → Step 5 observation |
+| Goal | Per session plan: audit and commit the S002 work (user-approved), re-check Q2 against the live remote, land A2.1 `pop_tables.gd` and the A2.2 step function with its acceptance tests, then observe the running reference for tick-rate / jump / fall numbers (Step 5), and close out. |
+| Status | A2.1 + A2.2 complete and verified. Observation **PARTIAL** — 2 of 3 target numbers observed (tick rate, standing jump); run-jump and fall threshold NOT observed, recorded honestly (`study/OBSERVATION.md` §4). A2.1/A2.2 code still uncommitted — the 4-commit approval covered the S002 groups only. |
+
+**Baseline at session start**
+- `./verify.sh`: exit 0, **121 passed / 0 failed**, 5/5 levels (log `.verify_baseline_s003.log`, 22:09).
+- Git: HEAD = `947cbbb` = `origin/main`.
+
+**Step 1 — pre-commit audit + 4 approved commits (not pushed)**
+- Audited the whole uncommitted set (status + diff) before staging anything, then committed four groups on the user's approval:
+  - `b6dd845` — extractor level-offset/tile-name corrections + the map-screenshot cross-check probe;
+  - `e0814bc` — pop sim skeleton (input byte, rng, stand/run/turn step) + the determinism gate;
+  - `ec27e2a` — plan/review for Session 002, including the **user-approved plan.md:432 note correction** (the disproven Session-000 offsets) and the A1.1/A1.2 ticks (docs/log only);
+  - `fc03e94` — the cited A1.2 reference behavior tables (Q1-approved facts, no code).
+- **Not pushed** — push always needs the user. Git identity Akash-Das26, no bot footers.
+
+**Step 2 — Q2 re-check**
+- Live `git ls-remote` against GitHub succeeded; `origin/main` = `947cbbb`. No reference material in the remote tree — Q2 stays moot (re-verification recorded in Open Questions).
+
+**Step 3 — A2.1 `scripts/pop/pop_tables.gd`**
+- Pure data file (Accept: no logic, peer-checkable against PARITY.md): tile enum (our names ↔ reference ids) + the ~30 kid frame rows (dx/dy/flags) + sequence-op interpreter data, every number carrying a file:line citation into `SDLPoP-1.23/src/` (D5 posture).
+- Drift test added to the suite: the tables are recomputed against `docs/PARITY.md` row-by-row, with a **negative control** proving a perturbed table value makes the test fail. Suite at A2.1: **156 passed / 0 failed**.
+
+**Step 4 — A2.2 step function, acceptance green**
+- `scripts/pop/pop_sim.gd` extended: stand/run/turn/stop, standing jump, run jump, soft/medium land + death, spike contact, floor-tile edge snapping (`y_land`/`x_bump` equivalents) — pure integer logic.
+- New `_test_a22_acceptance()` + helpers (`_flat_level`, `_hole_level`, `_crafted_landing`, `_frame_index`) in `tests/test_main.gd`. **Every number matched PARITY exactly — no gaps:**
+  - stand jump: landing f27 at **36 u**, total **39 u** (§4);
+  - run jump: f43 = **58 u**, landing **62 u** (f44), total **67 u** (§5);
+  - falls: 1 row → impact **21** soft; 2 rows → **30**, −1 HP (3→2); 3 rows → **33**, death on the row-3 floor (y = 242 = Y_LAND[4] − 2 hard-land, *not* fell_out — the test asserts y to distinguish);
+  - spike: kill + impale f177, modifiers → 0xFF, caller's modifiers untouched, 0xFF control passes;
+  - edge snap: 141 → 139 (−3 net incl. soft_land dx+1); 6 units away → no pull; floor-continues → no pull;
+  - turn = f45–f52 in **8 ticks** with the direction flip at tick 8, stand frame at tick 9; run stop f53…f52 done at tick 8, stand at 9;
+  - determinism double-run: equal state hash over 400 ticks (x=101, hp=3).
+- **Assertion-vs-reference learning (not a sim bug):** my first turn/run-stop asserts expected the stand frame *at* tick 8 and failed with 9. The reference ends the tick on a frame op (`seg006.c:682` `Char.frame = command; return`), so the trailing `jmp(stand)` (`seqtbl.c:449`, `seqtbl.c:627`) executes on the *next* tick; stand = act + f15 + jmp (`seqtbl.c:261-263`) → observed turnaround is 9 ticks. Asserts now measure f52 at tick 8 and the stand frame at 9; **PARITY §18 gained a cited clarification note**. No assertion was weakened — the old asserts measured the wrong thing.
+- Direct suite: **189 passed / 0 failed**; `./verify.sh` → **exit 0, ALL CHECKS PASSED, 189/0, 5/5 levels** (log `.verify_s003_a22.log`). Final pre-close run under Verification.
+
+**Step 5 — observation of the running reference (local SDLPoP)**
+- Method (full write-up: `study/OBSERVATION.md`, untracked): launched `SDLPoP-1.23/prince` with the real Session-002 libs (`LD_LIBRARY_PATH=.tools/sdlroot/...` → **0 IMG errors**); copied the 37 DOS `*.DAT` files (`cp -n`, non-destructive) from `4dprinceprsia/` into `SDLPoP-1.23/data/` so gameplay sprites load via the DAT chain (reference-folder-only, reversible); captured the window with ffmpeg `-window_id 0x120000a` (root-window grab is all-black under Hyprland) as gray 640×400@60; injected keys with `study/obs_probe.py` (XTEST); analyzed with `study/obs_analyze.py` (motion-frame cadence + kid bbox trajectory).
+- **Observed — tick rate: 12.00 Hz.** Median = mean = 5.00 video frames = 83.33 ms at 60 fps, across 84 samples then 25 samples, two independent captures → matches PARITY §1 [S] exactly.
+- **Observed — standing jump: ≈175 px ≈ 38 units ≈ 2.7 tiles** (bbox x 86 → 261, Up held 0.35 s; 64 px/tile ÷ 14 units/tile) → consistent with PARITY §4's 36 u / 2.57 tiles within bbox/centroid error.
+- **NOT observed — run jump:** short Up taps (0.12 s) swallowed by input timing; longer taps + run-up overshoot the cols 2–3 pit → the kid dies first. **NOT observed — fall threshold:** never attempted after that. Also unobserved: 10 Hz fight tick, spike cycle, guard duel. Reasons and the harness limits are in OBSERVATION.md §4–5.
+- Environment quirks: Escape pauses behind an **invisible** pause menu (font PNGs fail to load; toggle `seg000.c:586-601`, display `seg000.c:1700-1726`); restart on death = `a` key; room grid 10 cols × 3 rows, spawn x ≈ 96, 2-tile pit at cols 2–3.
+
+**Summary of changes**
+- plan.md: A2.1 and A2.2 checkboxes ticked (checkbox-only rule).
+- review.md: this entry + Dashboard, Phase tracker, Time Ledger, Parity Tracker (P1/P2/P3/P8 measured), §8 gates, Decision Log (D9–D12), Open Questions (Q2 re-verified), Open Issues (I2 closed, I3 opened), Asset Ledger, Change Index.
+- docs/PARITY.md (uncommitted): §18 turn/run-stop clarification note; header observation-status bullet + §1 and §4 [O] notes + §19 open-items updated for the two observed numbers.
+- scripts/pop/pop_tables.gd (new, untracked): A2.1 cited tables.
+- scripts/pop/pop_sim.gd, tests/test_main.gd (modified, uncommitted): A2.2 step function + acceptance tests.
+- study/ (all untracked): `OBSERVATION.md` (new), `obs_probe.py` / `obs_analyze.py` (new harness), `STUDY_NOTES.md` [O] status updated.
+- SDLPoP-1.23/ (reference folder, untracked): 37 DATs copied in (cp -n); `stub_img.c` + stub `libSDL2_image-2.0.so.0` from the earlier boot attempt remain on disk, superseded by the real sdlroot libs.
+
+**Files changed**
+
+| File | Action | Why |
+|---|---|---|
+| `plan.md` | modified (checkboxes A2.1, A2.2 only) | Tick the two completed plan tasks. |
+| `review.md` | modified (this entry + all trackers) | Session log. |
+| `docs/PARITY.md` | modified (uncommitted) | §18 clarification note + [O] observation notes (§1, §4, §19, header). |
+| `scripts/pop/pop_tables.gd` | added (untracked) | A2.1 cited frame/tile/sequence tables. |
+| `scripts/pop/pop_sim.gd` | modified (uncommitted) | A2.2 jump/fall/spike/edge-snap/turn/stop steps. |
+| `tests/test_main.gd` | modified (uncommitted) | A2.2 acceptance tests + level/analysis helpers. |
+| `study/OBSERVATION.md` | added (untracked) | Step 5 observation record: method, 2 observed numbers, non-observations. |
+| `study/obs_probe.py`, `study/obs_analyze.py` | added (untracked) | Observation harness (XTEST input, gray-frame analysis). |
+| `study/STUDY_NOTES.md` | modified (untracked) | [O] status updated: two numbers now observed. |
+| `SDLPoP-1.23/data/*.DAT` (37 files) | copied `cp -n` (reference folder, untracked) | Gameplay graphics for observation; reversible. |
+| `SDLPoP-1.23/stub_img.c`, stub `.so` | built earlier in session (untracked) | Boot workaround, superseded by real sdlroot libs; left in place. |
+| `.verify_s003_*.log`, `.s003_a22_run*.log` | added (untracked) | Verification captures. |
+
+**Decisions made**
+- Decision: four commits made on the user's explicit approval (`b6dd845`, `e0814bc`, `ec27e2a`, `fc03e94`), **not pushed**. Reason: user approved commit grouping for the S002 work; push always needs the user.
+- Decision: plan.md:432 Session-000 note corrected (content edit, user-approved) inside `ec27e2a` rather than left stale. Reason: its offset claims were disproven in S002; the pre-correction text remains in history.
+- Decision: DOS DATs copied into `SDLPoP-1.23/data/` with `cp -n` for observation. Reason: DAT chain takes precedence (`seg009.c` load path) so sprites load without PNG fallback; non-destructive, inside the reference folder, never staged, reversible by deleting.
+- Decision: Session 003's A2.1/A2.2 code + docs left **uncommitted** pending the user's decision. Reason: the 4-commit approval covered the S002 groups only — no implicit approval.
+- Decision: no assertion weakened when the turn/run-stop asserts failed; the reference behavior was re-derived and PARITY §18 clarified with citations instead. Reason: rule 5 — the asserts measured the wrong tick, the sim was right.
+
+**Verification**
+- `./verify.sh` at Session 003 start: exit 0, 121/0 (`.verify_baseline_s003.log`).
+- `./verify.sh` after A2.2: **exit 0 — ALL CHECKS PASSED, import ok, 5/5 levels, 189 passed / 0 failed** (`.verify_s003_a22.log`).
+- A2.1 drift test includes a **negative control** (perturbed table value → test fails) — proven, so a green run means tables and PARITY agree.
+- Final pre-close `./verify.sh`: **exit 0 — ALL CHECKS PASSED, import ok, 5/5 levels, 189 passed / 0 failed** (`.verify_s003_final.log`, 2026-10-07 01:03). This is the authoritative final run.
+- **Not verified / limitations:** run-jump distance and fall thresholds observed only in *our* sim, never against the running reference (input-timing + pit deaths — OBSERVATION.md §4); fight tick rate, spike cycle, guard duel unobserved; observation is single-run pixel measurement (± bbox error), no OCR; fonts broken in the study build → menus invisible; S002 hours figure `[N]` still blank (ledger keeps 4.8); nothing pushed.
+
+**Licensing and asset notes**
+- Reference-derived numbers added to tracked files this session: the two **[O] observation notes** in `docs/PARITY.md` (§1 tick rate, §4 standing jump) — our own pixel measurements of the running binary, cross-referenced to the existing cited [S] rows; plus the §18 clarification (cited facts only). `pop_tables.gd` carries cited reference facts per D5 — currently **untracked**; committing it needs the user's go-ahead on grouping.
+- New assets: none shipped. Harness scripts (`obs_probe.py`, `obs_analyze.py`) are original code, untracked study tooling.
+- Confirm no SDLPoP code/sprites/audio/text/level layouts copied verbatim: **yes — none**. Citations are file:line references only; observed values are pixel measurements.
+- Confirm nothing from `4dprinceprsia/`, `SDLPoP-1.23/`, or `study/` staged: **yes — none** (git status reviewed; the DAT copy and stub live inside the untracked reference folder).
+
+**Problems, bugs, and surprises**
+- The turn/run-stop assert failure (expect 8, got 9) looked like a sim bug — it was a wrong assumption about when the trailing `jmp(stand)` runs. Diagnosed against `seg006.c:682` / `seqtbl.c:449,627,261-263`; see Step 4.
+- Up taps of 0.12 s are swallowed by the reference's input handling; ≈0.35 s works. Run-jump observation needs a smarter approach (longer corridor or modified spawn) next time.
+- Escape pauses the game behind an invisible menu (fonts fail) — looked like a hang until the source was checked.
+- ffmpeg root-window capture is all-black under Hyprland; `-window_id` is mandatory.
+- The earlier stub `libSDL2_image` was redundant — the real libs were already extracted into `.tools/sdlroot` in S002 (noted in review.md D7 all along).
+
+**Plan changes**
+- Checkbox-only, per rule 3: **A2.1 ticked, A2.2 ticked.** No other plan.md edits.
+
+**Questions for the user**
+1. **S003 commits:** commit the A2.1/A2.2 work now (grouping your call: one commit or split code/tests/docs), or leave it uncommitted until after more A2.3 work?
+2. **Push:** the 4 S002 commits sit locally ahead of `origin/main` (`947cbbb`). Push them (plus any S003 commit) when you say so — I never push on my own.
+3. **S002 hours:** fill the `[N]` figure (ledger still carries 4.8 h measured from mtimes).
+4. **Study-folder cleanup (optional):** delete the superseded stub (`SDLPoP-1.23/stub_img.c` + stub `.so`) and/or the copied DATs, or leave both for the next observation round?
+
+**Next session starts with**
+1. A2.3: hang/climbing (up/down, release, hang-straight), crouch, safe-step edge probing — Accept: climb out of a 1-tile pit + hang-grab from a fall per the reference grab rule.
+2. A3.1 `SimClock` + `pop_view` — needed for the W1 "sandbox playable" checkpoint (2/4 W1 criteria met so far).
+3. Retry Step 5's unobserved numbers (run jump, fall threshold) if wanted: needs a safer corridor or spawn patch and frame-locked input.
+4. Decisions queued: S003 commit grouping, push, S002 hours figure.
+
+---
 
 ### Session 002: 2026-10-06 — A1.1 offset bug found & fixed; A1.2 study tabulation; plan/review committed; determinism gate green
 
@@ -366,6 +488,10 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | D6 | 2026-10-06 | 002 | SDLPoP local build approved: apt install libsdl2-dev + libsdl2-image-dev, make in SDLPoP-1.23/src, local only, nothing built shipped or committed. | Unblocks A1.1's `--screenshot-level` Accept and A1.2's [O] observation column; also needed later for gate 6 (.p1r). | Staying unbuilt (leaves two blockers open permanently). | n/a — packages are local study tooling. |
 | D7 | 2026-10-06 | 002 | Build executed via unprivileged `apt-get download` + `dpkg -x` into `.tools/sdlroot` instead of `apt-get install` (sudo needs interactive password). | Same packages, same versions, zero system change — stays inside the "local only" approval; a version-matched system symlink was reused for the runtime .so. | Waiting for an interactive sudo (would have stalled the session); static-link workaround (failed on ALSA, rejected). | Yes — delete .tools/sdlroot to remove entirely. |
 | D8 | 2026-10-06 | 002 | A1.1 re-ticked and A1.2 ticked. | A1.1: doubt resolved + selftest (incl. negative control) + Map_Symbols + live `--screenshot-level` probe (start ✓, guard ✓, 12/12 floor glyphs ✓); gates/mirrors don't exist on level 1. A1.2: all ten required tables in tracked docs/PARITY.md with citations, no code pasted — Accept met. | Leaving A1.1 unticked forever (screenshot clause can't be made more complete than this for level 1); not ticking A1.2 (would under-report a met Accept). | Yes — untick if the user disagrees with the evidence level. |
+| D9 | 2026-10-06 | 003 | Four S002-work commits made on user approval (`b6dd845`, `e0814bc`, `ec27e2a`, `fc03e94`); **not pushed**. | User approved the audit + commit grouping explicitly; push always requires the user. | Committing without approval (not allowed); squashing into one (user wanted grouped history). | n/a — commits exist; push is a separate decision. |
+| D10 | 2026-10-06 | 003 | plan.md:432 Session-000 note corrected (content edit) — user-approved. | Its offset claims were disproven in S002; leaving stale numbers in the tracked plan violates rule 5. | Leaving it (stale, misleading); silent rewrite (history would hide the correction — instead it ships in `ec27e2a` with the old text still in history). | Yes — the pre-correction text stays in commit `02c6a29`. |
+| D11 | 2026-10-06 | 003 | Copy the 37 DOS DATs (`cp -n`) into `SDLPoP-1.23/data/` for observation. | DAT load chain takes precedence (`seg009.c`) → gameplay sprites without PNG fallback; non-destructive, inside the untracked reference folder, reversible. | Deleting/moving originals (destructive — rejected); staging DATs (never allowed). | Yes — delete the copies to revert. |
+| D12 | 2026-10-06 | 003 | Session 003's A2.1/A2.2 code + docs left uncommitted pending user decision. | The 4-commit approval covered the S002 groups only; no implicit approval for new work. | Committing anyway (would exceed the approval); amending old commits (rewrites approved history — rejected). | Yes — commit whenever the user says. |
 
 ---
 
@@ -374,7 +500,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | Q | Topic | Blocks | Answer | Date | Session |
 |---|---|---|---|---|---|
 | Q1 | RRR originality rule: are measured behavior constants with citation acceptable? Does the jury check repo or only build? | A1 citations, A5, pop_tables.gd, PARITY.md, most of A2.2 & A4 numbers | **ANSWERED (post-close, Session 002): "rules read; measured constants with citation are acceptable."** Standing mitigations unchanged: every number carries a file:line citation, no code/table copied verbatim, reference folders stay out of the repo and the shipped build. `docs/PARITY.md` and `pop_tables.gd` are now unblocked. | 2026-10-06 | 002 |
-| Q2 | Git history of reference folders: accept / filter-repo + force-push / private, strip, republish | §2.4 | **MOOT** — verified in Session 002: `git log --all` shows the folders in no commit, `git fsck --unreachable` found nothing, `origin/main` tree (125 entries) contains neither folder nor study/. No history or remote action is needed or requested. | 2026-10-06 | 002 |
+| Q2 | Git history of reference folders: accept / filter-repo + force-push / private, strip, republish | §2.4 | **MOOT** — verified in Session 002: `git log --all` shows the folders in no commit, `git fsck --unreachable` found nothing, `origin/main` tree (125 entries) contains neither folder nor study/. Re-verified live in Session 003 (`git ls-remote` OK, origin/main = `947cbbb`). No history or remote action is needed or requested. | 2026-10-06/07 | 002, 003 |
 | Q3 | Port SDLPoP `.p1r` replays as formal parity tests? | A5.3 | | | |
 | Q4 | Music: compose in LMMS or source CC0? | B4.2 | | | |
 | Q5 | Aseprite purchase or LibreSprite? | A3.3 | | | |
@@ -387,7 +513,8 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | ID | Opened (session) | Severity (blocker / major / minor) | Description | Status | Closed (session) |
 |---|---|---|---|---|---|
 | I1 | 000 | minor | Extractor crashed on full res2000–res2015 batch: used_rooms() returned 255 for truncated/non-standard files and guard accessors indexed out of range. | **Closed** — fixed in 000; re-verified in 002: `--selftest` passes (0 failures) over all 16 files, including the non-canonical res2015 (2304 bytes, padded on read). | 002 |
-| I2 | 002 | major | Session 000's extractor field offsets were misaligned vs `types.h` (start_room/start_pos/start_dir, roomlinks, used_rooms, guards all shifted): reported start_room=25 / start_dir=16 for level 0 were reads of the used_rooms byte and an editor coordinate. | **Fixed in 002** — offsets re-derived from the packed struct (walk sums to 2305 = sizeof assert), extractor rewritten, selftest now asserts ranges + regression pin (res2000 → 1/9/−1) + a negative control on the old offset; study/ regenerated. plan.md A1.1 unticked pending its Accept clause (screenshot run still blocked). | |
+| I2 | 002 | major | Session 000's extractor field offsets were misaligned vs `types.h` (start_room/start_pos/start_dir, roomlinks, used_rooms, guards all shifted): reported start_room=25 / start_dir=16 for level 0 were reads of the used_rooms byte and an editor coordinate. | **Closed** — fixed in 002: offsets re-derived from the packed struct (walk sums to 2305 = sizeof assert), extractor rewritten, selftest asserts ranges + regression pin (res2000 → 1/9/−1) + a negative control on the old offset; study/ regenerated; A1.1 re-ticked in 002 after the live `--screenshot-level` cross-check (D8); final offset/tile-name corrections committed in 003 (`b6dd845`). | 002 |
+| I3 | 003 | minor | Gameplay observation partial: run-jump distance and fall thresholds never observed against the running reference (Up taps <0.35 s swallowed; run-up overshoots the level-1 pit → deaths). Study build's fonts fail → menus render invisibly (Escape pause looks like a hang). | **Open** — harness (`study/obs_probe.py`, `obs_analyze.py`) works; needs a safer corridor/spawn or frame-locked input for the remaining numbers. | |
 
 ---
 
@@ -397,25 +524,25 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 
 | ID | Behavior | Reference | Ours | Status | Session |
 |---|---|---|---|---|---|
-| P1 | Standing jump horizontal distance | ≈36 u ≈2.57 tiles at landing frame f27 (stream: PARITY.md §4; source-derived, [S]) | | ⬜ | 002 |
-| P2 | Running jump horizontal distance | ≈67 u ≈4.79 tiles total f34→f7 (PARITY.md §5; [S]) | | ⬜ | 002 |
-| P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | | ⬜ | 002 |
+| P1 | Standing jump horizontal distance | ≈36 u ≈2.57 tiles at landing frame f27 (stream: PARITY.md §4; source-derived, [S]) **[O]-corroborated ≈38 u** (observed bbox 175 px) | landing 36 u / total 39 u (`_test_a22_acceptance`) | ✅ | 002, 003 |
+| P2 | Running jump horizontal distance | ≈67 u ≈4.79 tiles total f34→f7 (PARITY.md §5; [S]) | landing 62 u (f44) / total 67 u; f43 = 58 u | ✅ | 002, 003 |
+| P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | impacts 21 soft / 30 → −1 HP / 33 → death (y=242 hard-land asserted) | ✅ | 002, 003 |
 | P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | | ⬜ | 002 |
 | P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | | ⬜ | 002 |
 | P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | | ⬜ | 002 |
 | P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | | ⬜ | 002 |
-| P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) | | ⬜ | 002 |
+| P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks | ✅ | 002, 003 |
 
 Status: ⬜ not tested · ❌ failing · ✅ matching
 
-Reference values for P1–P8 were derived into untracked `study/STUDY_NOTES.md` in Session 002 but are **not recorded here (this file is tracked) until Q1 is answered**; behavior observation [O] is additionally blocked (no runnable SDLPoP binary).
+Reference values live in tracked `docs/PARITY.md` since Q1 was answered (Session 002). "Ours" for P1/P2/P3/P8 measured in Session 003 from the A2.2 acceptance tests; P8's reference is additionally [O]-observed (12.00 Hz, `study/OBSERVATION.md`). P4–P7 remain untested (gates 2 remainder / duel work).
 
 ### Plan §8 test gates
 
 | Gate | Written? | Passing? | Session |
 |---|---|---|---|
 | Determinism (600 ticks, twice, equal hash; different seeds differ) | ✅ | ✅ | 002 |
-| Kinematics parity table | ⬜ | ⬜ | |
+| Kinematics parity table | ◐ partial — run/stand-jump + fall + edge-snap + turn/stop rows | ✅ those rows (189/0) | 003 |
 | Duel transcript | ⬜ | ⬜ | |
 | Echo replay v2 (plus one-bit divergence test) | ⬜ | ⬜ | |
 | Level completability smoke (3 levels) | ⬜ | ⬜ | |
@@ -434,6 +561,12 @@ Nothing ships without a row. Reference-derived *numbers* are logged here too (as
 | `study/STUDY_NOTES.md` | study notes (text) | written in Session 002 from SDLPoP-1.23 source reads (file:line cited) | n/a (study notes, not shipped) | Yes — all values are reference-derived; that is why it stays untracked until Q1 | 002 | n/a (not committed) |
 | `scripts/pop/pop_rng.gd` LCG constants | code constants | public-domain LCG (1664525 / 1013904223), own choice | n/a (code) | **No** — deliberately NOT the reference generator; TODO(Q1) marks the swap point | 002 | Pending Q1 for the eventual swap |
 | `scripts/pop/pop_input.gd`, `pop_sim.gd`, gate section of `tests/test_main.gd` | code | written this session (structure only: byte packing, stand/run/turn, state hash) | n/a (code) | No gameplay constant carried; placeholder dx/turn values marked TODO(Q1) | 002 | n/a |
+| `scripts/pop/pop_tables.gd` (A2.1) | code tables (tracked on commit) | written Session 003 from SDLPoP src reads | n/a (code) | **Yes** — frame/tile/sequence values with file:line citations (D5 posture); drift-tested vs PARITY incl. negative control | 003 | Pending user's commit-grouping decision (currently untracked) |
+| `scripts/pop/pop_sim.gd` A2.2 steps + `tests/test_main.gd` acceptance | code (tracked on commit) | written Session 003 to match PARITY values | n/a (code) | **Yes** — implements the cited PARITY numbers; every acceptance assertion matched them exactly | 003 | Pending user's commit decision (currently uncommitted) |
+| `docs/PARITY.md` [O] notes (§1 12.00 Hz, §4 ≈38 u) + §18 note | tracked doc | our own pixel observation of the running binary + cited clarifications | n/a (docs) | Observation values are ours; cited [S] values unchanged (D5) | 003 | n/a (cited facts) |
+| `study/OBSERVATION.md`, `study/obs_probe.py`, `study/obs_analyze.py` | study notes + tools (untracked) | written Session 003 | n/a (study only, not shipped) | Observation method + our measurements; citations only | 003 | n/a (never committed) |
+| 37 DOS `*.DAT` files copied into `SDLPoP-1.23/data/` | reference game data (inside untracked reference folder) | `cp -n` from `4dprinceprsia/` | GPL-3-era original data — **study use only, never staged or shipped** | n/a (reference material) | 003 | n/a (stays out of repo/build) |
+| `SDLPoP-1.23/stub_img.c` + stub `libSDL2_image-2.0.so.0` | study tooling (untracked) | written Session 003 (3-symbol stub) | n/a (own code, not shipped) | No — stub only, superseded by real sdlroot libs | 003 | n/a (deletable) |
 
 ---
 
@@ -451,5 +584,6 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |
 | 000 | 2026-10-06 | §2.4 + A1.1 | 1.5 | Baseline captured; .gitignore reference entries added; A1.1 study extractor built, fixed, and run to produce study/ level_00–15 notes; verify.sh still green. No commit yet (awaiting user confirmation on Q1/Q2 + commit timing). | 0 added |

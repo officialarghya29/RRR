@@ -459,11 +459,11 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
 
 ### A2 — Sim core · ~8 h · [M]
 
-- [ ] **A2.1 [M]** `pop_tables.gd`: tile enum (your names, ids mapped 1:1 to original
+- [x] **A2.1 [M]** `pop_tables.gd`: tile enum (your names, ids mapped 1:1 to original
       semantics), frame tables for the needed ~30 kid frames (dx/dy/flags), sequence
       table ops interpreter data.
       **Accept:** pure data file; no logic; peer-checkable against PARITY.md.
-- [ ] **A2.2 [M]** `pop_sim.gd` + `pop_rng.gd` + `pop_input.gd`: step function covering
+- [x] **A2.2 [M]** `pop_sim.gd` + `pop_rng.gd` + `pop_input.gd`: step function covering
       stand/run/turn/stop, soft/medium land, standing jump, run jump, fall, spike
       contact, floor-tile edge snapping (`y_land`/`x_bump` equivalents).
       **Accept (tests, added to `tests/test_main.gd`):** determinism double-run hash
