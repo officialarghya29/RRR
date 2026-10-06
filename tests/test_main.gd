@@ -29,6 +29,12 @@ func _ready() -> void:
 	_section("Sim determinism gate (plan 8 gate 1)")
 	_test_sim_determinism()
 
+	_section("pop_tables ↔ PARITY anti-drift (plan A2.1)")
+	_test_pop_tables_vs_parity()
+
+	_section("A2.2 step function acceptance (plan A2.2)")
+	_test_a22_acceptance()
+
 	_section("Health component")
 	_test_health()
 
@@ -99,14 +105,17 @@ func _finish() -> void:
 ## rather than the hash simply ignoring it.
 func _test_sim_determinism() -> void:
 	var script: Array = _fixed_input_script(600)
+	# The sim resolves floors and falls, so the gate runs on a flat level:
+	# identical runs must hash equal, and the script must stay causal.
+	var level := _flat_level()
 
-	var state_a: Dictionary = PopSim.run(12345, script)
-	var state_b: Dictionary = PopSim.run(12345, script)
+	var state_a: Dictionary = PopSim.run(12345, script, level)
+	var state_b: Dictionary = PopSim.run(12345, script, level)
 	check(PopSim.hash_state(state_a) == PopSim.hash_state(state_b),
 		"same seed + same 600-tick script → identical state hash")
 	check(int(state_a["tick"]) == 600, "the script stepped exactly 600 ticks")
 
-	var state_c: Dictionary = PopSim.run(20261006, script)
+	var state_c: Dictionary = PopSim.run(20261006, script, level)
 	check(PopSim.hash_state(state_a) != PopSim.hash_state(state_c),
 		"same script from a different seed → different state hash")
 
@@ -115,7 +124,7 @@ func _test_sim_determinism() -> void:
 	# (a blip that cancels out would leave the end-state hash equal).
 	var altered: Array = script.duplicate()
 	altered[37] = PopInput.make(-1).to_byte()
-	check(PopSim.hash_state(PopSim.run(12345, altered)) != PopSim.hash_state(state_a),
+	check(PopSim.hash_state(PopSim.run(12345, altered, level)) != PopSim.hash_state(state_a),
 		"one altered input tick → different state hash (input is causal)")
 
 	var back := PopInput.from_byte(PopInput.make(-1, 1, 1, 5).to_byte())
@@ -495,3 +504,632 @@ func _test_enemy_stats() -> void:
 				"%s weapon reach (%.0f) is inside its attack range (%.0f)" % [type_id, EnemyBase.WEAPON_REACH, stats.attack_range])
 
 		enemy.free()
+
+
+# --- Plan A2.1: pop_tables.gd ↔ docs/PARITY.md anti-drift ------------------
+#
+# Plan A2.1 accept: a test asserting each constant matches its PARITY.md row,
+# so the two cannot drift apart. Scalar constants are checked against their
+# rows; the id maps and kid frame rows one for one; and the re-authored
+# sequences are replayed through a mini play_seq interpreter (tick = ops up to
+# and including the next FRAME op, JUMP switches sequence mid-tick —
+# `seg006.c:569-684`) whose per-tick dx/dy/cumulative streams must reproduce
+# the §3/§4/§5 tables exactly.
+
+const _MISSING_PARITY_VALUE := -999999999
+
+
+func _test_pop_tables_vs_parity() -> void:
+	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable")
+	if md.is_empty():
+		return
+
+	# --- scalar constants: pop_tables value == PARITY row ------------------
+	check(_parity_int(md, "1", "Logic frame, traverse") == PopTables.TICK_HZ_TRAVERSE,
+		"TICK_HZ_TRAVERSE matches PARITY §1")
+	check(_parity_int(md, "1", "Logic frame, sword drawn") == PopTables.TICK_HZ_SWORD,
+		"TICK_HZ_SWORD matches PARITY §1")
+
+	var nums := _ints(_parity_cell(md, "2", "Unit scale"))
+	check(nums.size() >= 3 and nums[0] == PopTables.TILE_W and nums[2] == PopTables.TILE_H,
+		"TILE_W/TILE_H match PARITY §2")
+	check(_int_array_equal(_ints(_parity_cell(md, "2", "Floor y per row")), PopTables.Y_LAND),
+		"Y_LAND matches PARITY §2")
+	check(_int_array_equal(_ints(_parity_cell(md, "2", "Tile x positions")), PopTables.X_BUMP),
+		"X_BUMP matches PARITY §2")
+	check(_parity_int(md, "2", "First on-screen column") == PopTables.FIRST_ONSCREEN_COLUMN,
+		"FIRST_ONSCREEN_COLUMN matches PARITY §2")
+
+	nums = _ints(_parity_cell(md, "7", "Integration"))
+	check(nums.size() >= 2 and nums[0] == PopTables.FALL_ACCEL and nums[1] == PopTables.FALL_SPEED_MAX,
+		"fall accel/cap match PARITY §7")
+	check(_parity_int(md, "7", "Soft land") == PopTables.SOFT_LAND_MAX,
+		"SOFT_LAND_MAX matches PARITY §7")
+	nums = _ints(_parity_cell(md, "7", "Medium land"))
+	check(nums.size() >= 2 and nums[0] == PopTables.MEDIUM_LAND_MIN and nums[1] == PopTables.MEDIUM_LAND_MAX,
+		"medium-land window matches PARITY §7")
+	check(_parity_int(md, "7", "Death") == PopTables.DEATH_SPEED,
+		"DEATH_SPEED matches PARITY §7")
+
+	check(_parity_int(md, "18", "Direction change (turn)", 1) == PopTables.TURN_TICKS,
+		"TURN_TICKS matches PARITY §18")
+	check(_parity_int(md, "18", "Run stop", 1) == PopTables.RUN_STOP_TICKS,
+		"RUN_STOP_TICKS matches PARITY §18")
+
+	check(_int_array_equal(_ints(_parity_cell(md, "2", "Non-floor tiles")), PopTables.NON_FLOOR_TILES),
+		"NON_FLOOR_TILES matches PARITY §2")
+	nums = _ints(_parity_row(md, "8", "extend")[3] if _parity_row(md, "8", "extend").size() > 3 else "")
+	check(nums.size() >= 2 and nums[1] == PopTables.SPIKE_EXTEND_MAX,
+		"SPIKE_EXTEND_MAX matches PARITY §8 extend row")
+
+	# pop_sim's measured replacements must equal the table values they cite.
+	check(PopSim.TURN_TICKS == PopTables.TURN_TICKS, "pop_sim TURN_TICKS uses PopTables.TURN_TICKS")
+	check(PopSim.STAND_Y == int(PopTables.Y_LAND[1]), "pop_sim STAND_Y is the measured row-0 floor y")
+
+	# --- id maps (§16): our enums vs reference ids 1:1 ---------------------
+	var ids := _parity_ids(md)
+	check(ids.is_empty() == false, "PARITY §16 id table parsed")
+	var bad: Array[String] = []
+	for name: String in PopTables.Tile:
+		if not ids["tile"].has(name) or int(ids["tile"][name]) != int(PopTables.Tile[name]):
+			bad.append(name)
+	check(bad.is_empty(), "tile enum matches PARITY §16 (%s)" % ("ok" if bad.is_empty() else str(bad)))
+	bad = []
+	for name: String in PopTables.Action:
+		if not ids["action"].has(name) or int(ids["action"][name]) != int(PopTables.Action[name]):
+			bad.append(name)
+	check(bad.is_empty(), "action enum matches PARITY §16 (%s)" % ("ok" if bad.is_empty() else str(bad)))
+	bad = []
+	for name: String in PopTables.Sound:
+		if not ids["sound"].has(name) or int(ids["sound"][name]) != int(PopTables.Sound[name]):
+			bad.append(name)
+	check(bad.is_empty(), "sound enum matches PARITY §16 (%s)" % ("ok" if bad.is_empty() else str(bad)))
+	check(ids["tile"].size() == PopTables.Tile.size(),
+		"PARITY §16 carries all %d tiles (found %d)" % [PopTables.Tile.size(), ids["tile"].size()])
+	check(ids["hp"].has("START") and int(ids["hp"]["START"]) == PopTables.KID_HP_START,
+		"KID_HP_START matches PARITY §16")
+
+	# --- kid frame rows (§17) one for one ----------------------------------
+	var pframes := _parity_frames(md)
+	check(pframes.size() == PopTables.KID_FRAME.size(),
+		"PARITY §17 carries exactly %d frame rows (found %d)" % [PopTables.KID_FRAME.size(), pframes.size()])
+	bad = []
+	for frame: int in PopTables.KID_FRAME:
+		var row: Dictionary = PopTables.KID_FRAME[frame]
+		var want: Array = [row["dx"], row["dy"], row["weight"], row["thin"], row["needs_floor"], row["even_odd"]]
+		if not pframes.has(frame):
+			bad.append("missing f%d" % frame)
+		elif not _int_array_equal(pframes[frame], want):
+			bad.append("f%d" % frame)
+	check(bad.is_empty(), "kid frame rows match PARITY §17 (%s)" % ("ok" if bad.is_empty() else str(bad)))
+
+	# Every frame id a sequence sets must exist in the frame table.
+	bad = []
+	for seq_name: String in PopTables.SEQUENCES:
+		for op: Array in PopTables.SEQUENCES[seq_name]:
+			if int(op[0]) == PopTables.Op.FRAME and not PopTables.KID_FRAME.has(int(op[1])):
+				bad.append("%s f%d" % [seq_name, op[1]])
+	check(bad.is_empty(), "every sequence frame id has a KID_FRAME row (%s)" % ("ok" if bad.is_empty() else str(bad)))
+
+	# --- sequence streams vs §3/§4/§5 tables ------------------------------
+	_test_run_stream_vs_parity(md)
+	_test_stand_jump_stream_vs_parity(md)
+	_test_run_jump_stream_vs_parity(md)
+
+
+## §3: startrun enters the cycle; ticks 7–15 are f7(entry dx3) … →f7(dx4).
+func _test_run_stream_vs_parity(md: String) -> void:
+	var ticks := _seq_ticks("startrun", 15)
+	check(ticks.size() == 15, "startrun+run_cycle produced 15 ticks (got %d)" % ticks.size())
+	if ticks.size() < 15:
+		return
+	var want := _expand_cells(_parity_row(md, "3", "frame").slice(1),
+		_parity_row(md, "3", "dx").slice(1))
+	var got: Array = []
+	for i: int in range(6, 15):
+		got.append(int(ticks[i]["dx"]))
+	check(_int_array_equal(got, want), "run dx stream matches PARITY §3")
+	var steady := 0
+	for i: int in range(1, want.size()):
+		steady += int(want[i])
+	check(steady == 26 and _parity_section(md, "3").contains("26 units"),
+		"steady run cycle totals the 26 units claimed in PARITY §3")
+
+
+## §4: standing jump — 19 ticks through JUMP(stand), dx/dy/cum x.
+func _test_stand_jump_stream_vs_parity(md: String) -> void:
+	var hdr := _parity_row(md, "4", "frame").slice(1)
+	var want_dx := _expand_cells(hdr, _parity_row(md, "4", "dx").slice(1))
+	var want_dy := _expand_cells(hdr, _parity_row(md, "4", "dy").slice(1))
+	var want_cum := _expand_cells(hdr, _parity_row(md, "4", "cum x").slice(1))
+	var ticks := _seq_ticks("stand_jump", 19)
+	check(ticks.size() == 19, "stand_jump produced 19 ticks (got %d)" % ticks.size())
+	if ticks.size() < 19:
+		return
+	var dx: Array = []
+	var dy: Array = []
+	var cum: Array = []
+	var run := 0
+	for t: Dictionary in ticks:
+		run += int(t["dx"])
+		dx.append(int(t["dx"]))
+		dy.append(int(t["dy"]))
+		cum.append(run)
+	check(_int_array_equal(dx, want_dx), "stand_jump dx stream matches PARITY §4")
+	check(_int_array_equal(dy, want_dy), "stand_jump dy stream matches PARITY §4")
+	check(_int_array_equal(cum, want_cum), "stand_jump cumulative x matches PARITY §4")
+
+
+## §5: running jump — 12 ticks through JUMP(run_cycle), dx/dy/cum x/cum y.
+func _test_run_jump_stream_vs_parity(md: String) -> void:
+	var hdr := _parity_row(md, "5", "frame").slice(1)
+	var want_dx := _expand_cells(hdr, _parity_row(md, "5", "dx").slice(1))
+	var want_dy := _expand_cells(hdr, _parity_row(md, "5", "dy").slice(1))
+	var want_cum_x := _expand_cells(hdr, _parity_row(md, "5", "cum x").slice(1))
+	var want_cum_y := _expand_cells(hdr, _parity_row(md, "5", "cum y").slice(1))
+	var ticks := _seq_ticks("run_jump", 12)
+	check(ticks.size() == 12, "run_jump produced 12 ticks (got %d)" % ticks.size())
+	if ticks.size() < 12:
+		return
+	var dx: Array = []
+	var dy: Array = []
+	var cum_x: Array = []
+	var cum_y: Array = []
+	var rx := 0
+	var ry := 0
+	for t: Dictionary in ticks:
+		rx += int(t["dx"])
+		ry += int(t["dy"])
+		dx.append(int(t["dx"]))
+		dy.append(int(t["dy"]))
+		cum_x.append(rx)
+		cum_y.append(ry)
+	check(_int_array_equal(dx, want_dx), "run_jump dx stream matches PARITY §5")
+	check(_int_array_equal(dy, want_dy), "run_jump dy stream matches PARITY §5")
+	check(_int_array_equal(cum_x, want_cum_x), "run_jump cumulative x matches PARITY §5")
+	check(_int_array_equal(cum_y, want_cum_y), "run_jump cumulative y matches PARITY §5")
+
+
+## Mini play_seq: ops run until a FRAME op ends the tick; JUMP switches the
+## sequence without ending the tick (`seg006.c:569-684`). Non-stream ops
+## (ACTION, SOUND, KNOCK_DOWN, SET_FALL, DIE, FLIP) do not move the character.
+func _seq_ticks(start: String, count: int) -> Array:
+	var seq := start
+	var op_i := 0
+	var ticks: Array = []
+	var cur := {"dx": 0, "dy": 0, "frame": -1}
+	var steps := 0
+	while ticks.size() < count and steps < 10000:
+		steps += 1
+		var ops: Array = PopTables.SEQUENCES[seq]
+		if op_i >= ops.size():
+			break
+		var op: Array = ops[op_i]
+		op_i += 1
+		match int(op[0]):
+			PopTables.Op.DX:
+				cur["dx"] = int(cur["dx"]) + int(op[1])
+			PopTables.Op.DY:
+				cur["dy"] = int(cur["dy"]) + int(op[1])
+			PopTables.Op.FRAME:
+				cur["frame"] = int(op[1])
+				ticks.append(cur)
+				cur = {"dx": 0, "dy": 0, "frame": -1}
+			PopTables.Op.JUMP:
+				seq = String(op[1])
+				op_i = 0
+			_:
+				pass
+	return ticks
+
+
+# --- tiny PARITY.md markdown readers ---------------------------------------
+
+func _parity_section(md: String, num: String) -> String:
+	var begin := md.find("## %s. " % num)
+	if begin < 0:
+		return ""
+	var end := md.find("\n## ", begin + 1)
+	return md.substr(begin, (end - begin) if end > 0 else (md.length() - begin))
+
+
+func _md_cells(line: String) -> Array:
+	var parts := line.split("|")
+	var cells: Array = []
+	for i: int in range(1, parts.size() - 1):
+		cells.append(parts[i].strip_edges())
+	return cells
+
+
+func _parity_row(md: String, num: String, label: String) -> Array:
+	for line: String in _parity_section(md, num).split("\n"):
+		if not line.begins_with("|"):
+			continue
+		var cells := _md_cells(line)
+		if cells.size() > 0 and String(cells[0]) == label:
+			return cells
+	return []
+
+
+func _parity_cell(md: String, num: String, label: String, index: int = 1) -> String:
+	var row := _parity_row(md, num, label)
+	if row.size() > index:
+		return String(row[index])
+	return ""
+
+
+func _parity_int(md: String, num: String, label: String, index: int = 1) -> int:
+	var nums := _ints(_parity_cell(md, num, label, index))
+	return int(nums[nums.size() - 1]) if nums.size() > 0 else _MISSING_PARITY_VALUE
+
+
+## Integers from a cell, with backticked code spans dropped first so
+## identifiers like `y_land[row+1]` cannot contribute stray digits. Only the
+## unicode minus is normalised: en-dashes in ranges ("f18–f22", "1–4") must
+## stay separators, not sign characters.
+func _ints(text: String) -> Array:
+	var cleaned := RegEx.create_from_string("`[^`]*`").sub(text, "", true)
+	cleaned = cleaned.replace("−", "-")
+	var out: Array = []
+	for m: RegExMatch in RegEx.create_from_string("-?\\d+").search_all(cleaned):
+		out.append(int(m.get_string()))
+	return out
+
+
+## Expand value cells against header spans: "f18–f22" covers 5 frames, so its
+## value cell may carry one number (repeat), span numbers, or a start→end pair
+## that steps uniformly ("2→10" over 5 frames → 2,4,6,8,10).
+func _expand_cells(header: Array, values: Array) -> Array:
+	var out: Array = []
+	for i: int in range(header.size()):
+		var span := _span_of(String(header[i]))
+		var nums: Array = []
+		if i < values.size():
+			nums = _ints(String(values[i]))
+		if span <= 1:
+			out.append(int(nums[0]) if nums.size() > 0 else _MISSING_PARITY_VALUE)
+		elif nums.size() == span:
+			for n: int in nums:
+				out.append(n)
+		elif nums.size() == 1:
+			for _k: int in span:
+				out.append(int(nums[0]))
+		elif nums.size() == 2 and (int(nums[1]) - int(nums[0])) % (span - 1) == 0:
+			var step := (int(nums[1]) - int(nums[0])) / (span - 1)
+			for k: int in span:
+				out.append(int(nums[0]) + step * k)
+		else:
+			out.append(_MISSING_PARITY_VALUE)
+	return out
+
+
+func _span_of(header_cell: String) -> int:
+	var nums := _ints(header_cell)
+	if nums.size() >= 2:
+		return int(nums[1]) - int(nums[0]) + 1
+	return 1
+
+
+func _parity_ids(md: String) -> Dictionary:
+	var ids := {"tile": {}, "action": {}, "sound": {}, "hp": {}}
+	for line: String in _parity_section(md, "16").split("\n"):
+		if not line.begins_with("|"):
+			continue
+		var cells := _md_cells(line)
+		if cells.size() >= 4 and ids.has(String(cells[0])):
+			ids[String(cells[0])][String(cells[1])] = int(cells[2])
+	return ids
+
+
+func _parity_frames(md: String) -> Dictionary:
+	var out := {}
+	for line: String in _parity_section(md, "17").split("\n"):
+		if not line.begins_with("|"):
+			continue
+		var cells := _md_cells(line)
+		if cells.size() >= 7 and String(cells[0]).is_valid_int():
+			out[int(cells[0])] = [int(cells[1]), int(cells[2]), int(cells[3]),
+				int(cells[4]), int(cells[5]), int(cells[6])]
+	return out
+
+
+func _int_array_equal(a: Array, b: Array) -> bool:
+	if a.size() != b.size():
+		return false
+	for i: int in a.size():
+		if int(a[i]) != int(b[i]):
+			return false
+	return true
+
+
+# --- Plan A2.2: step function acceptance ----------------------------------
+#
+# Plan A2.2 accept: determinism double-run hash equality; standing jump =
+# 1 tile and run jump = 2 tiles of horizontal distance, cross-checked against
+# docs/PARITY.md §4/§5; falling 3 rows kills, 2 rows costs 1 HP. The section
+# also exercises the other A2.2 behaviors (turn, run stop, soft/medium land,
+# spike contact, floor-edge snap). Measured values are printed inside the
+# PASS labels; any mismatch against PARITY.md is a reported gap — constants
+# are never tuned to turn a red check green.
+
+
+## A wide flat floor (4 rows x 32 cols of FLOOR). The determinism script
+## runs the kid across several hundred units, so the platform must outspan
+## his reachable x range — otherwise "flat level" would silently mean
+## "flat until he walks off the edge".
+func _flat_level() -> Array:
+	var level: Array = []
+	for _r: int in 4:
+		var cells: Array = []
+		for _c: int in 32:
+			cells.append(PopTables.Tile.FLOOR)
+		level.append(cells)
+	return level
+
+
+## Row 0 is floored for columns 0-4 only (the kid walks off the edge at
+## column 5); rows below `landing_row` are empty while `landing_row` and
+## below are solid, so a walk-off drops the kid exactly `landing_row` rows
+## before touchdown — 1 row = soft land, 2 rows = medium, 3 rows = death.
+func _hole_level(landing_row: int) -> Array:
+	var level: Array = []
+	for r: int in 4:
+		var cells: Array = []
+		for c: int in 10:
+			if r == 0 and c < 5:
+				cells.append(PopTables.Tile.FLOOR)
+			elif r >= landing_row:
+				cells.append(PopTables.Tile.FLOOR)
+			else:
+				cells.append(PopTables.Tile.EMPTY)
+		level.append(cells)
+	return level
+
+
+## Force a landing on the very next step: the kid hangs in free fall at
+## row 1 with his feet already at that row's floor (`y_land[row+1]`,
+## `seg005.c:124`), so one step resolves do_fall → land → edge rule
+## without a long setup fall.
+func _crafted_landing(tiles: Array, x: int) -> Dictionary:
+	var st := PopSim.initial_state(11, tiles)
+	st["row"] = 1
+	st["y"] = int(PopTables.Y_LAND[2])
+	st["x"] = x
+	st["seq"] = "free_fall"
+	st["frame"] = 106
+	st["action"] = PopTables.Action.IN_FREEFALL
+	st["fall_y"] = 0
+	st["fall_x"] = 0
+	return PopSim.step(st, PopInput.neutral())
+
+
+## Index of a frame label inside an expanded PARITY header: "f18–f22" covers
+## five positions, a lone "f16" one, a header cell without a number
+## ("stand") one too; returns -1 when the frame is not carried. (The
+## arrow cell "→f7" parses as frame 7, which these tests never seek.)
+func _frame_index(header: Array, frame: int) -> int:
+	var offset := 0
+	for cell: Variant in header:
+		var nums := _ints(String(cell))
+		if nums.is_empty():
+			offset += 1
+		elif nums.size() >= 2:
+			if frame >= int(nums[0]) and frame <= int(nums[1]):
+				return offset + (frame - int(nums[0]))
+			offset += int(nums[1]) - int(nums[0]) + 1
+		else:
+			if frame == int(nums[0]):
+				return offset
+			offset += 1
+	return -1
+
+
+func _test_a22_acceptance() -> void:
+	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable for the A2.2 cross-checks")
+	if md.is_empty():
+		return
+	var level := _flat_level()
+
+	# --- (a) determinism double-run hash equality ------------------------
+	var script: Array = _fixed_input_script(400)
+	var run1 := PopSim.run(777, script, level)
+	var run2 := PopSim.run(777, script, level)
+	check(PopSim.hash_state(run1) == PopSim.hash_state(run2),
+		"double-run of the 400-tick script hashes equal (A2.2 determinism)")
+	# Measurement, not a gate: where does the script leave him on a flat floor?
+	print("  MEAS 400-tick flat-floor run ends: x=%d hp=%d dead=%d row=%d seq=%s" % [
+		int(run1["x"]), int(run1["hp"]), int(run1["dead"]),
+		int(run1["row"]), String(run1["seq"])])
+
+	# --- (b1) standing jump: 1-tile gap, cross-checked vs PARITY §4 -----
+	var st: Dictionary = PopSim.initial_state(4242, level)
+	var x0 := int(st["x"])
+	var land_dx := -1
+	var total_dx := -1
+	var t := 0
+	while t < 60:
+		st = PopSim.step(st, PopInput.make(0, -1))  # hold jump from stand
+		t += 1
+		if int(st["frame"]) == 27 and land_dx < 0:  # landing frame, PARITY §4
+			land_dx = int(st["x"]) - x0
+		if String(st["seq"]) == "stand":
+			total_dx = int(st["x"]) - x0
+			break
+	check(String(st["seq"]) == "stand" and total_dx >= 0,
+		"standing jump plays out and returns to stand in %d ticks" % t)
+	var hdr4 := _parity_row(md, "4", "frame").slice(1)
+	var want4 := _expand_cells(hdr4, _parity_row(md, "4", "cum x").slice(1))
+	var i27 := _frame_index(hdr4, 27)
+	var want_land4 := int(want4[i27]) if i27 >= 0 and i27 < want4.size() else -1
+	check(land_dx == want_land4 and want_land4 >= 0,
+		"standing-jump landing distance %d == PARITY §4 cum-x at f27 (%d)" % [land_dx, want_land4])
+	check(land_dx >= PopTables.TILE_W,
+		"standing jump covers the canonical 1-tile gap (%d >= %d units)" % [land_dx, PopTables.TILE_W])
+	var want_end4 := int(want4[want4.size() - 1]) if want4.size() > 0 else -1
+	check(total_dx == want_end4,
+		"standing-jump total travel %d == PARITY §4 end (%d)" % [total_dx, want_end4])
+
+	# --- (b2) run jump: 2-tile gap, cross-checked vs PARITY §5 -----------
+	st = PopSim.initial_state(5150, level)
+	var start_x := int(st["x"])
+	t = 0
+	while t < 40 and String(st["seq"]) != "run_cycle":
+		st = PopSim.step(st, PopInput.make(1))
+		t += 1
+	check(String(st["seq"]) == "run_cycle" and int(st["x"]) > start_x,
+		"the kid runs forward and reaches the run cycle (x %d → %d in %d ticks)" % [start_x, int(st["x"]), t])
+	var jx0 := int(st["x"])
+	var dx43 := -1
+	var dx44 := -1
+	var back_dx := -1
+	while t < 80:
+		st = PopSim.step(st, PopInput.make(1, -1))  # jump while running
+		t += 1
+		if int(st["frame"]) == 43 and dx43 < 0:
+			dx43 = int(st["x"]) - jx0
+		if int(st["frame"]) == 44 and dx44 < 0:  # cum-y back to 0 = touchdown
+			dx44 = int(st["x"]) - jx0
+		if String(st["seq"]) == "run_cycle":
+			back_dx = int(st["x"]) - jx0
+			break
+	check(back_dx >= 0 and String(st["seq"]) == "run_cycle",
+		"run jump lands and rejoins the run cycle (x back at +%d)" % back_dx)
+	var hdr5 := _parity_row(md, "5", "frame").slice(1)
+	var want5 := _expand_cells(hdr5, _parity_row(md, "5", "cum x").slice(1))
+	var i43 := _frame_index(hdr5, 43)
+	var i44 := _frame_index(hdr5, 44)
+	var want43 := int(want5[i43]) if i43 >= 0 and i43 < want5.size() else -1
+	var want44 := int(want5[i44]) if i44 >= 0 and i44 < want5.size() else -1
+	check(dx43 == want43 and want43 >= 0,
+		"run-jump x at f43 = %d == PARITY §5 cum-x (%d)" % [dx43, want43])
+	check(dx44 == want44 and want44 >= 0,
+		"run-jump landing distance %d == PARITY §5 cum-x at f44 (%d)" % [dx44, want44])
+	check(dx44 >= 2 * PopTables.TILE_W,
+		"run jump covers the canonical 2-tile gap (%d >= %d units)" % [dx44, 2 * PopTables.TILE_W])
+	var want_end5 := int(want5[want5.size() - 1]) if want5.size() > 0 else -1
+	check(back_dx == want_end5,
+		"run-jump total travel %d == PARITY §5 end (%d)" % [back_dx, want_end5])
+
+	# --- turn and run stop: the measured durations, PARITY §18 -----------
+	# The §18 tick counts cover the animation frames (turn: f45–f52; run stop:
+	# f53…f52). The trailing `jmp(stand)` (`seqtbl.c:449`, `seqtbl.c:627`) does
+	# not end its tick — a frame op returns from play_seq (`seg006.c:682`) — so
+	# the stand frame (act + f15, `seqtbl.c:261-263`) appears one tick later.
+	st = PopSim.initial_state(9, level)
+	for _i: int in PopTables.TURN_TICKS:
+		st = PopSim.step(st, PopInput.make(-1))
+	check(int(st["frame"]) == 52 and int(st["dir"]) == -1,
+		"turn covers the measured %d ticks through f45–f52 (frame %d, dir %d)" % [
+			PopTables.TURN_TICKS, int(st["frame"]), int(st["dir"])])
+	st = PopSim.step(st, PopInput.make(-1))
+	check(String(st["seq"]) == "stand" and int(st["frame"]) == 15,
+		"the trailing jmp(stand) shows the stand frame one tick later (seq %s, frame %d)" % [
+			String(st["seq"]), int(st["frame"])])
+
+	st = PopSim.initial_state(10, level)
+	t = 0
+	while t < 40 and String(st["seq"]) != "run_cycle":
+		st = PopSim.step(st, PopInput.make(1))
+		t += 1
+	check(String(st["seq"]) == "run_cycle", "the kid is running before the run-stop check")
+	for _i: int in PopTables.RUN_STOP_TICKS:
+		st = PopSim.step(st, PopInput.make(0))  # release the direction → run stop
+	check(int(st["frame"]) == 52,
+		"run stop covers the measured %d ticks f53…f52 (frame %d, seq %s)" % [
+			PopTables.RUN_STOP_TICKS, int(st["frame"]), String(st["seq"])])
+	st = PopSim.step(st, PopInput.make(0))
+	check(String(st["seq"]) == "stand" and int(st["frame"]) == 15,
+		"run stop's jmp(stand) reaches the stand frame one tick later (seq %s, frame %d)" % [
+			String(st["seq"]), int(st["frame"])])
+
+	# --- (c) fall thresholds: 3 rows kills, 2 rows costs 1 HP ------------
+	# Impact speed is the previous tick's fall_y accelerated +3 this tick
+	# (fall_accel runs before do_fall inside the landing tick,
+	# `seg006.c:870-894` then `seg005.c:37-111`), capped at 33.
+	for landing_row: int in [1, 2, 3]:
+		var fs: Dictionary = PopSim.initial_state(31337, _hole_level(landing_row))
+		var prev_fy := int(fs["fall_y"])
+		var ft := 0
+		while ft < 150:
+			prev_fy = int(fs["fall_y"])
+			fs = PopSim.step(fs, PopInput.make(1))
+			ft += 1
+			if int(fs["dead"]) != 0 or String(fs["seq"]) in ["soft_land", "med_land", "hard_land"]:
+				break
+		var impact := mini(prev_fy + PopTables.FALL_ACCEL, PopTables.FALL_SPEED_MAX)
+		if landing_row == 1:
+			check(String(fs["seq"]) == "soft_land"
+				and int(fs["hp"]) == PopTables.KID_HP_START
+				and int(fs["y"]) == int(PopTables.Y_LAND[2]),
+				"fall 1 row lands soft: impact %d < %d, no HP lost (hp %d, y %d)" % [
+					impact, PopTables.SOFT_LAND_MAX, int(fs["hp"]), int(fs["y"])])
+		elif landing_row == 2:
+			check(String(fs["seq"]) == "med_land"
+				and int(fs["hp"]) == PopTables.KID_HP_START - 1
+				and int(fs["dead"]) == 0,
+				"fall 2 rows costs exactly 1 HP: impact %d in [%d,%d), hp %d → %d" % [
+					impact, PopTables.MEDIUM_LAND_MIN, PopTables.MEDIUM_LAND_MAX,
+					PopTables.KID_HP_START, int(fs["hp"])])
+		else:
+			# y distinguishes a real touchdown on the row-3 floor (y_land 244,
+			# hard_land's opening dy −2 → 242) from an off-bottom fell_out
+			# (`seg006.c:1321-1326`), which otherwise looks identical.
+			check(int(fs["dead"]) == 1 and int(fs["hp"]) == 0
+				and String(fs["seq"]) == "hard_land"
+				and int(fs["y"]) == int(PopTables.Y_LAND[4]) - 2,
+				"fall 3 rows kills: impact %d >= %d, hp 0, on row 3 (y %d, seq %s)" % [
+					impact, PopTables.DEATH_SPEED, int(fs["y"]), String(fs["seq"])])
+
+	# --- spike contact (disable-to-0xFF, impale frame, x_bump snap) ------
+	var slevel: Array = []
+	for r: int in 4:
+		var cells: Array = []
+		for c: int in 10:
+			cells.append(PopTables.Tile.SPIKES if (r == 0 and c == 3) else PopTables.Tile.FLOOR)
+		slevel.append(cells)
+	var smods := {"0,3": 2}  # harm class 2 = extending (seg007.c:1171-1176)
+	var ss: Dictionary = PopSim.initial_state(7, slevel, smods)
+	var ht := 0
+	while ht < 60 and int(ss["dead"]) == 0:
+		ss = PopSim.step(ss, PopInput.make(1))
+		ht += 1
+	check(int(ss["dead"]) == 1 and int(ss["hp"]) == 0,
+		"running onto extended spikes kills (hp %d, dead %d, at tick %d)" % [int(ss["hp"]), int(ss["dead"]), ht])
+	check(String(ss["seq"]) == "impale" and int(ss["frame"]) == 177,
+		"spike contact plays impale frame 177 (seq %s, frame %d)" % [String(ss["seq"]), int(ss["frame"])])
+	check(int(ss["y"]) == int(PopTables.Y_LAND[1]),
+		"impale snaps y to the row floor (y %d == y_land %d)" % [int(ss["y"]), int(PopTables.Y_LAND[1])])
+	check(int((ss["mods"] as Dictionary).get("0,3", 0)) == 0xFF,
+		"the spiked tile is disabled to 0xFF (got 0x%02X)" % int((ss["mods"] as Dictionary).get("0,3", 0)))
+	check(int(smods["0,3"]) == 2,
+		"the caller's mods dict is untouched — a run cannot leak state")
+	# Control: retracted spikes (mod 0xFF reads back as class 0) must let the
+	# same kid run past the same tile alive.
+	var hs: Dictionary = PopSim.initial_state(7, slevel, {"0,3": 0xFF})
+	ht = 0
+	while ht < 60 and int(hs["x"]) <= 124 and int(hs["dead"]) == 0:
+		hs = PopSim.step(hs, PopInput.make(1))
+		ht += 1
+	check(int(hs["dead"]) == 0 and int(hs["hp"]) == PopTables.KID_HP_START and int(hs["x"]) > 124,
+		"retracted spikes (0xFF) let the kid run past safely (x %d, hp %d)" % [int(hs["x"]), int(hs["hp"])])
+
+	# --- floor-edge snap on landing (seg005.c:128-132) -------------------
+	# Case 1: no floor within 3 units ahead of the foot → pulled back 3
+	# (then soft_land's opening dx +1 moves him again — the net is −3).
+	var elevel := _flat_level()
+	elevel[1][6] = PopTables.Tile.EMPTY
+	var snapped := _crafted_landing(elevel, 141)  # foot 139 → 2 units from edge
+	check(int(snapped["x"]) == 141 - 3 + 1,
+		"edge landing with no floor ahead pulls back 3 units (x 141 → %d)" % int(snapped["x"]))
+	check(int(snapped["y"]) == int(PopTables.Y_LAND[2]) and String(snapped["seq"]) == "soft_land",
+		"landing snaps y to y_land and plays soft land (y %d, seq %s)" % [int(snapped["y"]), String(snapped["seq"])])
+	# Case 2: same hole, but 6 units from the edge → no pull-back.
+	var loose := _crafted_landing(elevel, 137)
+	check(int(loose["x"]) == 137 + 1,
+		"a landing 6 units from the edge is not pulled back (x 137 → %d)" % int(loose["x"]))
+	# Case 3: floor continues past the edge → the second operand fails, no pull-back.
+	var guarded := _crafted_landing(level, 141)
+	check(int(guarded["x"]) == 141 + 1,
+		"floor continuing past the edge disables the pull-back (x 141 → %d)" % int(guarded["x"]))
