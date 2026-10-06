@@ -11,9 +11,11 @@ citation are acceptable in tracked files**. House rules for everything below:
 - "Ours" columns are filled by `scripts/pop/` measurements (plan §8 gates 2–3) and
   stay empty until those gates exist.
 - Observation status: the reference binary now **builds and runs locally**
-  (Session 002, approved); the screenshot cross-check has run (A1.1), but no
-  *gameplay behavior* number below has yet been confirmed by observation — all are
-  source-derived [S] or byte-measured [M]. Timer/behavior observation is next.
+  (Session 002, approved); the screenshot cross-check has run (A1.1), and
+  Session 003 produced the first gameplay observations [O]: **tick rate 12.00 Hz**
+  (§1) and **standing jump ≈38 units ≈2.7 tiles** (§4) — both agree with the
+  [S] values below (method: `study/OBSERVATION.md`, untracked). Every other
+  number remains source-derived [S] or byte-measured [M].
 - Rate basis: **one tick = one logic frame = 1/12 s traversing, 1/10 s with the
   sword drawn** (see §1). Nothing here is per-60 Hz-timer-tick.
 
@@ -31,6 +33,11 @@ citation are acceptable in tracked files**. House rules for everything below:
 Port: SimClock steps at 12 Hz, switches to 10 Hz while the sword is drawn
 (plan A3.1 / §8 P8).
 
+[O] **Observed (Session 003):** motion-frame cadence in two independent captures
+of the running binary = median and mean **5.00 video frames at 60 fps = 83.33 ms
+→ 12.00 Hz** (84 and 25 samples). Matches this section; method in untracked
+`study/OBSERVATION.md`. The 10 Hz sword-drawn rate is not yet observed.
+
 ## 2. Movement semantics
 
 | Rule | Value | Citation |
@@ -39,7 +46,10 @@ Port: SimClock steps at 12 Hz, switches to 10 Hz while the sword is drawn
 | Vertical step | `dy(n)` adds to y; y grows downward; rows are 63 units apart | `seg006.c:579-582`, `data.h:506`, `types.h:1408` |
 | Row change | separate up/down opcodes only; dy never changes row | `seg006.c:570-684` |
 | Unit scale | tile = 14 internal units wide (32 screen px), 63 tall | `types.h:1405`, `types.h:1408` |
-| Floor y per row | `y_land[row+1]` = −8, 55, 118, 181, 254 | `data.h:506` |
+| Floor y per row | `y_land[row+1]` = −8, 55, 118, 181, 244 | `data.h:506` |
+| Tile x positions | −12, 2, 16, 30, 44, 58, 72, 86, 100, 114, 128, 142, 156, 170, 184, 198, 212, 226, 240, 254 | `data.h:513` |
+| First on-screen column | `FIRST_ONSCREEN_COLUMN` = 5 | `types.h:1412` |
+| Non-floor tiles | ids 0, 9, 12, 20, 26, 27, 28, 29 | `seg006.c:933-947` |
 
 ## 3. Run cycle (dx per frame)
 
@@ -52,7 +62,7 @@ Source `seqtbl.c:246-260` (labels: `runcyc1` 251, `runcyc7` 257).
 - Steady cycle: 8 frames, **26 units** [D] ≈ 1.86 tiles/cycle → ≈ **2.8 tiles/s**
   at 12 fps; 10-tile room ≈ 3.6 s [D].
 - Start-up: f1–f4 stationary, then dx 8 (f5), 3 (f6) into the cycle
-  (`seqtbl.c:247-251`). Footsteps on f9/f13 (`seqtbl.c:254,257`).
+  (`seqtbl.c:247-251`). Footsteps on f9/f13 (`seqtbl.c:253,257`).
 - Ours: — pending gate 2.
 
 ## 4. Standing jump (frame/dx/dy stream)
@@ -68,6 +78,10 @@ Source `seqtbl.c:381-400` (`sjland` label at 391).
 - Crouch phase 5 frames × dx2; landing impact frame f27 (knock + footstep,
   `seqtbl.c:393`); horizontal at landing ≈ **36 units ≈ 2.57 tiles** [D].
 - No row change; vertical excursion only 6 units. Ours: — pending gate 2.
+- [O] **Observed (Session 003):** standing jump with Up held 0.35 s moved the kid
+  bbox x 86 → 261 = 175 px; at 64 px/tile and 14 units/tile (≈4.57 px/unit) that
+  is ≈ **38 units ≈ 2.7 tiles** — consistent with the 36-unit landing value within
+  bbox/centroid error. Method in untracked `study/OBSERVATION.md`.
 
 ## 5. Run jump (frame/dx/dy stream)
 
@@ -239,10 +253,169 @@ Every value below is restated from §1–§14 of this file, each of which carrie
 | P7 | Guard duel transcript, seeded, skill 0 | §12–§14 (skill-0 odds 61/0/255); `data.h:841-847`, `seg009.c:245-252` | — | ⬜ |
 | P8 | Tick model 12 fps / 10 fps | §1; `seg003.c:350-372` | — | ⬜ |
 
-## 16. Open items
+## 16. Id maps (our names ↔ reference ids)
 
-- No gameplay number above has been confirmed by *observation* yet (binary now runs;
-  timer/replay-based confirmation is scheduled next session). Treat [S] values as
-  source-measured, not behavior-verified.
+Our enums in `scripts/pop/pop_tables.gd` reuse the reference ids 1:1. The
+backticked anchors are the reference symbols for peer-checking (cited per
+kind: tiles `types.h:113-145`, actions `types.h:394-402`, sounds
+`types.h:702-734`, kid start HP `seg003.c:43` / `data.h:752`); row labels
+are our schema.
+
+| kind | our name | id | reference anchor |
+|---|---|---|---|
+| tile | EMPTY | 0 | `tiles_0_empty` |
+| tile | FLOOR | 1 | `tiles_1_floor` |
+| tile | SPIKES | 2 | `tiles_2_spike` |
+| tile | PILLAR | 3 | `tiles_3_pillar` |
+| tile | GATE | 4 | `tiles_4_gate` |
+| tile | GATE_STUCK | 5 | `tiles_5_stuck` |
+| tile | BUTTON_DROP | 6 | `tiles_6_closer` |
+| tile | DOOR_TOP_FLOOR | 7 | `tiles_7_doortop_with_floor` |
+| tile | PILLAR_BIG_BOTTOM | 8 | `tiles_8_bigpillar_bottom` |
+| tile | PILLAR_BIG_TOP | 9 | `tiles_9_bigpillar_top` |
+| tile | POTION | 10 | `tiles_10_potion` |
+| tile | FLOOR_LOOSE | 11 | `tiles_11_loose` |
+| tile | DOOR_TOP | 12 | `tiles_12_doortop` |
+| tile | MIRROR | 13 | `tiles_13_mirror` |
+| tile | FLOOR_BROKEN | 14 | `tiles_14_debris` |
+| tile | BUTTON_RAISE | 15 | `tiles_15_opener` |
+| tile | EXIT_DOOR_LEFT | 16 | `tiles_16_level_door_left` |
+| tile | EXIT_DOOR_RIGHT | 17 | `tiles_17_level_door_right` |
+| tile | CHOMPER | 18 | `tiles_18_chomper` |
+| tile | TORCH | 19 | `tiles_19_torch` |
+| tile | WALL | 20 | `tiles_20_wall` |
+| tile | SKELETON | 21 | `tiles_21_skeleton` |
+| tile | SWORD | 22 | `tiles_22_sword` |
+| tile | BALCONY_LEFT | 23 | `tiles_23_balcony_left` |
+| tile | BALCONY_RIGHT | 24 | `tiles_24_balcony_right` |
+| tile | LATTICE_PILLAR | 25 | `tiles_25_lattice_pillar` |
+| tile | LATTICE_SUPPORT | 26 | `tiles_26_lattice_down` |
+| tile | LATTICE_SMALL | 27 | `tiles_27_lattice_small` |
+| tile | LATTICE_LEFT | 28 | `tiles_28_lattice_left` |
+| tile | LATTICE_RIGHT | 29 | `tiles_29_lattice_right` |
+| tile | TORCH_DEBRIS | 30 | `tiles_30_torch_with_debris` |
+| action | STAND | 0 | `actions_0_stand` |
+| action | RUN_JUMP | 1 | `actions_1_run_jump` |
+| action | HANG_CLIMB | 2 | `actions_2_hang_climb` |
+| action | IN_MIDAIR | 3 | `actions_3_in_midair` |
+| action | IN_FREEFALL | 4 | `actions_4_in_freefall` |
+| action | BUMPED | 5 | `actions_5_bumped` |
+| action | HANG_STRAIGHT | 6 | `actions_6_hang_straight` |
+| action | TURN | 7 | `actions_7_turn` |
+| sound | MEDIUM_LAND | 16 | `sound_16_medium_land` |
+| sound | SOFT_LAND | 17 | `sound_17_soft_land` |
+| sound | FOOTSTEP | 23 | `sound_23_footstep` |
+| sound | SPIKED | 48 | `sound_48_spiked` |
+| hp | START | 3 | `.start_hitp` |
+
+## 17. Kid frame rows (our schema)
+
+Our re-expression of the reference kid frame table for exactly the frames
+`pop_tables.gd` carries (run/stand/jump/turn/stop frames 1–56, fall/land
+frames 102–119, spiked 177, dead 185). Source `seg006.c:127-369`; flags
+decoded per `types.h:366-370`. `dx`/`dy` are per-frame foot/sprite offsets,
+not motion — foot x for column/edge tests is `dx − weight`
+(`seg006.c:547-550`).
+
+| frame | dx | dy | weight | thin | needs floor | even/odd |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 0 | 4 | 0 | 1 | 1 |
+| 2 | 1 | 0 | 4 | 0 | 1 | 0 |
+| 3 | 3 | 0 | 7 | 0 | 1 | 0 |
+| 4 | 4 | 0 | 8 | 0 | 1 | 0 |
+| 5 | 0 | 0 | 6 | 1 | 1 | 1 |
+| 6 | 0 | 0 | 9 | 0 | 1 | 0 |
+| 7 | 0 | 0 | 10 | 0 | 1 | 0 |
+| 8 | 0 | 0 | 5 | 0 | 1 | 1 |
+| 9 | 0 | 0 | 4 | 0 | 1 | 0 |
+| 10 | 0 | 0 | 7 | 0 | 1 | 0 |
+| 11 | 0 | 0 | 11 | 0 | 1 | 0 |
+| 12 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 13 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 14 | 0 | 0 | 7 | 0 | 1 | 0 |
+| 15 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 16 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 17 | 0 | 0 | 4 | 0 | 1 | 0 |
+| 18 | 0 | 0 | 6 | 0 | 1 | 0 |
+| 19 | 0 | 0 | 8 | 0 | 1 | 0 |
+| 20 | 0 | 0 | 9 | 0 | 0 | 1 |
+| 21 | 0 | 0 | 11 | 0 | 0 | 0 |
+| 22 | 0 | 0 | 11 | 0 | 0 | 1 |
+| 23 | 0 | 0 | 17 | 0 | 0 | 0 |
+| 24 | 0 | 0 | 7 | 0 | 0 | 0 |
+| 25 | 0 | 0 | 5 | 0 | 0 | 0 |
+| 26 | 0 | 0 | 1 | 0 | 1 | 1 |
+| 27 | 0 | 0 | 6 | 0 | 1 | 1 |
+| 28 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 29 | 0 | 0 | 8 | 0 | 1 | 0 |
+| 30 | 0 | 0 | 2 | 0 | 1 | 0 |
+| 31 | 0 | 0 | 2 | 0 | 1 | 0 |
+| 32 | 0 | 0 | 2 | 0 | 1 | 1 |
+| 33 | 0 | 0 | 2 | 0 | 1 | 1 |
+| 34 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 35 | 0 | 0 | 8 | 0 | 1 | 0 |
+| 36 | 0 | 0 | 14 | 0 | 1 | 1 |
+| 37 | 0 | 0 | 1 | 0 | 1 | 1 |
+| 38 | 0 | 0 | 5 | 0 | 1 | 0 |
+| 39 | 0 | 0 | 14 | 0 | 0 | 1 |
+| 40 | 0 | 0 | 11 | 0 | 0 | 0 |
+| 41 | 0 | 0 | 11 | 0 | 0 | 1 |
+| 42 | 0 | 0 | 10 | 0 | 0 | 1 |
+| 43 | 0 | 0 | 1 | 0 | 0 | 0 |
+| 44 | 0 | 0 | 4 | 0 | 1 | 1 |
+| 45 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 46 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 47 | 0 | 0 | 5 | 1 | 0 | 1 |
+| 48 | 0 | 0 | 4 | 1 | 0 | 1 |
+| 49 | 0 | 0 | 6 | 1 | 1 | 0 |
+| 50 | 4 | 0 | 7 | 1 | 1 | 0 |
+| 51 | 3 | 0 | 6 | 1 | 1 | 0 |
+| 52 | 1 | 0 | 4 | 0 | 1 | 0 |
+| 53 | 0 | 0 | 2 | 0 | 1 | 1 |
+| 54 | 0 | 0 | 1 | 0 | 1 | 0 |
+| 55 | 0 | 0 | 2 | 0 | 1 | 0 |
+| 56 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 102 | 0 | 0 | 6 | 0 | 1 | 1 |
+| 103 | 0 | 0 | 6 | 0 | 1 | 0 |
+| 104 | 0 | 0 | 5 | 0 | 1 | 1 |
+| 105 | 0 | 0 | 5 | 0 | 1 | 0 |
+| 106 | 0 | 0 | 2 | 0 | 1 | 1 |
+| 107 | 0 | 0 | 4 | 0 | 1 | 1 |
+| 108 | 0 | 0 | 5 | 0 | 1 | 1 |
+| 109 | 0 | 0 | 6 | 0 | 1 | 0 |
+| 110 | 0 | 0 | 7 | 0 | 1 | 0 |
+| 111 | 0 | 0 | 7 | 0 | 1 | 0 |
+| 112 | 0 | 0 | 9 | 0 | 1 | 0 |
+| 113 | 0 | 0 | 8 | 0 | 1 | 1 |
+| 114 | 0 | 0 | 9 | 0 | 1 | 1 |
+| 115 | 0 | 0 | 9 | 0 | 1 | 0 |
+| 116 | 0 | 0 | 5 | 0 | 1 | 0 |
+| 117 | 2 | 0 | 5 | 0 | 1 | 0 |
+| 118 | 2 | 0 | 5 | 0 | 1 | 1 |
+| 119 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 177 | 0 | 3 | 10 | 0 | 0 | 1 |
+| 185 | 4 | 7 | 9 | 0 | 1 | 0 |
+
+## 18. Turn and run-stop durations
+
+| Behavior | Ticks | Frames | Citation |
+|---|---|---|---|
+| Direction change (turn) | 8 | flip + f45–f52, then stand | `seqtbl.c:440-449` |
+| Run stop | 8 | f53, f54, f55, f56, f49, f50, f51, f52, then stand | `seqtbl.c:619-627` |
+
+Tick counts cover the animation frames only. The trailing `jmp(stand)`
+(`seqtbl.c:449`, `seqtbl.c:627`) is a non-tick op, but it is only reached on
+the *next* tick because a frame op returns from `play_seq` (`seg006.c:682`),
+so the stand frame (act + f15, `seqtbl.c:261-263`) appears one tick after
+these 8 — observed turnaround is 9 ticks. [D]
+
+## 19. Open items
+
+- Two gameplay numbers are now confirmed by *observation* (Session 003): tick
+  rate 12.00 Hz (§1) and standing-jump distance ≈38 units (§4), both matching
+  their [S] values (method: untracked `study/OBSERVATION.md`). Run jump and fall
+  thresholds were **not** observed (input-timing and pit deaths — see
+  OBSERVATION.md §4); treat the remaining [S] values as source-measured, not
+  behavior-verified.
 - Level-1 cross-validation done: `--screenshot-level-extras` map vs byte extraction
   matched on start marker and guard label positions (Session 002; see review.md).
