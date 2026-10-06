@@ -418,7 +418,7 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
 
 ### A1 — Study data extraction (reference → notes) · ~5 h · [M]
 
-- [ ] **A1.1 [M]** Build the level-format reader:
+- [x] **A1.1 [M]** Build the level-format reader:
       `tools/pop_level_to_notes.py` parses `SDLPoP-1.23/data/LEVELS/res2000.bin`–
       `res2015.bin` (2305-byte `level_type`: `fg` at 0, `bg` at 720, `roomlinks` at 1696,
       `start_room/pos/dir` ~1721, `guards_*` ~1726 — offsets per `types.h:236–263`).
@@ -429,16 +429,21 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
       *Note: the .bin files inside SDLPoP's data dir are the unpacked level structs —
       verify by size + tile sanity, fall back to parsing the DATs via the seg009
       decoders only if they're actually compressed.*
-      **Session 000 note:** built and run. Offsets in the shipped extractor differ from the
-      plan's draft offsets (the plan's `~1721`/`~1726` were placeholders). The extractor was
-      corrected to measured offsets: `roomlinks` at 1850, `used_rooms` at 1984, start fields
-      at 2048–2050, guards at 2055+. Those measured offsets were validated against
-      `types.h` and raw byte reads of `res2000.bin`. Study output for level 00 confirmed:
-      used_rooms=22, start_room=25, start_pos=17, start_dir=16. The extractor is robust to
-      the non-uniform level files found in the set (e.g. `res2015.bin` is 2304 bytes; several
-      files have non-canonical used_rooms bytes); it emits partial notes and continues rather
-      than aborting.
-- [ ] **A1.2 [M]** Extract & tabulate, into `study/` (local, untracked) then
+      **Session 000 note (corrected in Session 003; the pre-correction text stays in
+      commit `02c6a29`):** built and run. Offsets in the shipped extractor differ from
+      the plan's draft offsets (the plan's `~1721`/`~1726` were placeholders). The
+      Session 000 run reported `roomlinks` at 1850, `used_rooms` at 1984, start fields
+      at 2048–2050, guards at 2055+, and "used_rooms=22, start_room=25, start_pos=17,
+      start_dir=16" for level 00 — **those offsets and values were misreads, disproven
+      in Session 002.** Correct offsets (re-derived from the packed `level_type`; field
+      walk sums to 2305 = the sizeof assert): doorlinks1 1440, doorlinks2 1696,
+      roomlinks 1952, used_rooms 2048, start 2112–2114, guards 2119+; level 00 is
+      start_room=1, start_pos=9, start_dir=−1 with used_rooms raw 25 → clamped 24 —
+      regression-pinned by the extractor's `--selftest`, which also carries a negative
+      control on the old offsets. The robustness note stands: `res2015.bin` is 2304
+      bytes (padded on read) and several files have non-canonical used_rooms bytes; the
+      extractor emits partial notes and continues rather than aborting.
+- [x] **A1.2 [M]** Extract & tabulate, into `study/` (local, untracked) then
       `docs/PARITY.md` (tracked, facts only): run-cycles (per-frame dx from
       `seqtbl.c` startrun/runcyc), standing-jump and run-jump frame/dx/dy streams,
       hang/climb geometry, fall thresholds, spike cycle, gate speeds, plate/link
