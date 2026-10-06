@@ -26,6 +26,9 @@ func _ready() -> void:
 	_section("Input map")
 	_test_input_map()
 
+	_section("Sim determinism gate (plan 8 gate 1)")
+	_test_sim_determinism()
+
 	_section("Health component")
 	_test_health()
 
@@ -89,6 +92,47 @@ func _finish() -> void:
 
 
 # --- Tests ------------------------------------------------------------------
+
+## Plan §8 gate 1: a fixed seed plus a fixed 600-tick input script must hash
+## equal across two runs, while a second seed must hash different — and a
+## single flipped input bit must also diverge, proving the script is causal
+## rather than the hash simply ignoring it.
+func _test_sim_determinism() -> void:
+	var script: Array = _fixed_input_script(600)
+
+	var state_a: Dictionary = PopSim.run(12345, script)
+	var state_b: Dictionary = PopSim.run(12345, script)
+	check(PopSim.hash_state(state_a) == PopSim.hash_state(state_b),
+		"same seed + same 600-tick script → identical state hash")
+	check(int(state_a["tick"]) == 600, "the script stepped exactly 600 ticks")
+
+	var state_c: Dictionary = PopSim.run(20261006, script)
+	check(PopSim.hash_state(state_a) != PopSim.hash_state(state_c),
+		"same script from a different seed → different state hash")
+
+	# Tick 37 is the first running tick of the pattern (axis held right): flipping
+	# it to the left must not just branch but permanently alter the final state
+	# (a blip that cancels out would leave the end-state hash equal).
+	var altered: Array = script.duplicate()
+	altered[37] = PopInput.make(-1).to_byte()
+	check(PopSim.hash_state(PopSim.run(12345, altered)) != PopSim.hash_state(state_a),
+		"one altered input tick → different state hash (input is causal)")
+
+	var back := PopInput.from_byte(PopInput.make(-1, 1, 1, 5).to_byte())
+	check(back.x == -1 and back.y == 1 and back.shift == 1 and back.special == 5,
+		"pop_input byte round-trip preserves all four fields")
+
+
+## Deterministic (integer arithmetic only) — no RNG may touch the script.
+func _fixed_input_script(ticks: int) -> Array:
+	const NEUTRAL_TURN_RUN: Array = [0, 1, 1, -1, -1, 0]
+	var script: Array = []
+	for i: int in ticks:
+		var x: int = NEUTRAL_TURN_RUN[(i / 37) % 6]
+		var shift: int = 1 if (i / 13) % 4 == 0 else 0
+		script.append(PopInput.make(x, 0, shift).to_byte())
+	return script
+
 
 func _test_input_map() -> void:
 	var missing: Array[String] = []
