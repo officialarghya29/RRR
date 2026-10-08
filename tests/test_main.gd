@@ -44,6 +44,9 @@ func _ready() -> void:
 	_section("A3.3 InputActions → pop_input latch (plan A3.3)")
 	_test_pop_input_latch()
 
+	_section("A3.2 pop_view sandbox (plan A3.2)")
+	_test_pop_view_sandbox()
+
 	_section("Health component")
 	_test_health()
 
@@ -224,6 +227,26 @@ func _test_pop_input_latch() -> void:
 	input.sample(true, true, false, false, false)    # opposite directions cancel
 	check(input.take().x == 0, "opposite directions in one interval cancel")
 	check(InputMap.has_action(&"grab"), "the grab action is registered for the latch")
+
+
+func _test_pop_view_sandbox() -> void:
+	# --- A3.2 sandbox level + view stepping -------------------------------
+	var lvl := PopView.sandbox_level()
+	check(lvl.size() == 3 and (lvl[0] as Array).size() == 12,
+		"pop_lab sandbox is 3 rows × 12 columns")
+	check(int((lvl[0] as Array)[4]) == PopTables.Tile.EMPTY
+			and int((lvl[1] as Array)[8]) == PopTables.Tile.FLOOR,
+		"sandbox has a pit at (row 0, col 4) and a raised ledge at (row 1, col 8)")
+	var view := PopView.new()
+	_sandbox.add_child(view)
+	view.set_process(false)  # keep the test deterministic
+	check(view.clock != null and String(view.clock.curr.get("seq", "")) == "stand",
+		"PopView boots the sim in stand")
+	var before := view.clock.ticks
+	view.frame_step()
+	check(view.clock.ticks == before + 1,
+		"frame-step advances exactly one sim tick (%d → %d)" % [before, view.clock.ticks])
+	view.queue_free()
 
 
 func _test_health() -> void:
