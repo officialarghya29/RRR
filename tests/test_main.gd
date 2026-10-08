@@ -35,6 +35,9 @@ func _ready() -> void:
 	_section("A2.2 step function acceptance (plan A2.2)")
 	_test_a22_acceptance()
 
+	_section("A2.3 hang/climb/grab/crouch/safe-step acceptance (plan A2.3)")
+	_test_a23_acceptance("")
+
 	_section("Health component")
 	_test_health()
 
@@ -98,6 +101,7 @@ func _finish() -> void:
 
 
 # --- Tests ------------------------------------------------------------------
+
 
 ## Plan §8 gate 1: a fixed seed plus a fixed 600-tick input script must hash
 ## equal across two runs, while a second seed must hash different — and a
@@ -534,10 +538,11 @@ func _test_pop_tables_vs_parity() -> void:
 	var nums := _ints(_parity_cell(md, "2", "Unit scale"))
 	check(nums.size() >= 3 and nums[0] == PopTables.TILE_W and nums[2] == PopTables.TILE_H,
 		"TILE_W/TILE_H match PARITY §2")
-	check(_int_array_equal(_ints(_parity_cell(md, "2", "Floor y per row")), PopTables.Y_LAND),
-		"Y_LAND matches PARITY §2")
+	check(_int_array_equal(_ints(_parity_cell(md, "2", "Floor y per row")), PopTables.Y_LAND),		"Y_LAND matches PARITY §2")
 	check(_int_array_equal(_ints(_parity_cell(md, "2", "Tile x positions")), PopTables.X_BUMP),
 		"X_BUMP matches PARITY §2")
+
+
 	check(_parity_int(md, "2", "First on-screen column") == PopTables.FIRST_ONSCREEN_COLUMN,
 		"FIRST_ONSCREEN_COLUMN matches PARITY §2")
 
@@ -852,6 +857,12 @@ func _int_array_equal(a: Array, b: Array) -> bool:
 # spike contact, floor-edge snap). Measured values are printed inside the
 # PASS labels; any mismatch against PARITY.md is a reported gap — constants
 # are never tuned to turn a red check green.
+#
+# A2.2 receives the PARITY.md text from the caller when available and only
+# reloads it from disk when called with an empty string; that lets _ready()
+# first exercise _test_pop_tables_vs_parity (which loads the pop classes
+# through their first successful use of PopTables) before A2.2's live
+# PopSim/PopInput calls need the class_name references to resolve.
 
 
 ## A wide flat floor (4 rows x 32 cols of FLOOR). The determinism script
@@ -925,8 +936,77 @@ func _frame_index(header: Array, frame: int) -> int:
 	return -1
 
 
-func _test_a22_acceptance() -> void:
-	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+## A2.3 scenario helpers (sim-level geometry, not PARITY constants).
+## These exist only to make the A2.3 behavioral tests readable; every PARITY
+## value used in the A2.3 assertions is taken from PARITY.md and cited there.
+
+## 1-tile pit at row 0..2 with a single floor under the lip at columns 0..3.
+## The kid starts at the lip, row 0, so walking forward falls through the pit
+## and lands on the floor at `landing_row` (1 row = soft, 2 = medium, 3 = death).
+func _pit_level(pit_width: int, landing_row: int) -> Array:
+	var level: Array = []
+	for r: int in 4:
+		var cells: Array = []
+		for c: int in 10:
+			if r == 0 and c < 5 + pit_width:
+				cells.append(PopTables.Tile.FLOOR)
+			elif r >= landing_row:
+				cells.append(PopTables.Tile.FLOOR)
+			else:
+				cells.append(PopTables.Tile.EMPTY)
+		level.append(cells)
+	return level
+
+
+## Cliff-edge hang set-up: row 0 lip at columns 0..4, floor at `landing_row`
+## below; the kid hangs at row 0 just left of the lip so a hang-release
+## (Shift released) drops toward the floor at `landing_row`.
+func _hang_lip_level(lip_cols: int, landing_row: int) -> Array:
+	var level: Array = []
+	for r: int in 4:
+		var cells: Array = []
+		for c: int in 10:
+			if r == 0 and c < lip_cols:
+				cells.append(PopTables.Tile.FLOOR)
+			elif r >= landing_row:
+				cells.append(PopTables.Tile.FLOOR)
+			else:
+				cells.append(PopTables.Tile.EMPTY)
+		level.append(cells)
+	return level
+
+
+## Place the kid at the lip of a hang level, mid-air above the lip so a
+## falling grab can fire when Shift is held and a grabbable tile exists
+## ahead-above. `row=0`, `y=Y_LAND[1]`, facing right.
+func _setup_hang_at_lip(st: Dictionary, level: Array, lip_x: int) -> Dictionary:
+	st["row"] = 0
+	st["y"] = int(PopTables.Y_LAND[1])
+	st["x"] = lip_x
+	st["seq"] = "hang"
+	st["frame"] = 91
+	st["action"] = PopTables.Action.HANG_CLIMB
+	st["tiles"] = level
+	return st
+
+
+## Place the kid standing at the edge of a floor so a safe_step probe can
+## walk toward the empty space and exercise edge distance behavior.
+func _setup_stand_at_edge(st: Dictionary, level: Array, x: int, dir: int) -> Dictionary:
+	st["row"] = 1
+	st["y"] = int(PopTables.Y_LAND[2])
+	st["x"] = x
+	st["dir"] = dir
+	st["seq"] = "stand"
+	st["frame"] = 15
+	st["action"] = PopTables.Action.STAND
+	st["tiles"] = level
+	return st
+
+
+func _test_a22_acceptance(md: String = "") -> void:
+	if md.is_empty():
+		md = FileAccess.get_file_as_string("res://docs/PARITY.md")
 	check(md.length() > 0, "docs/PARITY.md is readable for the A2.2 cross-checks")
 	if md.is_empty():
 		return
@@ -942,6 +1022,29 @@ func _test_a22_acceptance() -> void:
 	print("  MEAS 400-tick flat-floor run ends: x=%d hp=%d dead=%d row=%d seq=%s" % [
 		int(run1["x"]), int(run1["hp"]), int(run1["dead"]),
 		int(run1["row"]), String(run1["seq"])])
+	# (c0) PARITY-derived fall thresholds as read by the A2.2 landing gates.
+	var soft_max_a22 := _parity_int(md, "7", "Soft land", 1)
+	var medium_nums_a22: Array = _ints(_parity_cell(md, "7", "Medium land"))
+	var medium_min_a22: int = int(medium_nums_a22[0]) if medium_nums_a22.size() > 0 else _MISSING_PARITY_VALUE
+	var medium_max_a22: int = int(medium_nums_a22[1]) if medium_nums_a22.size() > 1 else _MISSING_PARITY_VALUE
+	var death_min_a22 := _parity_int(md, "7", "Death", 1)
+	check(int(soft_max_a22) == 22,
+		"A2.2 reads PARITY §7 soft-land threshold <22 (got %d)" % int(soft_max_a22))
+	check(int(medium_min_a22) == 22 and int(medium_max_a22) == 33,
+		"A2.2 reads PARITY §7 medium-land window 22 ≤ speed < 33 (got %d–%d)" % [int(medium_min_a22), int(medium_max_a22)])
+	check(int(death_min_a22) == 33,
+		"A2.2 reads PARITY §7 death threshold ≥33 (got %d)" % int(death_min_a22))
+	# normalize the PARITY thresholds onto the table constants used by the
+	# landing-loop gates below, so any PARITY-vs-pop_tables drift is surfaced
+	# as its own check rather than silently tainting a behavioral assertion.
+	check(PopTables.SOFT_LAND_MAX == int(soft_max_a22),
+		"A2.2 normalizes PARITY §7 soft-land onto PopTables.SOFT_LAND_MAX (%d == %d)" % [PopTables.SOFT_LAND_MAX, int(soft_max_a22)])
+	check(PopTables.MEDIUM_LAND_MIN == int(medium_min_a22) and PopTables.MEDIUM_LAND_MAX == int(medium_max_a22),
+		"A2.2 normalizes PARITY §7 medium-land onto PopTables (%d–%d == %d–%d)" % [
+			PopTables.MEDIUM_LAND_MIN, PopTables.MEDIUM_LAND_MAX,
+			int(medium_min_a22), int(medium_max_a22)])
+	check(PopTables.DEATH_SPEED == int(death_min_a22),
+		"A2.2 normalizes PARITY §7 death onto PopTables.DEATH_SPEED (%d == %d)" % [PopTables.DEATH_SPEED, int(death_min_a22)])
 
 	# --- (b1) standing jump: 1-tile gap, cross-checked vs PARITY §4 -----
 	var st: Dictionary = PopSim.initial_state(4242, level)
@@ -950,7 +1053,7 @@ func _test_a22_acceptance() -> void:
 	var total_dx := -1
 	var t := 0
 	while t < 60:
-		st = PopSim.step(st, PopInput.make(0, -1))  # hold jump from stand
+		st = PopSim.step(st, PopInput.make(1, -1))  # forward+up: standing jump (seg005.c:422-424)
 		t += 1
 		if int(st["frame"]) == 27 and land_dx < 0:  # landing frame, PARITY §4
 			land_dx = int(st["x"]) - x0
@@ -970,6 +1073,19 @@ func _test_a22_acceptance() -> void:
 	var want_end4 := int(want4[want4.size() - 1]) if want4.size() > 0 else -1
 	check(total_dx == want_end4,
 		"standing-jump total travel %d == PARITY §4 end (%d)" % [total_dx, want_end4])
+
+	# --- (b1b) standing-jump trigger mapping: forward+Up vs plain Up ---------
+	# Reference bind: standing jump = up+forward (seg005.c:422-424,
+	# seg005.c:522-524). Plain Up from stand does NOT start stand_jump;
+	# it routes to the jump-up / hang family (gaps_005.c:428-431).
+	var tj: Dictionary = PopSim.initial_state(4242, level)
+	var tj0_seq := String(tj["seq"])
+	var tj_fw: Dictionary = PopSim.step(tj.duplicate(), PopInput.make(1, -1))
+	var tj_pu: Dictionary = PopSim.step(tj.duplicate(), PopInput.make(0, -1))
+	check(String(tj_fw["seq"]) == "stand_jump",
+		"forward+Up from stand starts stand_jump (got %s)" % String(tj_fw["seq"]))
+	check(String(tj_pu["seq"]) != "stand_jump",
+		"plain Up from stand does NOT start stand_jump (got %s)" % String(tj_pu["seq"]))
 
 	# --- (b2) run jump: 2-tile gap, cross-checked vs PARITY §5 -----------
 	st = PopSim.initial_state(5150, level)
@@ -1063,14 +1179,14 @@ func _test_a22_acceptance() -> void:
 			check(String(fs["seq"]) == "soft_land"
 				and int(fs["hp"]) == PopTables.KID_HP_START
 				and int(fs["y"]) == int(PopTables.Y_LAND[2]),
-				"fall 1 row lands soft: impact %d < %d, no HP lost (hp %d, y %d)" % [
-					impact, PopTables.SOFT_LAND_MAX, int(fs["hp"]), int(fs["y"])])
+				"fall 1 row lands soft: impact %d < %d (A2.2→PopTables.SOFT_LAND_MAX), no HP lost (hp %d, y %d)" % [
+					impact, int(soft_max_a22), int(fs["hp"]), int(fs["y"])])
 		elif landing_row == 2:
 			check(String(fs["seq"]) == "med_land"
 				and int(fs["hp"]) == PopTables.KID_HP_START - 1
 				and int(fs["dead"]) == 0,
-				"fall 2 rows costs exactly 1 HP: impact %d in [%d,%d), hp %d → %d" % [
-					impact, PopTables.MEDIUM_LAND_MIN, PopTables.MEDIUM_LAND_MAX,
+				"fall 2 rows costs exactly 1 HP: impact %d in [%d,%d) (A2.2→PopTables.MEDIUM_LAND), hp %d → %d" % [
+					impact, int(medium_min_a22), int(medium_max_a22),
 					PopTables.KID_HP_START, int(fs["hp"])])
 		else:
 			# y distinguishes a real touchdown on the row-3 floor (y_land 244,
@@ -1079,8 +1195,8 @@ func _test_a22_acceptance() -> void:
 			check(int(fs["dead"]) == 1 and int(fs["hp"]) == 0
 				and String(fs["seq"]) == "hard_land"
 				and int(fs["y"]) == int(PopTables.Y_LAND[4]) - 2,
-				"fall 3 rows kills: impact %d >= %d, hp 0, on row 3 (y %d, seq %s)" % [
-					impact, PopTables.DEATH_SPEED, int(fs["y"]), String(fs["seq"])])
+				"fall 3 rows kills: impact %d >= %d (A2.2→PopTables.DEATH_SPEED), hp 0, on row 3 (y %d, seq %s)" % [
+					impact, int(death_min_a22), int(fs["y"]), String(fs["seq"])])
 
 	# --- spike contact (disable-to-0xFF, impale frame, x_bump snap) ------
 	var slevel: Array = []
@@ -1133,3 +1249,176 @@ func _test_a22_acceptance() -> void:
 	var guarded := _crafted_landing(level, 141)
 	check(int(guarded["x"]) == 141 + 1,
 		"floor continuing past the edge disables the pull-back (x 141 → %d)" % int(guarded["x"]))
+
+
+# --- A2.3 acceptance: hang / climb / grab / crouch / safe-step (plan A2.3)
+## Unlike A2.2, A2.3 cannot be scoped to a single deterministic flat-floor
+## duration. Hang, grab, climb, crouch, and safe-step are geometry- and
+## rule-sensitive behaviors whose acceptance is the behavioral contract:
+## the pop sim / pop_input stack must land on the documented sequence,
+## frame, and timer values on the explicit setups below. Scope A re-derives
+## the §6/§7 stream lengths and thresholds through the same mini play_seq
+## interpreter used by A2.1 so a broken sequence table fails the section;
+## scope B asserts the live PopSim behavior on crafted levels.
+##
+func _test_a23_acceptance(md: String) -> void:
+	if md.is_empty():
+		md = FileAccess.get_file_as_string("res://docs/PARITY.md")
+	print("  A2.3 acceptance (hang/climb/grab/crouch/safe-step) — sim behavior, not PARITY constants")
+	# scope A: §6/§7 frame-count and threshold re-derivation via the mini
+	# play_seq interpreter (seqtbl.c semantics, not the real PopSim step).
+	var climb_up_ticks := _seq_ticks("climb_up", 18)
+	check(climb_up_ticks.size() == 18,
+		"climb_up runs 18 ticks (PARITY §6: f135–f140 + jmp(stand) in 18 frames; seqtbl.c:590-595)")
+	# The stream ends by jumping into `stand`, whose opening frame is the
+	# SEQUENCES value (f15). Assert against that rather than a hardcoded
+	# number so a stand-table edit is caught here (PARITY §6: “f141 … stand”).
+	var stand_open: int = int(PopTables.SEQUENCES["stand"][1][1])
+	if climb_up_ticks.size() >= 18:
+		check(int(climb_up_ticks[17]["frame"]) == stand_open,
+			"climb_up stream ends on the stand opening frame f%d (PARITY §6: f135–f140 … stand)" % stand_open)
+
+	var climb_down_ticks := _seq_ticks("climb_down", 10)
+	check(climb_down_ticks.size() == 10,
+		"climb_down runs 10 ticks to hang sway (PARITY §6: 6 frames, then dx−5, dy+63, row+1 → hang sway in 10 frames; seqtbl.c:581-588)")
+	if climb_down_ticks.size() == 10:
+		check(int(climb_down_ticks[9]["frame"]) == 91,
+			"climb_down ends on f91 hang sway (PARITY §6)")
+
+	var climb_fail_ticks := _seq_ticks("climb_fail", 11)
+	check(climb_fail_ticks.size() == 11,
+		"climb_fail runs 11 ticks (PARITY §6: 11 frames, dx−7 → hangdrop; seqtbl.c:575-579)")
+	if climb_fail_ticks.size() == 11:
+		check(int(climb_fail_ticks[10]["frame"]) == 81,
+			"climb_fail ends on hangdrop f81 (PARITY §6)")
+
+	var hangdrop_ticks := _seq_ticks("hang_drop", 5)
+	check(hangdrop_ticks.size() == 5,
+		"hang_drop runs 5 ticks (PARITY §6: f81–f85 then dx+3 → stand; seqtbl.c:602-607)")
+	if hangdrop_ticks.size() == 5:
+		check(int(hangdrop_ticks[4]["frame"]) == 85,
+			"hang_drop ends on f85 (PARITY §6)")
+
+	var soft_max := _parity_int(md, "7", "Soft land", 1)
+	var medium_nums: Array = _ints(_parity_cell(md, "7", "Medium land"))
+	var medium_min: int = int(medium_nums[0]) if medium_nums.size() > 0 else _MISSING_PARITY_VALUE
+	var medium_max: int = int(medium_nums[1]) if medium_nums.size() > 1 else _MISSING_PARITY_VALUE
+	var death_min := _parity_int(md, "7", "Death", 1)
+	check(int(soft_max) == 22,
+		"PARITY §7 soft-land threshold <22 (got %d)" % int(soft_max))
+	check(int(medium_min) == 22 and int(medium_max) == 33,
+		"PARITY §7 medium-land window 22 ≤ speed < 33 (got %d–%d)" % [int(medium_min), int(medium_max)])
+	check(int(death_min) == 33,
+		"PARITY §7 death threshold ≥33 (got %d)" % int(death_min))
+
+	# === Scope B: scenario behavior (explicit levels; sim behavior) =======
+	# Scenario geometry below is sim-level setup, NOT a PARITY constant.
+	# Only the cited PARITY numbers above are PARITY-derived.
+
+	# pit climb: walk into a 1-tile pit with scripted inputs.
+	var pit_level := _pit_level(1, 3)   # 1-tile pit, floor at row 3
+	var pit: Dictionary = PopSim.initial_state(777, pit_level)
+	pit["dir"] = 1
+	pit["x"] = 60
+	pit["seq"] = "stand"
+	pit["frame"] = 15
+	pit["action"] = PopTables.Action.STAND
+	var pit_ticks: int = 0
+	while pit_ticks < 40 and String(pit["seq"]) == "stand":
+		pit = PopSim.step(pit, PopInput.make(1, 0, 0))
+		pit_ticks += 1
+	check(String(pit["seq"]) != "stand",
+		"walking into a 1-tile pit leaves stand (sim behavior, not a PARITY constant)")
+	check(int(pit["row"]) > 0,
+		"pit walk drops the kid to row %d (sim behavior, not a PARITY constant)" % int(pit["row"]))
+
+	# mid-air grab from a fall: success case.
+	var grab_level := _hang_lip_level(5, 3)   # lip cols 0..4, floor at row 3
+	var grab_state := _setup_hang_at_lip(PopSim.initial_state(1111, grab_level), grab_level, 133)
+	grab_state["dir"] = -1
+	grab_state["row"] = 1
+	grab_state["y"] = 90
+	grab_state["seq"] = "free_fall"
+	grab_state["frame"] = 106
+	grab_state["action"] = PopTables.Action.IN_FREEFALL
+	grab_state["fall_y"] = 10
+	grab_state["fall_x"] = 0
+	var gt: int = 0
+	var grabbed: bool = false
+	while gt < 60 and not grabbed:
+		grab_state = PopSim.step(grab_state, PopInput.make(0, 0, 1))
+		gt += 1
+		if int(grab_state["grab_timer"]) == PopTables.GRAB_TIMER:
+			grabbed = true
+	check(grabbed,
+		"mid-air grab fires on a fall with Shift held and a grabbable ledge ahead-above (sim behavior, not a PARITY constant)")
+	check(int(grab_state["grab_timer"]) == PopTables.GRAB_TIMER,
+		"successful mid-air grab sets grab_timer = %d (PARITY §6: grab_timer = 12)" % int(grab_state["grab_timer"]))
+	check(String(grab_state["seq"]) == "grab_hang",
+		"successful mid-air grab enters grab_hang (sim behavior, not a PARITY constant)")
+
+	# mid-air grab must NOT fire without Shift.
+	var nograb_state := _setup_hang_at_lip(PopSim.initial_state(2222, grab_level), grab_level, 133)
+	nograb_state["dir"] = -1
+	nograb_state["row"] = 1
+	nograb_state["y"] = 90
+	nograb_state["seq"] = "free_fall"
+	nograb_state["frame"] = 106
+	nograb_state["action"] = PopTables.Action.IN_FREEFALL
+	nograb_state["fall_y"] = 10
+	nograb_state["fall_x"] = 0
+	gt = 0
+	var should_not_grab: bool = true
+	while gt < 40 and should_not_grab:
+		nograb_state = PopSim.step(nograb_state, PopInput.make(0, 0, 0))
+		gt += 1
+		if int(nograb_state["grab_timer"]) == PopTables.GRAB_TIMER:
+			should_not_grab = false
+	check(should_not_grab,
+		"mid-air grab does NOT fire without Shift held (sim behavior, not a PARITY constant)")
+	check(String(nograb_state["seq"]) != "grab_hang",
+		"no-Shift fall does not enter grab_hang (sim behavior, not a PARITY constant)")
+
+	# hang release / drop.
+	var release_state := _setup_hang_at_lip(PopSim.initial_state(3333, grab_level), grab_level, 60)
+	gt = 0
+	while gt < 20 and String(release_state["seq"]) == "hang":
+		release_state = PopSim.step(release_state, PopInput.make(0, 0, 0))
+		gt += 1
+	check(String(release_state["seq"]) == "hang_drop",
+		"idle hang release ends in hang_drop (sim behavior, not a PARITY constant)")
+	check(int(release_state["frame"]) == 81,
+		"hang_drop starts on f81 (PARITY §6: hangdrop f81–f85; seqtbl.c:602-607)")
+
+	# climb up / climb down observable sequence choices.
+	var climb_state := _setup_hang_at_lip(PopSim.initial_state(4444, grab_level), grab_level, 60)
+	while int(climb_state["grab_timer"]) > 0:
+		climb_state = PopSim.step(climb_state, PopInput.make(0, 0, 0))
+	climb_state = PopSim.step(climb_state, PopInput.make(0, -1, 0))
+	check(String(climb_state["seq"]) == "climb_up",
+		"Up at grab_timer 0 routes to climb_up (sim behavior, not a PARITY constant)")
+	check(int(climb_state["frame"]) == 135,
+		"climb_up starts on f135 (PARITY §6: 6 frames f135–f140; seqtbl.c:590-600)")
+
+	# crouch.
+	var crouch_state := PopSim.initial_state(5555, _flat_level())
+	crouch_state["dir"] = 1
+	crouch_state = PopSim.step(crouch_state, PopInput.make(0, 1, 0))
+	check(String(crouch_state["seq"]) == "crouch",
+		"Down from stand enters crouch (sim behavior, not a PARITY constant)")
+	check(int(crouch_state["frame"]) == 107,
+		"crouch starts on f107 (PARITY §6 context: stoop head; seqtbl.c:857-861)")
+
+	# safe-step edge probing.
+	# Floor ahead → the plain 11-unit safe step (seq_39). The flat floor
+	# guarantees a standable tile ahead of the kid's column, so the
+	# floor-ahead branch — not a d-unit edge step — is exercised.
+	var edge_level := _flat_level()
+	var edge_state := _setup_stand_at_edge(PopSim.initial_state(6666, edge_level), edge_level, 75, 1)
+	edge_state = PopSim.step(edge_state, PopInput.make(1, 0, 1))
+	check(String(edge_state["seq"]) == "safe_step_11",
+		"shift+forward with floor ahead enters safe_step_11 (sim behavior, not a PARITY constant)")
+	check(int(edge_state["frame"]) == 121,
+		"safe_step_11 starts on f121 (PARITY §6 context: step frames; seqtbl.c:765-774)")
+	print("  GAP: A2.3 scenario geometry is sim-level, not PARITY-derived (pit/grab/hang/climb/crouch/safe-step helpers above).")
+	print("  GAP: A2.3 safe-step-on-edge-at-distance-0 is unmodeled (A2.3-optional; seg005.c:595-605).")

@@ -1,6 +1,6 @@
 class_name PopSim
 extends RefCounted
-## Plan A2.2 — pure integer step function for the pop sim core.
+## Plan A2.2/A2.3 — pure integer step function for the pop sim core.
 ##
 ## The skeleton's flat stepping is gone: motion now comes from re-authored
 ## sequence tables in `pop_tables.gd` executed by a mini play_seq interpreter.
@@ -12,26 +12,34 @@ extends RefCounted
 ## every tick (`seg006.c:870-894`); landing resolves against y_land[row+1]
 ## with the soft/medium/death windows (`seg005.c:114-217`).
 ##
+## A2.3 added the Shift branch of control_standing (grab/safe-step/down),
+## jump-up-from-stand, down-pressed crouch/climb-down, the hang family
+## (grab-hang, hang sway, hang-straight, climb up/down/failed) with the
+## reference's tile-column pin (`seg006.c:1187-1190`), and mid-air grab.
+##
 ## No engine API, no floats, no wall clock: step(state, input) is a function
 ## of its arguments alone — plan §8 gate 1 checks that with a double-run hash.
 ## The level lives in state["tiles"]/state["mods"] (static data; not hashed).
+## `input_shift` is a same-tick helper (set in step(), erased at return),
+## never hashed.
 ##
 ## Known simplifications vs the reference (reported, not tuned away): no
-## wall bump/collision (A2.3), no hang/grab (A2.3), no chompers/plates/gates
-## (A4.x), feather-fall branch omitted (A4.5), crouch does not stand up on
-## input (reference control does; not in A2.2 scope), pressing back while
-## running plays our standing `turn` instead of the reference `runturn`
-## (`seqtbl.c:454`), and check_spike_below / check_knock side effects are not
-## modeled.
-
-const STATE_KEYS: Array[String] = [
-	"tick", "x", "y", "row", "dir", "seq", "op", "frame",
-	"action", "hp", "dead", "fall_y", "fall_x", "rng",
-]
+## wall bump/collision when walking or jumping forward; no chompers/plates/
+## gates (A4.x); feather-fall branch omitted (A4.5); crouch-hop and crouch
+## picks (Shift+item) not modeled (A4.x); plain-Up jump-up hits no ceiling
+## and carries no hang-degrade timer; pressing back while running plays our
+## standing `turn` instead of the reference `runturn` (`seqtbl.c:454`);
+## the m7 (−7) column probe of `determine_col` (`seg006.c:014D`) is applied
+## to the hang/climb frames only — the calibrated A2.2 probes keep the plain
+## left-edge column (`get_tile_div_mod`, `seg006.c:743-746`) until the m7
+## migration is measured (plan gate 2); safe-step-on-edge-at-distance-0
+## (`seg005.c:595-605` seq_44 path) is A2.3-optional and absent; check_knock,
+## check_spike_below side effects are not modeled.
+const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col"]
 
 ## Measured: 8 ticks (flip + frames 45–52 → stand), docs/PARITY.md §18,
 ## `seqtbl.c:440-449`.
-const TURN_TICKS: int = PopTables.TURN_TICKS
+const TURN_TICKS: int = 8
 ## Measured floor y for row 0 = `y_land[row+1]`, docs/PARITY.md §2 (`data.h:506`).
 const STAND_Y: int = 55
 ## Start x: mid-tile so the foot (x − weight 3 for frame 15) sits inside
@@ -59,6 +67,8 @@ static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}) -
 		"dead": 0,
 		"fall_y": 0,
 		"fall_x": 0,
+		"grab_timer": 0,
+		"grab_col": 0,
 		"rng": PopRng.normalize_seed(seed),
 		# Level data (static): tiles[row][col] = PopTables.Tile id, rows 0..3,
 		# cols 0..9; out of range reads as EMPTY. mods is copied so one run's
@@ -77,6 +87,9 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 	# The generator advances every tick so the gate can observe seed
 	# sensitivity; consumption becomes demand-driven with guard AI (A4.x).
 	s["rng"] = PopRng.step_state(int(s["rng"]))
+	# The tick's input is visible to helpers that need it (grab rule);
+	# not part of the hashed state (input is an argument, not state).
+	s["input_shift"] = int(input.shift)
 
 	_control(s, input)   # reference: play_kid / control_kid (seg000.c:1183)
 	_advance(s)          # reference: play_seq (seg006.c:569-684)
@@ -84,6 +97,7 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 	if int(s["dead"]) == 0:
 		_floor_checks(s)  # reference: check_action → do_fall/check_on_floor/start_fall/land
 		_spike_check(s)   # reference: check_spiked (seg006.c:950-964)
+	s.erase("input_shift")  # helpers consumed it; never leaks into the returned state
 	return s
 
 
@@ -95,36 +109,119 @@ static func run(seed: int, script: Array, tiles: Array = [], mods: Dictionary = 
 	return state
 
 
-# --- Input → sequence selection (our control model) ------------------------
-# Sequences the reference makes input-active are stand and the run cycle;
-# jumps, turns, stops, falls and lands play out locked (reference control_kid
-# keys off frames the same way; our mapping is original code, plan §4.6).
+# --- Input → sequence selection (our control model, re-derived from the
+# reference control functions as cited per branch; plan §4.6). The A2.2
+# up-from-stand standing jump is deliberately gone: the reference binds
+# standing jump to up+forward (seg005.c:422-424, seg005.c:522-524) and
+# routes plain Up to the jump-up/hang family.
 static func _control(s: Dictionary, input: PopInput) -> void:
 	if int(s["dead"]) != 0:
 		return
+	# grab_timer counts down on every live tick (seg006.c:1387-1388).
+	if int(s["grab_timer"]) > 0:
+		s["grab_timer"] = int(s["grab_timer"]) - 1
 	var dir: int = int(s["dir"])
 	match String(s["seq"]):
 		"stand":
-			if input.y == -1:
-				_start_seq(s, "stand_jump")
-			elif input.x == dir:
-				_start_seq(s, "startrun")
-			elif input.x == -dir and input.x != 0:
-				_start_seq(s, "turn")
+			# control_standing (seg005.c:338-433): Shift branch first, then
+			# the plain-movement chain. Keyboard standing jump = up+forward
+			# (seg005.c:422-424); plain up = jump-up family (up_pressed,
+			# seg005.c:482-524); down = crouch/climb-down (down_pressed,
+			# seg005.c:461-495); shift+forward = safe step (`seg005.c:592-605`).
+			if input.shift == 1:
+				if input.x == -dir and input.x != 0:
+					_start_seq(s, "turn")             # shift+back: turn (seg005.c:376-380)
+				elif input.y == -1:
+					_jump_up_from_stand(s)            # shift+up: up_pressed (seg005.c:379-382)
+				elif input.y == 1:
+					_down_pressed(s)                  # shift+down: down_pressed (seg005.c:383-385)
+				elif input.x == dir and input.x != 0:
+					_safe_step(s)                     # shift+forward: safe step (`seg005.c:592-605`)
+				# shift alone: get-item pickup — A4.x, unmodeled
+			else:
+				if input.x == dir and input.x != 0:
+					if input.y == -1:
+						_start_seq(s, "stand_jump")   # fwd+up: standing jump (seg005.c:422-424)
+					else:
+						_start_seq(s, "startrun")     # forward: start run (seg005.c:421-424)
+				elif input.x == -dir and input.x != 0:
+					_start_seq(s, "turn")             # backward: turn (seg005.c:425-427)
+				elif input.y == -1:
+					_jump_up_from_stand(s)            # plain up: jump-up family (seg005.c:428-431)
+				elif input.y == 1:
+					_down_pressed(s)                  # plain down: crouch (seg005.c:432-433)
 		"startrun", "run_cycle":
+			# control_running (`seg005.c:569-584`) in branch order; Shift+
+			# forward steps safely even mid-run (`seg005.c:592-605`).
 			if input.y == -1:
 				_start_seq(s, "run_jump")
+			elif input.shift == 1 and input.x == dir and input.x != 0:
+				_safe_step(s)
 			elif input.x == 0:
 				_start_seq(s, "run_stop")
 			elif input.x == -dir:
 				_start_seq(s, "turn")
+		"crouch":
+			pass  # stoop head is locked; the stand-up control fires at f109 only
+			      # (seg005.c:285-287 dispatches control_crouched on the frame)
+		"crouch_cycle":
+			if input.y != 1:
+				_start_seq(s, "stand_up")         # control_crouched: down released → seq_49 (seg005.c:313-332)
+		"grab_hang", "hang", "hang_cycle", "hang_straight":
+			_hang_control(s, input)
 		_:
-			pass  # locked sequence (jump/turn/stop/fall/land/crouch)
+			pass  # locked sequence (jump/turn/stop/fall/land/climb/step)
 
 
 static func _start_seq(s: Dictionary, seq_name: String) -> void:
 	s["seq"] = seq_name
 	s["op"] = 0
+
+
+## The hang-family control, extracted from the `_control` match so the
+## probe precomputation stays out of the pattern block. Mirrors
+## control_hanging (`seg005.c:768-820`) in its branch order: Up with
+## grab_timer 0 → can_climb_up (`seg005.c:786-830`: open air above the hands
+## → the climb; floor/wall above the lip → the climbfail jump). Shift with
+## the char tile a wall → hang straight (776-796); Shift with open air
+## above the hands, or Shift released → hang_fall (798-808, 810-854).
+## Tile probes read the pin state so entry-derived columns hold
+## (`seg006.c:1187-1190`).
+static func _hang_control(s: Dictionary, input: PopInput) -> void:
+	# `grab_col` carries the entry pin as col+1; 0 = not pinned (climb-down
+	# hangs re-derive the column per tick, the m7 climbing column).
+	var probe_col: int = 0
+	if int(s["grab_col"]) > 0:
+		probe_col = int(s["grab_col"]) - 1
+	else:
+		probe_col = _col_of(_m7_x(_foot_x(s), int(s["dir"])))
+	var at: int = _tile(s, int(s["row"]), probe_col)
+	var above: int = _tile(s, int(s["row"]) - 1, probe_col)
+	if int(s["grab_timer"]) == 0 and input.y == -1:
+		s["grab_col"] = 0              # the pin ends with the hang
+		_start_seq(s, "climb_up")      # control_hanging: Up with timer 0 → can_climb_up
+		                               # (seg005.c:774-780); can_climb_up (seg005.c:812-830)
+		                               # always climbs — the reference climbfail label is
+		                               # unreachable (nothing jumps to it; check_bumped
+		                               # excludes the climb frames 135–148, seg004.c:151-157)
+	elif input.y == 1 and input.shift == 1:
+		# Down+Shift at a cliff edge: step forward 5 and climb down
+		# (seg005.c:461-495 down_pressed → climb_down when floorless ahead
+		# within 3 units; seg005.c:470 char_dx_forward(5)).
+		var foot_x := _foot_x(s)
+		var ahead_col: int = _col_of(foot_x) + int(s["dir"])
+		if not _is_floor(_tile(s, int(s["row"]), ahead_col)):
+			s["x"] = int(s["x"]) + int(s["dir"]) * 5
+			_start_seq(s, "climb_down")
+		else:
+			_hang_release(s)
+	elif input.shift == 1:
+		if String(s["seq"]) != "hang_straight" and at == PopTables.Tile.WALL:
+			_start_seq(s, "hang_straight")  # hang against a wall (seg005.c:776-796)
+		elif not _is_floor(above):
+			_hang_release(s)            # open air above the hands (seg005.c:798-808)
+	else:
+		_hang_release(s)                # Shift released → drop (seg005.c:810-820)
 
 
 # --- Sequence interpreter (reference play_seq semantics) -------------------
@@ -164,8 +261,11 @@ static func _advance(s: Dictionary) -> void:
 				pass  # tile-knock side effect (`seg003.c:478`) — no tiles modeled yet
 			PopTables.Op.DIE:
 				pass  # marker; death is applied by land()/spiked() (reference SEQ_DIE is a nop, `seg006.c:675`)
-			_:
-				pass  # ROW_UP/ROW_DOWN: climb only (A2.3)
+			PopTables.Op.ROW_UP:
+				s["row"] = int(s["row"]) - 1       # climb up carries the kid onto the ledge (SEQ_UP, `seg006.c:675-677`)
+				s["grab_col"] = 0                  # the hang pin ends with the climb
+			PopTables.Op.ROW_DOWN:
+				s["row"] = int(s["row"]) + 1       # climb down descends a row (SEQ_DOWN, `seg006.c:675-677`)
 
 
 # --- Falling physics (reference fall_accel + fall_speed) -------------------
@@ -187,9 +287,10 @@ static func _floor_checks(s: Dictionary) -> void:
 	if action == PopTables.Action.IN_FREEFALL:
 		_do_fall(s)                      # reference check_action → do_fall (`seg006.c:920-921`)
 	elif action == PopTables.Action.IN_MIDAIR:
-		pass                             # grab check is A2.3 (`seg006.c:922-926`)
+		if int(s["frame"]) >= 102 and int(s["frame"]) < 106:
+			_check_grab(s)               # reference check_action → check_grab on fall frames 102–105 (`seg006.c:922-926`)
 	elif action == PopTables.Action.HANG_CLIMB:
-		pass                             # A2.3
+		pass                             # hanging: no floor checks (control drives climb/release)
 	elif action == PopTables.Action.BUMPED or action == PopTables.Action.HANG_STRAIGHT:
 		if int(s["frame"]) == 109:
 			_check_on_floor(s)           # reference checks the crouch frame only (`seg006.c:907-919`)
@@ -197,15 +298,15 @@ static func _floor_checks(s: Dictionary) -> void:
 		_check_on_floor(s)               # STAND / RUN_JUMP / TURN (`seg006.c:927-928`)
 
 
-## Falling: above this row's floor level → keep falling (grab = A2.3);
-## at floor level → land if the tile is floor, else descend one row
-## (`seg005.c:42-109`).
+## Falling: release-react above this row's floor level; at floor level →
+## land if the tile is floor, else descend one row (`seg005.c:42-109`).
 static func _do_fall(s: Dictionary) -> void:
 	if int(s["row"]) > 3:
 		_fell_out(s)
 		return
 	if _floor_y(int(s["row"])) > int(s["y"]):
-		return  # still airborne; reference check_grab lives here (`seg005.c:42-44`)
+		_check_grab(s)  # still airborne — Shift+falling+grabbable tile ahead-above grabs (`seg005.c:42-44`, `seg006.c:1175-1201`)
+		return
 	var col := _col_of(_foot_x(s))
 	if _is_floor(_tile(s, int(s["row"]), col)):
 		_land(s)
@@ -213,15 +314,20 @@ static func _do_fall(s: Dictionary) -> void:
 		s["row"] = int(s["row"]) + 1
 
 
-## Walking frame needs floor and the foot tile is not floor → fall
-## (`seg006.c:1028-1077`); the entry sequence is chosen by the current frame
-## and its first tick plays immediately (`seg006.c:1081-1133`).
+## Walking/upright floor checks: the hang/climb frames probe with the
+## reference determine_col m7 variant (`seg006.c:014D` + `get_tile_div_mod_m7`,
+## subtracts 7): the hanging feet would otherwise falsify a fall over the
+## ledge lip. The plain left-edge probe stays for the calibrated A2.2
+## frames; the m7 migration is noted in the simplification list.
 static func _check_on_floor(s: Dictionary) -> void:
 	var frame: int = int(s["frame"])
 	var row: Dictionary = PopTables.KID_FRAME.get(frame, {})
 	if int(row.get("needs_floor", 0)) == 0:
 		return
-	var col := _col_of(_foot_x(s))
+	var foot_x: int = _foot_x(s)
+	if (frame >= 87 and frame < 100) or (frame >= 135 and frame < 149):
+		foot_x = _m7_x(foot_x, int(s["dir"]))   # determine_col m7 variant (`seg006.c:014D`)
+	var col := _col_of(foot_x)
 	if _is_floor(_tile(s, int(s["row"]), col)):
 		return
 	_start_fall(s, _fall_entry_for(frame))
@@ -334,6 +440,173 @@ static func _fell_out(s: Dictionary) -> void:
 	s["op"] = 0
 
 
+# --- A2.3: grab, hang, climb, crouch, safe-step ----------------------------
+# All values and rules re-derived from the reference with the file:line
+# citations given per rule; no code is copied.
+
+
+## Mid-air grab (`seg006.c:1175-1200`): Shift held, fall speed < 32, alive,
+## and the depth gate `(word)y_land[row + 1] <= (word)(y + 25)` — i.e.
+## `floor_y(row) > y + 25` must be false: only when the kid is at or below
+## a quarter-row distance from the floor line can he catch the ledge lip.
+static func _check_grab(s: Dictionary) -> void:
+	if not (int(s["input_shift"]) == 1 and int(s["fall_y"]) < 32 and int(s["fall_y"]) >= 0):
+		return
+	if _floor_y(int(s["row"])) > int(s["y"]) + 25:
+		return
+	var tile := _grab_target(s)
+	if tile < 0:
+		return
+	_snap_to_grab(s)
+
+
+## The tile ahead-above if grabbable, else −1 (`seg006.c:1267-1271` +
+## `seg006.c:1588-1608`): the probes are get_tile_above_char (the char's
+## column, one row up) for the through tile and get_tile_front_above_char
+## (column in front, one row up) for the target; the through tile must not
+## be a wall or floor, the target must be floor.
+static func _grab_target(s: Dictionary) -> int:
+	var row: int = int(s["row"])
+	var col := _col_of(_foot_x(s))
+	var through := _tile(s, row - 1, col)
+	if through == PopTables.Tile.WALL or _is_floor(through):
+		return -1
+	var target := _tile(s, row - 1, col + int(s["dir"]))
+	if not _is_floor(target):
+		return -1
+	return target
+
+
+## Commit to the grabbed ledge (`seg006.c:1188-1199`): the initial probe
+## (x forward −8) is discarded; the character is carried the rest of the
+## way to the lip edge (`distance_to_edge_weight`), y snaps to the falling
+## row's floor, fall speed resets. `load_fram_det_col()` ran at the probe
+## x, so the hang's tile column is fixed there and stays pinned through the
+## sway — carried as `grab_col` (col+1; 0 = unpinned).
+static func _snap_to_grab(s: Dictionary) -> void:
+	var row: int = int(s["row"])
+	var probe_x: int = _foot_x(s) - 8 * int(s["dir"])   # the check_grab probe
+	s["grab_col"] = _col_of(_m7_x(probe_x, int(s["dir"]))) + 1
+	s["x"] = int(s["x"]) + int(s["dir"]) * _dist_to_edge(s, _foot_x(s))
+	s["y"] = _floor_y(row)
+	s["fall_y"] = 0
+	s["fall_x"] = 0
+	s["grab_timer"] = PopTables.GRAB_TIMER
+	_start_seq(s, "grab_hang")
+	# Reference check_grab calls play_seq() right after seqtbl_offset_char
+	# (`seg006.c:1196-1197`) — grab_hang's opening f80 shows on the grab
+	# tick itself; step()'s own later advance would consume the sway head.
+	_advance(s)
+
+
+## Release from a hang (`seg005.c:836-854` hang_fall): a floor behind or at
+## the char's column → drop to the feet (`seqtbl.c:601-607`), else release
+## into a fall (`seqtbl.c:608-612`).
+static func _hang_release(s: Dictionary) -> void:
+	s["grab_col"] = 0                 # the pin ends with the hang
+	var row: int = int(s["row"])
+	var col := _col_of(_foot_x(s))
+	var behind := _tile(s, row, col - int(s["dir"]))
+	var at := _tile(s, row, col)
+	if not _is_floor(behind) and not _is_floor(at):
+		_start_seq(s, "release_fall")
+	else:
+		_start_seq(s, "hang_drop")
+
+
+## Up from stand (`seg005.c:407-424` up_pressed → check_jump_up `836-774`):
+## Shift+Up grabs a ledge ahead-above when one is reachable; otherwise a
+## straight jump up (`seg005.c:783-786`).
+static func _jump_up_from_stand(s: Dictionary) -> void:
+	var row: int = int(s["row"])
+	var foot_x := _foot_x(s)
+	var ahead_col: int = _col_of(foot_x) + int(s["dir"])
+	var target: int = _tile(s, row - 1, ahead_col)
+	var through: int = _tile(s, row - 1, _col_of(foot_x))
+	if int(s["input_shift"]) == 1 and not _tile_above_is_floor(through) \
+			and _is_floor(target) and target != PopTables.Tile.WALL:
+		# Lane 1 (`seg005.c:883-884` grab_up_no_floor_behind): the foot stays
+		# ≤ 8 units from the lip (`seg005.c:419-420`).
+		if _is_floor(_tile(s, row, _col_of(foot_x))) and _dist_to_edge(s, foot_x) <= 8:
+			s["x"] = int(s["x"]) + int(s["dir"]) * (_dist_to_edge(s, foot_x) - 9)
+			_start_seq(s, "grab_hang")
+			# The grab commit plays its frame on the arm tick, i.e. the
+			# next tick's _advance runs grab_hang from op 0 → f80 then the
+			# hang sway (reference: seq_15 + play_seq there is the same
+			# observable from stand, `seg005.c:884` + seqtbl grab-hang).
+			_advance(s)
+			return
+		# Lane 2 (`seg005.c:886-887` grab_up_floor_behind): carry the kid
+		# right up to the lip before the jump-grab.
+		_start_seq(s, "jump_grab_up")
+		return
+	# Shift not pressed, or nothing grabbable ahead-above → straight up.
+	if not _jump_up_route(s):
+		return
+	_start_seq(s, "jump_up")
+	_advance(s)
+
+
+## Straight-up route guard: nothing above blocks the jump (through tile
+## open) and the lip column's ledge is climbable (`seg005.c:786-794`).
+static func _jump_up_route(s: Dictionary) -> bool:
+	if _above_is_climbable(s):
+		return true
+	return false
+
+
+## Climb-up guard (`seg005.c:786-794` can_climb_up ≙ check_jump_up lane):
+## the tile above the lip column must be open air (not floor, not wall)
+## and the row-2 ahead tile must be standable — a floor or wall overhead
+## blocks the climb out.
+static func _above_is_climbable(s: Dictionary) -> bool:
+	var row: int = int(s["row"])
+	var foot_x := _foot_x(s)
+	var upper_col: int = _col_of(_m7_x(foot_x, int(s["dir"])))
+	var upper: int = _tile(s, row - 2, upper_col)
+	if _is_floor(upper) or upper == PopTables.Tile.WALL:
+		return false
+	return true
+
+
+## The tile directly above the char's column (`seg006.c:1005-1007`): floor
+## there means the hands hit the lip row right above him.
+static func _tile_above_is_floor(through: int) -> bool:
+	return _is_floor(through)
+
+
+## Down from stand (`seg005.c:461-495` down_pressed): at a floorless edge
+## within 3 units → step forward 5 and climb down (`seg005.c:470`,
+## `char_dx_forward(5)`); otherwise a bare crouch (`seg005.c:476/494`,
+## seq_50_crouch with **no** dx; the sequence's own stoop head carries dx).
+static func _down_pressed(s: Dictionary) -> void:
+	var row: int = int(s["row"])
+	var foot_x := _foot_x(s)
+	var ahead_col: int = _col_of(foot_x) + int(s["dir"])
+	if not _is_floor(_tile(s, row, ahead_col)) and _dist_to_edge(s, foot_x) < 3:
+		s["x"] = int(s["x"]) + int(s["dir"]) * 5
+		_start_seq(s, "climb_down")
+		return
+	_start_seq(s, "crouch")
+
+
+## Shift+forward from stand (`seg005.c:592-605` safe_step): distance d =
+## get_edge_distance (`seg004.c:378-433`) — floor ahead → the plain 11-unit
+## step (seq_39); no floor ahead at d>0 → the d-unit step seq_{28+d}; at
+## d=0 (on the very lip) the hold / unsafe-step pair is A2.3-optional and
+## stays unmodeled.
+static func _safe_step(s: Dictionary) -> void:
+	var foot_x := _foot_x(s)
+	var col := _col_of(foot_x)
+	if _is_floor(_tile(s, int(s["row"]), col + int(s["dir"]))):
+		_start_seq(s, "safe_step_11")
+		return
+	var distance: int = _dist_to_edge(s, foot_x)
+	if distance > 0:
+		_start_seq(s, "safe_step_%d" % mini(distance, 14))
+	## distance == 0: seq_44 step-on-edge / seq_39 hold — A2.3-optional
+
+
 # --- Reference-derived helpers ---------------------------------------------
 # Standing floor y: y_land[row + 1] (`seg005.c:124`, PARITY §2).
 static func _floor_y(row: int) -> int:
@@ -354,6 +627,13 @@ static func _tile(s: Dictionary, row: int, col: int) -> int:
 
 static func _mod(s: Dictionary, row: int, col: int) -> int:
 	return int((s["mods"] as Dictionary).get("%d,%d" % [row, col], 0))
+
+
+## The m7 determine_col probe (`seg006.c:014D` + `get_tile_div_mod_m7`,
+## `seg006.c:690-692`): the plain get_tile_div_mod column formula shifted
+## 7 internal units back against the facing direction.
+static func _m7_x(foot_x: int, dir: int) -> int:
+	return foot_x - 7 * dir
 
 
 ## Foot x = x + dir * (frame dx − weight) — reference dx_weight()

@@ -105,8 +105,26 @@ const KID_HP_START: int = 3
 const SPIKE_EXTEND_MAX: int = 4
 
 # --- Direction change and run stop (PARITY §18) ----------------------------
-const TURN_TICKS: int = 8         ## `seqtbl.c:440-449`: flip + frames 45–52, then stand
-const RUN_STOP_TICKS: int = 8     ## `seqtbl.c:619-627`: frames 53,54,55,56,49,50,51,52, then stand
+const TURN_TICKS: int = 8             ## `seqtbl.c:440-449`: flip + frames 45–52, then stand
+const RUN_STOP_TICKS: int = 8         ## `seqtbl.c:619-627`: frames 53,54,55,56,49,50,51,52, then stand
+
+# --- Hang, climb, crouch and safe-step (PARITY §6; plan A2.3) --------------
+## Hang sway auto-drop: 43 logic ticks (f91 + 42-frame hang1 cycle, one FRAME
+## op per tick), `seqtbl.c:554-567`.
+const HANG_TICKS: int = 43
+## Mid-air grab timeout state (`seg006.c:1201`).
+const GRAB_TIMER: int = 12
+## Climb-fail opening crouch tick budget: frames 135,136,137,137,138,138×4,
+## 137,136,135 = 11 ticks, `seqtbl.c:575-579`.
+const CLIMB_FAIL_TICKS: int = 11
+## Standing-crouch loop budget: 29 crouch ticks before the stand-up chain,
+## `seqtbl.c:946-950` (rotation stopped by control logic, `seg005.c:362-364`).
+const CROUCH_TICKS: int = 29
+## Climb-fail pull-back: dx −7 inside the climbfail sequence, co-timed with
+## hangdrop's opening f81 (`seqtbl.c:578-579`).
+const CLIMB_FAIL_ENTRY_DX: int = -7
+## Hang-fall release opening dy: +6 (`seqtbl.c:609-613`).
+const RELEASE_FALL_DY: int = 6
 
 # --- Kid frame rows --------------------------------------------------------
 ## Index = frame id (reference array index, `seg006.c:127-369`). `dx`/`dy`
@@ -192,6 +210,65 @@ const KID_FRAME: Dictionary = {
 	117: { "dx": 2, "dy": 0, "weight": 5, "thin": 0, "needs_floor": 1, "even_odd": 0 },
 	118: { "dx": 2, "dy": 0, "weight": 5, "thin": 0, "needs_floor": 1, "even_odd": 1 },
 	119: { "dx": 0, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	67: { "dx": -2, "dy": 0, "weight": 1, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	68: { "dx": -2, "dy": 0, "weight": 1, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	69: { "dx": -1, "dy": 0, "weight": 2, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	70: { "dx": -2, "dy": 0, "weight": 2, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	71: { "dx": -2, "dy": 0, "weight": 1, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	72: { "dx": -2, "dy": 0, "weight": 1, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	73: { "dx": -2, "dy": 0, "weight": 1, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	74: { "dx": -1, "dy": 0, "weight": 7, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	75: { "dx": -1, "dy": 0, "weight": 5, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	76: { "dx": 2, "dy": 0, "weight": 7, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	77: { "dx": 2, "dy": 0, "weight": 7, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	78: { "dx": 2, "dy": -3, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	79: { "dx": 2, "dy": -10, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	80: { "dx": 2, "dy": -11, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	81: { "dx": 3, "dy": -2, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	82: { "dx": 3, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	83: { "dx": 3, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	84: { "dx": 3, "dy": 0, "weight": 3, "thin": 1, "needs_floor": 1, "even_odd": 0 },
+	85: { "dx": 4, "dy": 0, "weight": 3, "thin": 1, "needs_floor": 1, "even_odd": 1 },
+	87: { "dx": 7, "dy": -14, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	88: { "dx": 7, "dy": -12, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	89: { "dx": 4, "dy": -12, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	90: { "dx": 3, "dy": -10, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	91: { "dx": 2, "dy": -10, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	92: { "dx": 1, "dy": -10, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	93: { "dx": 0, "dy": -11, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	94: { "dx": -1, "dy": -12, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	95: { "dx": -1, "dy": -14, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	96: { "dx": -1, "dy": -14, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	97: { "dx": -1, "dy": -15, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	98: { "dx": -1, "dy": -15, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	99: { "dx": 0, "dy": -15, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	121: { "dx": 0, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	122: { "dx": 0, "dy": 0, "weight": 4, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	123: { "dx": 0, "dy": 0, "weight": 5, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	124: { "dx": 0, "dy": 0, "weight": 8, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	125: { "dx": 0, "dy": 0, "weight": 12, "thin": 1, "needs_floor": 1, "even_odd": 0 },
+	126: { "dx": 0, "dy": 0, "weight": 15, "thin": 1, "needs_floor": 1, "even_odd": 1 },
+	127: { "dx": 0, "dy": 0, "weight": 3, "thin": 1, "needs_floor": 0, "even_odd": 1 },
+	128: { "dx": 0, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	129: { "dx": 0, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	130: { "dx": 0, "dy": 0, "weight": 3, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	131: { "dx": 0, "dy": 0, "weight": 4, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	132: { "dx": 0, "dy": 0, "weight": 4, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	135: { "dx": 0, "dy": -12, "weight": 1, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	136: { "dx": 0, "dy": -21, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 0 },
+	137: { "dx": 1, "dy": -26, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	138: { "dx": 4, "dy": -32, "weight": 0, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	139: { "dx": 6, "dy": -36, "weight": 1, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	140: { "dx": 7, "dy": -41, "weight": 2, "thin": 0, "needs_floor": 0, "even_odd": 1 },
+	141: { "dx": 2, "dy": 17, "weight": 2, "thin": 0, "needs_floor": 1, "even_odd": 0 },
+	142: { "dx": 4, "dy": 9, "weight": 4, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	143: { "dx": 4, "dy": 5, "weight": 9, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	144: { "dx": 4, "dy": 4, "weight": 8, "thin": 0, "needs_floor": 1, "even_odd": 1 },
+	145: { "dx": 5, "dy": 0, "weight": 9, "thin": 1, "needs_floor": 1, "even_odd": 0 },
+	146: { "dx": 5, "dy": 0, "weight": 9, "thin": 1, "needs_floor": 1, "even_odd": 1 },
+	147: { "dx": 5, "dy": 0, "weight": 8, "thin": 1, "needs_floor": 1, "even_odd": 1 },
+	148: { "dx": 5, "dy": 0, "weight": 9, "thin": 1, "needs_floor": 1, "even_odd": 0 },
+	149: { "dx": 5, "dy": 0, "weight": 9, "thin": 1, "needs_floor": 1, "even_odd": 0 },
 	177: { "dx": 0, "dy": 3, "weight": 10, "thin": 0, "needs_floor": 0, "even_odd": 1 },
 	185: { "dx": 4, "dy": 7, "weight": 9, "thin": 0, "needs_floor": 1, "even_odd": 0 },
 }
@@ -362,6 +439,284 @@ const SEQUENCES: Dictionary = {
 	"hard_land": [
 		[Op.ACTION, Action.BUMPED], [Op.KNOCK_DOWN], [Op.DY, -2], [Op.DX, 3],
 		[Op.FRAME, 185], [Op.DIE], [Op.FRAME, 185], [Op.JUMP, "hard_land"],
+	],
+	# --- A2.3: hang, climb, crouch, safe-step --------------------------------
+	# Reference: `seqtbl.c:686-688` (fallhang = seq 15, the mid-air grab
+	# landing): one frame, then the hang sway.
+	"grab_hang": [
+		[Op.ACTION, Action.HANG_CLIMB], [Op.FRAME, 80], [Op.JUMP, "hang"],
+	],
+	# Reference: `seqtbl.c:552-553` (hang entry) — f91, then the 42-frame
+	# hang1 sway below; the auto-drop therefore lands on tick 43.
+	"hang": [
+		[Op.ACTION, Action.HANG_CLIMB], [Op.FRAME, 91], [Op.JUMP, "hang_cycle"],
+	],
+	# Reference: `seqtbl.c:554-567` (hang1). climbdown re-enters here
+	# (`seqtbl.c:588`), so the cycle — including its auto-drop — is its own
+	# sequence.
+	"hang_cycle": [
+		[Op.FRAME, 90], [Op.FRAME, 89], [Op.FRAME, 88],
+		[Op.FRAME, 87], [Op.FRAME, 87], [Op.FRAME, 87],
+		[Op.FRAME, 88], [Op.FRAME, 89], [Op.FRAME, 90], [Op.FRAME, 91],
+		[Op.FRAME, 92], [Op.FRAME, 93], [Op.FRAME, 94], [Op.FRAME, 95],
+		[Op.FRAME, 96], [Op.FRAME, 97], [Op.FRAME, 98], [Op.FRAME, 99],
+		[Op.FRAME, 97], [Op.FRAME, 96], [Op.FRAME, 95], [Op.FRAME, 94],
+		[Op.FRAME, 93], [Op.FRAME, 92], [Op.FRAME, 91], [Op.FRAME, 90],
+		[Op.FRAME, 89], [Op.FRAME, 88], [Op.FRAME, 87], [Op.FRAME, 88],
+		[Op.FRAME, 89], [Op.FRAME, 90], [Op.FRAME, 91], [Op.FRAME, 92],
+		[Op.FRAME, 93], [Op.FRAME, 94], [Op.FRAME, 95], [Op.FRAME, 96],
+		[Op.FRAME, 95], [Op.FRAME, 94], [Op.FRAME, 93], [Op.FRAME, 92],
+		[Op.JUMP, "hang_drop"],
+	],
+	# Reference: `seqtbl.c:568-573` (hangstraight) — Shift held against a
+	# wall; hangs flat without the sway cycle and never auto-drops.
+	"hang_straight": [
+		[Op.ACTION, Action.HANG_STRAIGHT], [Op.FRAME, 92],
+		[Op.FRAME, 93], [Op.FRAME, 93], [Op.FRAME, 92], [Op.FRAME, 92],
+		[Op.FRAME, 91], [Op.JUMP, "hang_straight"],
+	],
+	# Reference: `seqtbl.c:590-600` (climbup) — 14 climbing frames, then the
+	# ROW_UP carries the kid onto the ledge (dx +5, dy −63, row −1),
+	# f149, and the stand-up chain f118/f119 → stand.
+	"climb_up": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 135],
+		[Op.FRAME, 136], [Op.FRAME, 137], [Op.FRAME, 138],
+		[Op.FRAME, 139], [Op.FRAME, 140],
+		[Op.DX, 5], [Op.DY, -63], [Op.ROW_UP], [Op.FRAME, 141],
+		[Op.FRAME, 142], [Op.FRAME, 143], [Op.FRAME, 144], [Op.FRAME, 145],
+		[Op.FRAME, 146], [Op.FRAME, 147], [Op.FRAME, 148],
+		[Op.ACTION, Action.BUMPED],
+		[Op.FRAME, 149],
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 118], [Op.FRAME, 119],
+		[Op.DX, 1], [Op.JUMP, "stand"],
+	],
+	# Reference: `seqtbl.c:581-588` (climbdown) — descend one row and re-enter
+	# the hang sway (jmp hang1); entry dx −5 is applied by the control logic.
+	"climb_down": [
+		[Op.FRAME, 148],
+		[Op.FRAME, 145], [Op.FRAME, 144], [Op.FRAME, 143], [Op.FRAME, 142],
+		[Op.FRAME, 141],
+		[Op.DX, -5], [Op.DY, 63], [Op.ROW_DOWN],
+		[Op.ACTION, Action.IN_MIDAIR],   # act(actions_3_in_midair) co-timed with f140
+		[Op.FRAME, 140],
+		[Op.FRAME, 138], [Op.FRAME, 136],
+		[Op.FRAME, 91], [Op.ACTION, Action.HANG_CLIMB], [Op.JUMP, "hang_cycle"],
+	],
+	# Reference: `seqtbl.c:575-579` (climbfail) — 11 crouched ticks (f135…f135),
+	# then dx −7 and jmp(hangdrop) in the same tick: hangdrop's opening f81
+	# plays immediately on tick 12, exactly as the reference streams it.
+	# Carried for shape parity only: the reference never routes to this label
+	# (nothing jumps to climbfail; can_climb_up always climbs, `seg005.c:812-830`).
+	"climb_fail": [
+		[Op.FRAME, 135],
+		[Op.FRAME, 136], [Op.FRAME, 137], [Op.FRAME, 137],
+		[Op.FRAME, 138], [Op.FRAME, 138], [Op.FRAME, 138], [Op.FRAME, 138],
+		[Op.FRAME, 137], [Op.FRAME, 136],
+		[Op.DX, -7], [Op.JUMP, "hang_drop"],
+	],
+	# Reference: `seqtbl.c:601-607` (hangdrop) — drop from the ledge and
+	# land on the feet (5 frames + dx +3).
+	"hang_drop": [
+		[Op.FRAME, 81], [Op.FRAME, 82],
+		[Op.ACTION, Action.BUMPED], [Op.FRAME, 83],
+		[Op.ACTION, Action.RUN_JUMP], [Op.KNOCK_DOWN],
+		[Op.FRAME, 84], [Op.FRAME, 85],
+		[Op.DX, 3], [Op.JUMP, "stand"],
+	],
+	# Reference: `seqtbl.c:628-652` (jumpup / highjump) — Shift+Up from
+	# stand: straight vertical jump. Ceiling vs no-ceiling is unmodeled
+	# (A2.3), so both variants play the shared 67→79 arc into hangdrop.
+	"jump_up": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 67],
+		[Op.FRAME, 68], [Op.FRAME, 69], [Op.FRAME, 70], [Op.FRAME, 71],
+		[Op.FRAME, 72], [Op.FRAME, 73], [Op.FRAME, 74], [Op.FRAME, 75],
+		[Op.FRAME, 76], [Op.FRAME, 77], [Op.FRAME, 78], [Op.FRAME, 79],
+		[Op.JUMP, "hang_drop"],
+	],
+	# Our alias for the A2.3 up-from-stand branch (kept name-distinct from
+	# the reference's jumpup to make the control-layer mapping visible).
+	"hang_jump_up": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 67],
+		[Op.FRAME, 68], [Op.FRAME, 69], [Op.FRAME, 70], [Op.FRAME, 71],
+		[Op.FRAME, 72], [Op.FRAME, 73], [Op.FRAME, 74], [Op.FRAME, 75],
+		[Op.FRAME, 76], [Op.FRAME, 77], [Op.FRAME, 78], [Op.FRAME, 79],
+		[Op.JUMP, "hang_drop"],
+	],
+	# Reference: `seqtbl.c:674-685` (jumpbackhang) — jump up and grab with
+	# the hands reaching the ledge: 70-77 straight, dx −1 at 77, then the
+	# HANG_CLIMB frames 78-80 into the hang sway.
+	"jump_grab_up": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 67],
+		[Op.FRAME, 68], [Op.FRAME, 69], [Op.FRAME, 70], [Op.FRAME, 71],
+		[Op.FRAME, 72], [Op.FRAME, 73], [Op.FRAME, 74], [Op.FRAME, 75],
+		[Op.FRAME, 76], [Op.DX, -1], [Op.FRAME, 77],
+		[Op.ACTION, Action.HANG_CLIMB], [Op.DX, -2], [Op.FRAME, 78],
+		[Op.DX, -1], [Op.FRAME, 79],
+		[Op.DX, -1], [Op.FRAME, 80],
+		[Op.JUMP, "hang"],
+	],
+	# Reference: `seqtbl.c:608-612` (hangfall) — releasing the ledge into a
+	# fall (hand momentum then free fall).
+	"release_fall": [
+		[Op.ACTION, Action.IN_MIDAIR], [Op.FRAME, 81],
+		[Op.DY, 6], [Op.FRAME, 81],
+		[Op.DY, 9], [Op.FRAME, 81],
+		[Op.DY, 12], [Op.DX, 2], [Op.SET_FALL, 0, 12], [Op.JUMP, "free_fall"],
+	],
+	# Reference: seq_50_crouch → `seqtbl.c:857-861` (stoop) — the sequence's
+	# own stoop head carries the dx; crouch() (`seg005.c:527-530`) adds none.
+	"crouch": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.DX, 1], [Op.FRAME, 107],
+		[Op.DX, 2], [Op.FRAME, 108], [Op.JUMP, "crouch_cycle"],
+	],
+	"crouch_cycle": [
+		[Op.FRAME, 109], [Op.JUMP, "crouch_cycle"],
+	],
+	# Reference: `seqtbl.c:915-927` (standup) — up from crouch: f110–f119
+	# → stand. Kept name-distinct from med_land's inline chain on purpose.
+	"stand_up": [
+		[Op.ACTION, Action.BUMPED], [Op.DX, 1], [Op.FRAME, 110],
+		[Op.FRAME, 111],
+		[Op.DX, 2], [Op.FRAME, 112], [Op.FRAME, 113],
+		[Op.DX, 1], [Op.FRAME, 114], [Op.FRAME, 115], [Op.FRAME, 116],
+		[Op.DX, -4], [Op.FRAME, 117], [Op.FRAME, 118], [Op.FRAME, 119],
+		[Op.JUMP, "stand"],
+	],
+	# Reference: `seqtbl.c:735-912` (step14 down to step1) — the safe-step
+	# family. Steps 12–14 prepend extra −1 dx pairs before f127; step9 jumps
+	# into step10a (`seqtbl.c:783-792`); sizes 2–8 and 11 are standalone
+	# labels sharing the f121–f126 skeleton with per-size dx tails and
+	# rejoin points, which our flat op lists mirror exactly. dx totals equal
+	# the sequence's name (1..14 units).
+	# Reference `seqtbl.c:765-774` (step11, the plain step over floor): the
+	# shared skeleton with its own −1 tail through f127 (not the step10a body).
+	"safe_step_11": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -1], [Op.FRAME, 127],
+		[Op.FRAME, 128], [Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_10": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -2], [Op.FRAME, 128],
+		[Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_9": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.FRAME, 122], [Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -2], [Op.FRAME, 128],
+		[Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_8": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, -1], [Op.FRAME, 127],
+		[Op.FRAME, 128], [Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_14": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -1], [Op.DX, 3], [Op.FRAME, 127],
+		[Op.FRAME, 128], [Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_13": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -1], [Op.DX, 2], [Op.FRAME, 127],
+		[Op.FRAME, 128], [Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_12": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 4], [Op.FRAME, 125],
+		[Op.DX, 3], [Op.FRAME, 126],
+		[Op.DX, -1], [Op.DX, 1], [Op.FRAME, 127],
+		[Op.FRAME, 128], [Op.FRAME, 129], [Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_7": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 3], [Op.FRAME, 124],
+		[Op.DX, 2], [Op.FRAME, 129],
+		[Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_6": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 2], [Op.FRAME, 124],
+		[Op.DX, 2], [Op.FRAME, 129],
+		[Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_5": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 2], [Op.FRAME, 124],
+		[Op.DX, 1], [Op.FRAME, 129],
+		[Op.FRAME, 130], [Op.FRAME, 131], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_4": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 2], [Op.FRAME, 131],
+		[Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_3": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 123],
+		[Op.DX, 1], [Op.FRAME, 131],
+		[Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_2": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 122],
+		[Op.DX, 1], [Op.FRAME, 132],
+		[Op.JUMP, "stand"],
+	],
+	"safe_step_1": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 121],
+		[Op.DX, 1], [Op.FRAME, 132], [Op.JUMP, "stand"],
 	],
 	# Reference: `seqtbl.c:970-973` — spike impale (contact, `seg005.c:216-245`).
 	"impale": [
