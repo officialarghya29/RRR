@@ -50,6 +50,7 @@ of the running binary = median and mean **5.00 video frames at 60 fps = 83.33 ms
 | Tile x positions | −12, 2, 16, 30, 44, 58, 72, 86, 100, 114, 128, 142, 156, 170, 184, 198, 212, 226, 240, 254 | `data.h:513` |
 | First on-screen column | `FIRST_ONSCREEN_COLUMN` = 5 | `types.h:1412` |
 | Non-floor tiles | ids 0, 9, 12, 20, 26, 27, 28, 29 | `seg006.c:933-947` |
+| Edge snap on landing | in `land()`, a landing with no floor ahead within 3 units of the foot is pulled back 3 units (`Char.x = char_dx_forward(-3)`) | `seg005.c:126-131` |
 
 ## 3. Run cycle (dx per frame)
 
@@ -83,6 +84,10 @@ Source `seqtbl.c:381-400` (`sjland` label at 391).
   is ≈ **38 units ≈ 2.7 tiles** — consistent with the 36-unit landing value within
   bbox/centroid error. Method in untracked `study/OBSERVATION.md`.
 
+| Trigger | Behavior | Citation |
+|---|---|---|
+| Standing-jump trigger | keyboard forward+Up starts `stand_jump` from `control_standing` (Up with forward held, or forward with Up held) and from `up_pressed` (Up+forward); plain Up alone routes to the jump-up family; `standing_jump()` selects `seq_3_standing_jump` | `seg005.c:385-395`, `seg005.c:453-458`, `seg005.c:673-675` |
+
 ## 5. Run jump (frame/dx/dy stream)
 
 Source `seqtbl.c:402-416` (`rjlandrun` label at 413).
@@ -106,10 +111,11 @@ Source `seqtbl.c:402-416` (`rjlandrun` label at 413).
 |---|---|---|---|
 | hang sway | f91 + 42-frame loop (sprites f87–f99), then auto-drop | 43 frames ≈ 3.6 s at 12 fps [D] | `seqtbl.c:554-567` |
 | hangstraight | f92,f93,f93,f92,f92 then f91 loop | no auto-drop | `seqtbl.c:569-573` |
-| climb up | 6 frames (f135–f140), then dx +5, dy −63, row−1, f141 … stand at frame 18 | row = **63 units**; ≈1.5 s | `seqtbl.c:590-600` |
+| climb up | 6 frames (f135–f140), then dx +5, dy −63, row−1, f141 … stand (frame f15) on tick 18 | row = **63 units**; ≈1.5 s | `seqtbl.c:590-600`, `seqtbl.c:261-263` |
 | climb down | 6 frames, then dx −5, dy +63, row+1 → hang sway in 10 frames | mirrored; ≈0.8 s | `seqtbl.c:581-588` |
 | climb fail | 11 frames, dx −7 → hangdrop | | `seqtbl.c:575-579` |
 | hangdrop | f81–f85 then dx +3 → stand | 5 frames | `seqtbl.c:602-607` |
+| stand frame | f15 | the `stand` sequence opens on frame 15 (`act(actions_0_stand), frame_15_stand, jmp(stand)`); climb/turn/land all jump to it | `seqtbl.c:261-263` |
 | mid-air grab | Shift held; fall speed < 32 (30 with port fix); alive; floor row ≤ 25 y-units below; probe −8 units | success: snap x/y, reset fall, `grab_timer = 12` frames (≈1 s) | `seg006.c:1159-1201`, timer `seg006.c:1387-1388` |
 
 ## 7. Fall thresholds
@@ -312,10 +318,12 @@ are our schema.
 
 Our re-expression of the reference kid frame table for exactly the frames
 `pop_tables.gd` carries (run/stand/jump/turn/stop frames 1–56, fall/land
-frames 102–119, spiked 177, dead 185). Source `seg006.c:127-369`; flags
-decoded per `types.h:366-370`. `dx`/`dy` are per-frame foot/sprite offsets,
-not motion — foot x for column/edge tests is `dx − weight`
-(`seg006.c:547-550`).
+frames 102–119, jump-up/hang/climb/step frames 67–70, 80–93, 121–126,
+135–148, spiked 177, dead 185). Source `seg006.c:127-369`; flags decoded
+per `types.h:366-370`. `dx`/`dy` are per-frame foot/sprite offsets, not
+motion — foot x for column/edge tests is `dx − weight`
+(`seg006.c:547-550`). A2.3 extended the carried set to the jump-up/hang/
+climb/step frames (67–70, 71–79, 80–85, 87–99, 121–126, 132, 135–149).
 
 | frame | dx | dy | weight | thin | needs floor | even/odd |
 |---|---|---|---|---|---|---|
@@ -393,6 +401,65 @@ not motion — foot x for column/edge tests is `dx − weight`
 | 117 | 2 | 0 | 5 | 0 | 1 | 0 |
 | 118 | 2 | 0 | 5 | 0 | 1 | 1 |
 | 119 | 0 | 0 | 3 | 0 | 1 | 1 |
+| 67 | -2 | 0 | 1 | 0 | 1 | 0 |
+| 68 | -2 | 0 | 1 | 0 | 1 | 0 |
+| 69 | -1 | 0 | 2 | 0 | 1 | 1 |
+| 70 | -2 | 0 | 2 | 0 | 1 | 0 |
+| 71 | -2 | 0 | 1 | 0 | 1 | 0 |
+| 72 | -2 | 0 | 1 | 0 | 1 | 0 |
+| 73 | -2 | 0 | 1 | 0 | 1 | 0 |
+| 74 | -1 | 0 | 7 | 0 | 0 | 0 |
+| 75 | -1 | 0 | 5 | 0 | 0 | 0 |
+| 76 | 2 | 0 | 7 | 0 | 0 | 0 |
+| 77 | 2 | 0 | 7 | 0 | 0 | 0 |
+| 78 | 2 | -3 | 0 | 0 | 0 | 0 |
+| 79 | 2 | -10 | 0 | 0 | 0 | 0 |
+| 80 | 2 | -11 | 0 | 0 | 0 | 1 |
+| 81 | 3 | -2 | 3 | 0 | 1 | 0 |
+| 82 | 3 | 0 | 3 | 0 | 1 | 1 |
+| 83 | 3 | 0 | 3 | 0 | 1 | 1 |
+| 84 | 3 | 0 | 3 | 1 | 1 | 0 |
+| 85 | 4 | 0 | 3 | 1 | 1 | 1 |
+| 87 | 7 | -14 | 0 | 0 | 0 | 1 |
+| 88 | 7 | -12 | 0 | 0 | 0 | 1 |
+| 89 | 4 | -12 | 0 | 0 | 0 | 0 |
+| 90 | 3 | -10 | 0 | 0 | 0 | 1 |
+| 91 | 2 | -10 | 0 | 0 | 0 | 1 |
+| 92 | 1 | -10 | 0 | 0 | 0 | 1 |
+| 93 | 0 | -11 | 0 | 0 | 0 | 0 |
+| 94 | -1 | -12 | 0 | 0 | 0 | 0 |
+| 95 | -1 | -14 | 0 | 0 | 0 | 0 |
+| 96 | -1 | -14 | 0 | 0 | 0 | 0 |
+| 97 | -1 | -15 | 0 | 0 | 0 | 1 |
+| 98 | -1 | -15 | 0 | 0 | 0 | 1 |
+| 99 | 0 | -15 | 0 | 0 | 0 | 0 |
+| 121 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 122 | 0 | 0 | 4 | 0 | 1 | 1 |
+| 123 | 0 | 0 | 5 | 0 | 1 | 1 |
+| 124 | 0 | 0 | 8 | 0 | 1 | 0 |
+| 125 | 0 | 0 | 12 | 1 | 1 | 0 |
+| 126 | 0 | 0 | 15 | 1 | 1 | 1 |
+| 127 | 0 | 0 | 3 | 1 | 0 | 1 |
+| 128 | 0 | 0 | 3 | 0 | 1 | 0 |
+| 129 | 0 | 0 | 3 | 0 | 0 | 0 |
+| 130 | 0 | 0 | 3 | 0 | 0 | 0 |
+| 131 | 0 | 0 | 4 | 0 | 0 | 0 |
+| 132 | 0 | 0 | 4 | 0 | 1 | 0 |
+| 135 | 0 | -12 | 1 | 0 | 0 | 0 |
+| 136 | 0 | -21 | 0 | 0 | 0 | 0 |
+| 137 | 1 | -26 | 0 | 0 | 0 | 1 |
+| 138 | 4 | -32 | 0 | 0 | 0 | 1 |
+| 139 | 6 | -36 | 1 | 0 | 0 | 1 |
+| 140 | 7 | -41 | 2 | 0 | 0 | 1 |
+| 141 | 2 | 17 | 2 | 0 | 1 | 0 |
+| 142 | 4 | 9 | 4 | 0 | 1 | 1 |
+| 143 | 4 | 5 | 9 | 0 | 1 | 1 |
+| 144 | 4 | 4 | 8 | 0 | 1 | 1 |
+| 145 | 5 | 0 | 9 | 1 | 1 | 0 |
+| 146 | 5 | 0 | 9 | 1 | 1 | 1 |
+| 147 | 5 | 0 | 8 | 1 | 1 | 1 |
+| 148 | 5 | 0 | 9 | 1 | 1 | 0 |
+| 149 | 5 | 0 | 9 | 1 | 1 | 0 |
 | 177 | 0 | 3 | 10 | 0 | 0 | 1 |
 | 185 | 4 | 7 | 9 | 0 | 1 | 0 |
 
