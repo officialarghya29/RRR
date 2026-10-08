@@ -500,10 +500,15 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
       **Status (ticked Session 005):** met — plate→gate open 47±1 / close 238±1,
       exit door 3 ticks, plate timer 5, all read from PARITY §9/§10 (`_test_a41_entities`).
       The ±1-tick windows are against the cited values, not an [O] observation (P6 ◐).
-- [ ] **A4.2 [M]** Spikes (cycle + harmful-state rules), loose floors (shake 11,
+- [x] **A4.2 [M]** Spikes (cycle + harmful-state rules), loose floors (shake 11,
       fall, crush), chompers.
       **Accept:** replayed testcases reproduce documented outcomes; unit tests assert
       modifier-state transitions from PARITY.md tables.
+      **Status (ticked Session 005):** met — spike cycle 1…4→0x8F→6/7/8→0 over 23
+      ticks and the loose-floor 11-frame delay / 0x80–0x83 shake band / chomper
+      15-frame cycle are all asserted from PARITY §8/§11, with replayed spike kill/safe
+      runs and a live falling-block crush. Crush uses PARITY §7 fall integration as the
+      block's fall rate (marked placeholder — the block's rate is not in PARITY §11).
 - [ ] **A4.3 [M]** Guard duel at 10 fps: en-garde, advance/retreat, strike/block/parry,
       per-skill probability tables through `pop_rng`, HP/refractimer, spiked/chomped
       deaths for both parties.
