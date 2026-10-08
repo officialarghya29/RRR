@@ -56,6 +56,9 @@ func _ready() -> void:
 	_section("A4.2 spikes, loose floors and chompers (plan A4.2)")
 	_test_a42_traps()
 
+	_section("A4.3 guard duel at 10 fps (plan A4.3 / §8 gate 3)")
+	_test_a43_duel()
+
 	_section("Health component")
 	_test_health()
 
@@ -1970,3 +1973,112 @@ func _test_a42_traps() -> void:
 		cdt2 = PopSim.step(cdt2, PopInput.neutral())
 	check(PopSim.hash_state(cdt) == PopSim.hash_state(cdt2),
 		"the crush run is reproducible with the falling block in the hash")
+
+
+# --- Plan A4.3: the guard duel ---------------------------------------------
+#
+# Accept: scripted duel inputs vs. skill-0 guard win/lose deterministically;
+# re-run with seed=N produces identical duel transcripts. Expected values come
+# from PARITY §12 (decision tables/HP) and §13 (sword frames); §14 names the
+# generator. Anything without an independent oracle is "sim characterization".
+
+## The 12 skill cells of a PARITY §12 table row (cells 1..12 = skill 0..11).
+func _a43_row(md: String, label: String) -> Array:
+	var cells := _parity_row(md, "12", label)
+	var out: Array = []
+	for i: int in range(1, 13):
+		var nums: Array = _ints(String(cells[i])) if i < cells.size() else []
+		out.append(int(nums[0]) if nums.size() > 0 else _MISSING_PARITY_VALUE)
+	return out
+
+
+func _test_a43_duel() -> void:
+	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable for the A4.3 cross-checks")
+	if md.is_empty():
+		return
+
+	# --- §12 decision tables / HP (anti-drift) ----------------------------
+	check(_a43_row(md, "strike odds") == PopGuard.STRIKE_ODDS, "strike odds match PARITY §12")
+	check(_a43_row(md, "re-strike odds") == PopGuard.RESTRIKE_ODDS, "re-strike odds match PARITY §12")
+	check(_a43_row(md, "block odds") == PopGuard.BLOCK_ODDS, "block odds match PARITY §12")
+	check(_a43_row(md, "immediate re-block odds") == PopGuard.IMPBLOCK_ODDS, "immediate re-block odds match PARITY §12")
+	check(_a43_row(md, "advance odds") == PopGuard.ADVANCE_ODDS, "advance odds match PARITY §12")
+	check(_a43_row(md, "refractory frames") == PopGuard.REFRACTIMER, "refractory frames match PARITY §12")
+	check(_a43_row(md, "bonus HP") == PopGuard.BONUS_HP, "bonus HP matches PARITY §12")
+	check(_a43_row(md, "base HP") == PopGuard.BASE_HP, "base HP matches PARITY §12")
+	check(PopGuard.guard_hp(0) == 4, "a skill-0 guard has 4 HP (PARITY §12 base 4 + bonus 0)")
+	check(PopGuard.REFRACTIMER[0] == 16, "skill-0 refractory is 16 frames (PARITY §12)")
+
+	# --- §13 sword frame chains ------------------------------------------
+	var ready_cell := _parity_cell(md, "13", "ready", 1)
+	var strike_cell := _parity_cell(md, "13", "strike", 1)
+	var block_cell := _parity_cell(md, "13", "block", 1)
+	var s13 := _parity_section(md, "13")
+	check(ready_cell.contains("f158") and PopGuard.READY_FRAME == 158,
+		"the ready frame f158 matches PARITY §13")
+	check(strike_cell.contains("f168") and strike_cell.contains("f157")
+			and PopGuard.CHAIN_STRIKE == [168, 151, 152, 153, 154, 155, 156, 157],
+		"the strike chain matches PARITY §13 (f168…f157, 8 frames)")
+	check(block_cell.contains("f169") and block_cell.contains("f150")
+			and PopGuard.CHAIN_BLOCK == [169, 150],
+		"the block chain matches PARITY §13 (f169→f150)")
+	check(s13.contains("f153, f154") and PopGuard.KID_HIT_FRAMES == [153, 154],
+		"the kid's hit window f153/f154 matches PARITY §13")
+	check(s13.contains("f150 or f161") and PopGuard.PARRY_FRAMES == [150, 161],
+		"the parry frames f150/f161 match PARITY §13")
+
+	# --- a strike lands only when the defender is not parrying ------------
+	var g1 := PopGuard.initial(0)
+	var k1 := PopGuard.initial_kid()
+	g1["seq"] = "strike"
+	g1["frame"] = PopGuard.KID_HIT_FRAMES[0]     # the guard is in its hit window
+	g1["index"] = 3
+	var t1: Array = []
+	PopGuard._resolve(k1, g1, t1)
+	check(int(k1["hp"]) == PopTables.KID_HP_START - 1,
+		"a strike in f153 hits an undefended kid (PARITY §13 hit window; hp %d)" % int(k1["hp"]))
+	check(t1 == ["kid:hit"], "the hit is recorded in the transcript")
+
+	var g2 := PopGuard.initial(0)
+	var k2 := PopGuard.initial_kid()
+	g2["seq"] = "strike"
+	g2["frame"] = PopGuard.KID_HIT_FRAMES[0]
+	k2["seq"] = "block"
+	k2["frame"] = PopGuard.PARRY_FRAMES[0]       # f150 = parry
+	var t2: Array = []
+	PopGuard._resolve(k2, g2, t2)
+	check(int(k2["hp"]) == PopTables.KID_HP_START and String(g2["seq"]) == "blocked",
+		"a parry at f150 stops the hit and turns the strike aside (PARITY §13)")
+	check(t2 == ["k:parry"], "the parry is recorded in the transcript")
+
+	# --- the scripted duel (plan §8 gate 3) -------------------------------
+	var attack: Array = []
+	for i: int in 400:
+		attack.append("strike" if (i % 5) == 0 else "ready")
+	var w1 := PopGuard.duel(20261008, 0, attack, 400)
+	var w2 := PopGuard.duel(20261008, 0, attack, 400)
+	check((w1["transcript"] as Array) == (w2["transcript"] as Array),
+		"same seed → identical duel transcript (plan §8 gate 3)")
+	check(String(w1["winner"]) == String(w2["winner"])
+			and int(w1["guard_hp"]) == int(w2["guard_hp"])
+			and int(w1["kid_hp"]) == int(w2["kid_hp"]),
+		"same seed → identical duel outcome")
+	check(String(w1["winner"]) == "kid" or String(w1["winner"]) == "guard",
+		"the scripted duel runs to a win or a lose (winner %s after %d ticks; guard hp %d, kid hp %d)" % [
+			String(w1["winner"]), int(w1["ticks"]), int(w1["guard_hp"]), int(w1["kid_hp"])])
+
+	# --- the seed is actually in play (§14 generator) ----------------------
+	var pacing: Array = []
+	for i: int in 400:
+		pacing.append("ready" if (i % 4) == 3 else "block")   # ~50% parry coverage
+	var p1 := PopGuard.duel(20261008, 0, pacing, 400)
+	var p2 := PopGuard.duel(777, 0, pacing, 400)
+	check((p1["transcript"] as Array) == (PopGuard.duel(20261008, 0, pacing, 400)["transcript"] as Array),
+		"the long pacing run is reproducible for the same seed")
+	check((p1["transcript"] as Array) != (p2["transcript"] as Array),
+		"a different seed produces a different duel transcript (PARITY §14 generator)")
+	print("  MEAS duel(seed 20261008, skill 0, attack): winner=%s ticks=%d guard_hp=%d kid_hp=%d transcript=%d events" % [
+		String(w1["winner"]), int(w1["ticks"]), int(w1["guard_hp"]), int(w1["kid_hp"]),
+		(w1["transcript"] as Array).size()])
+	print("  GAP: A4.3 — spiked/chomped *causes* of death are not wired into the duel (both parties die on HP only); guard advance/retreat dx does not gate reach.")
