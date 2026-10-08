@@ -172,6 +172,7 @@ level. Ours: — pending A4.1.
 | chain flag | `!(d1 & 0x80)` | 0/1 | `seg007.c:730-732` |
 | target room | `((d1 & 0x60)>>5) + ((d2 & 0xE0)>>3)` | 0–23 | `seg007.c:735-739` |
 | hold timer | `d2 & 0x1F` | 0–31; 31 = jammed | `seg007.c:713-715`, `seg007.c:750-751` |
+| press timer | press sets the hold timer, then the button animation decrements it by one per logic frame and stops below 2 (re-press only when below 2) | 5 | `seg007.c:742-751`, `seg007.c:783-791` |
 
 Press sets timer = **5**; the button animation decrements per logic frame and stops
 below 2 (≈4-frame press sequence; re-press only when < 2). The linked gate runs §9's

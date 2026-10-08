@@ -104,6 +104,32 @@ const KID_HP_START: int = 3
 ## `seg007.c:1174`); PARITY §8.
 const SPIKE_EXTEND_MAX: int = 4
 
+# --- Gates, plates and the level-exit door (PARITY §9/§10; plan A4.1) ------
+## The reference animates a gate through a tile *modifier* and a small trob
+## "type" (anim_type): 0 = closing, 1 = opening, 2 = permanent open,
+## 3..8 = fast closing (`seg007.c:336-403`). The values below are the
+## reference's own tables, cited per line.
+const GATE_CLOSED: int = 0            ## modifier 0 = closed (`seg007.c:336-403`)
+const GATE_OPEN_THRESHOLD: int = 188  ## modifier ≥ 188 counts as open (`seg007.c:378-386`)
+const GATE_PARKED: int = 238          ## snap value kept open after a regular open (`seg007.c:381`)
+const GATE_PERMANENT: int = 0xFF      ## permanent open (`seg007.c:390`)
+## Closing / opening / permanent modifier delta per logic frame
+## (`data:27C0`, `seg007.c:334`, `seg007.c:364`).
+const DOOR_DELTA: Array[int] = [-1, 4, 4]
+## Fast-close speeds by anim_type 3..8: 20,40,60,80,100,120 (`seg007.c:331`).
+const GATE_CLOSE_SPEEDS: Array[int] = [0, 0, 0, 20, 40, 60, 80, 100, 120]
+## Level-door fast-close speeds; the trailing 0 mirrors the 5-entry source
+## array (`seg007.c:411`).
+const LEVELDOOR_CLOSE_SPEEDS: Array[int] = [0, 5, 17, 99, 0]
+const LEVELDOOR_START: int = 43       ## a level door starts fully open (`seg007.c:795-798`)
+const LEVELDOOR_OPEN_AT: int = 43     ## opening stops once the modifier reaches 43 (`seg007.c:424-431`)
+## Plate / doorlink timer: a press sets 5, the button animation decrements per
+## logic frame and stops below 2, so it only re-presses when the timer is < 2
+## (`seg007.c:742-751`, `seg007.c:783-791`).
+const PLATE_HOLD_TIMER: int = 5
+const PLATE_REPRESS_BELOW: int = 2
+const PLATE_JAMMED: int = 0x1F        ## 31 = jammed, cannot fire (`seg007.c:713-715`)
+
 # --- Direction change and run stop (PARITY §18) ----------------------------
 const TURN_TICKS: int = 8             ## `seqtbl.c:440-449`: flip + frames 45–52, then stand
 const RUN_STOP_TICKS: int = 8         ## `seqtbl.c:619-627`: frames 53,54,55,56,49,50,51,52, then stand

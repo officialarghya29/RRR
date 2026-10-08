@@ -35,7 +35,7 @@ extends RefCounted
 ## migration is measured (plan gate 2); safe-step-on-edge-at-distance-0
 ## (`seg005.c:595-605` seq_44 path) is A2.3-optional and absent; check_knock,
 ## check_spike_below side effects are not modeled.
-const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col"]
+const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col", "gates", "plates", "exit"]
 
 ## Measured: 8 ticks (flip + frames 45–52 → stand), docs/PARITY.md §18,
 ## `seqtbl.c:440-449`.
@@ -52,7 +52,7 @@ const _FNV_PRIME: int = 0x01000193   ## FNV-1a 32-bit prime
 const _FNV_MASK: int = 0xFFFFFFFF
 
 
-static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}) -> Dictionary:
+static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}, entities: Dictionary = {}) -> Dictionary:
 	return {
 		"tick": 0,
 		"x": _START_X,
@@ -75,7 +75,24 @@ static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}) -
 		# spike disabling can never leak into another run's state.
 		"tiles": tiles,
 		"mods": mods.duplicate(),
+		# A4.1 level entities (hashed): gate modifiers/animation, plate hold
+		# timers and the level-exit door. links is static level data (not
+		# hashed), like tiles/mods.
+		"gates": _dup_entities(entities.get("gates", {})),
+		"plates": _dup_entities(entities.get("plates", {})),
+		"exit": (entities.get("exit", {}) as Dictionary).duplicate(),
+		"links": (entities.get("links", []) as Array).duplicate(),
 	}
+
+
+## One-level deep copy of an entity dictionary (gates hold a nested dict; a
+## plate is a bare int timer), so two states never share entity objects.
+static func _dup_entities(src: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for k: Variant in src.keys():
+		var v: Variant = src[k]
+		out[k] = (v as Dictionary).duplicate() if v is Dictionary else v
+	return out
 
 
 ## Advance exactly one tick. Pure: returns a new dictionary (level mods are
@@ -97,13 +114,16 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 	if int(s["dead"]) == 0:
 		_floor_checks(s)  # reference: check_action → do_fall/check_on_floor/start_fall/land
 		_spike_check(s)   # reference: check_spiked (seg006.c:950-964)
+		# reference: check_press (seg006.c:1676-1698) + process_trobs (seg007.c:21-40)
+		PopLevel.step_entities(s, int(s["row"]), _col_of(_foot_x(s)),
+			_tile(s, int(s["row"]), _col_of(_foot_x(s))))
 	s.erase("input_shift")  # helpers consumed it; never leaks into the returned state
 	return s
 
 
 ## Run a whole input script (array of packed bytes) from an initial seed.
-static func run(seed: int, script: Array, tiles: Array = [], mods: Dictionary = {}) -> Dictionary:
-	var state: Dictionary = initial_state(seed, tiles, mods)
+static func run(seed: int, script: Array, tiles: Array = [], mods: Dictionary = {}, entities: Dictionary = {}) -> Dictionary:
+	var state: Dictionary = initial_state(seed, tiles, mods, entities)
 	for packed: Variant in script:
 		state = step(state, PopInput.from_byte(int(packed)))
 	return state
@@ -691,14 +711,33 @@ static func _spike_harm_class(modifier: int) -> int:
 static func hash_state(state: Dictionary) -> int:
 	var h: int = _FNV_OFFSET
 	for key: String in STATE_KEYS:
-		var v: Variant = state[key]
-		if v is String:
-			for b: int in (v as String).to_utf8_buffer():
-				h = _fold_byte(h, b)
-		else:
-			var iv: int = int(v)
-			for i: int in 8:
-				h = _fold_byte(h, (iv >> (i * 8)) & 0xFF)
+		h = _fold(h, state[key])
+	return h
+
+
+## Fold one value into the running hash: strings by UTF-8 byte, dictionaries
+## by sorted key (so gate/plate/exit maps hash order-stably), arrays in order,
+## everything else as a little-endian int.
+static func _fold(h: int, v: Variant) -> int:
+	if v is String:
+		for b: int in (v as String).to_utf8_buffer():
+			h = _fold_byte(h, b)
+	elif v is Dictionary:
+		var d: Dictionary = v
+		var keys: Array = d.keys()
+		keys.sort()
+		for k: Variant in keys:
+			h = _fold(h, str(k))
+			h = _fold(h, d[k])
+	elif v is Array:
+		for item: Variant in (v as Array):
+			h = _fold(h, item)
+	elif v is bool:
+		h = _fold_byte(h, 1 if (v as bool) else 0)
+	else:
+		var iv: int = int(v)
+		for i: int in 8:
+			h = _fold_byte(h, (iv >> (i * 8)) & 0xFF)
 	return h
 
 

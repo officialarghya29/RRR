@@ -47,6 +47,9 @@ func _ready() -> void:
 	_section("A3.2 pop_view sandbox (plan A3.2)")
 	_test_pop_view_sandbox()
 
+	_section("A4.1 gates, plates and the level exit (plan A4.1)")
+	_test_a41_entities()
+
 	_section("Health component")
 	_test_health()
 
@@ -1534,3 +1537,161 @@ func _test_a23_acceptance(md: String) -> void:
 		"safe_step_11 starts on f121 (PARITY §6 context: step frames; seqtbl.c:765-774)")
 	print("  GAP: A2.3 scenario geometry is sim-level, not PARITY-derived (pit/grab/hang/climb/crouch/safe-step helpers above).")
 	print("  GAP: A2.3 safe-step-on-edge-at-distance-0 is unmodeled (A2.3-optional; seg005.c:595-605).")
+
+
+# --- Plan A4.1: gates, plates and the level exit ---------------------------
+#
+# Accept: a test level exercises plate→gate open/close timing within ±1 tick of
+# the values in docs/PARITY.md §9/§10. Every expected number below is read from
+# a PARITY row (never from sim output); machine behaviour with no independent
+# oracle is labelled "sim characterization".
+
+## A PopSim state on the A4.1 test level with the kid standing in column `col`
+## (frame 15, foot offset dx−weight = −3, so x = col's left edge + 7 + 3).
+func _a41_state(seed: int, col: int) -> Dictionary:
+	var bundle := PopLevel.small_test_level()
+	var st: Dictionary = PopSim.initial_state(seed, bundle["tiles"], bundle["mods"], bundle["entities"])
+	st["row"] = 0
+	st["y"] = int(PopTables.Y_LAND[1])
+	st["dir"] = 1
+	st["seq"] = "stand"
+	st["op"] = 0
+	st["frame"] = 15
+	st["action"] = PopTables.Action.STAND
+	st["x"] = PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN + col] + 10
+	return st
+
+
+func _test_a41_entities() -> void:
+	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable for the A4.1 cross-checks")
+	if md.is_empty():
+		return
+
+	# --- expected values, read from PARITY §9/§10 -------------------------
+	var close_delta := _parity_int(md, "9", "normal closing")            # −1
+	var open_delta := _parity_int(md, "9", "opening / permanent")        # +4
+	var fast_speeds: Array = _ints(_parity_cell(md, "9", "fast close (types 3–8)"))
+	var open_row: Array = _ints(_parity_cell(md, "9", "open reached"))   # 188, 238, 255
+	var leveldoor_row: Array = _ints(_parity_cell(md, "9", "level (exit) door"))
+	var plate_timer := _parity_int(md, "10", "press timer", 2)           # 5
+	var repress_below_nums: Array = _ints(_parity_cell(md, "10", "press timer", 1))
+
+	# --- constants match those rows (anti-drift) --------------------------
+	check(PopTables.DOOR_DELTA[0] == close_delta and PopTables.DOOR_DELTA[1] == open_delta,
+		"DOOR_DELTA matches PARITY §9 normal-closing / opening rows")
+	check(PopTables.GATE_OPEN_THRESHOLD == int(open_row[0]) and PopTables.GATE_PARKED == int(open_row[1]),
+		"gate open threshold + park match PARITY §9 open-reached row")
+	check(PopTables.GATE_PERMANENT == 0xFF and _parity_cell(md, "9", "open reached").contains("0xFF"),
+		"permanent-open modifier 0xFF matches PARITY §9 open-reached row")
+	var fast_ok := true
+	for i: int in 6:
+		if PopTables.GATE_CLOSE_SPEEDS[3 + i] != int(fast_speeds[i]):
+			fast_ok = false
+	check(fast_ok, "GATE_CLOSE_SPEEDS match PARITY §9 fast-close row (20…120)")
+	check(PopTables.LEVELDOOR_START == int(leveldoor_row[4])
+			and PopTables.LEVELDOOR_CLOSE_SPEEDS[1] == int(leveldoor_row[1]),
+		"level-door start + speed match PARITY §9 level (exit) door row")
+	check(PopTables.PLATE_HOLD_TIMER == plate_timer,
+		"plate hold timer matches PARITY §10 press-timer row")
+	check(PopTables.PLATE_REPRESS_BELOW == int(repress_below_nums[0]),
+		"plate re-press threshold matches PARITY §10 press-timer row (stops below 2)")
+
+	# --- level shape from the room-grid loader ---------------------------
+	var bundle := PopLevel.small_test_level()
+	var tiles: Array = bundle["tiles"]
+	check(tiles.size() == PopLevel.ROOM_H and (tiles[0] as Array).size() == 2 * PopLevel.ROOM_W,
+		"pop_level flattens two 10×3 rooms into a 3×20 tile grid")
+	check(int(tiles[0][3]) == PopTables.Tile.BUTTON_RAISE
+			and int(tiles[0][7]) == PopTables.Tile.GATE
+			and int(tiles[0][15]) == PopTables.Tile.EXIT_DOOR_LEFT,
+		"the test level places the plate, gate and exit door")
+
+	# --- plate press + gate opening --------------------------------------
+	var gate_key := "0,7"
+	var st := _a41_state(4242, 3)   # kid stands on the plate at column 3
+	st = PopSim.step(st, PopInput.neutral())
+	var plate_timer_now: int = int((st["plates"] as Dictionary)["0,3"])
+	check(plate_timer_now == PopTables.PLATE_HOLD_TIMER - 1,
+		"a press sets the hold timer to 5 then decrements once (PARITY §10 press-timer row; got %d)" % plate_timer_now)
+	check(int((st["gates"] as Dictionary)[gate_key]["type"]) == 1,
+		"the raise plate starts the linked gate opening (PARITY §9 opening row)")
+
+	var open_tick := 0
+	var g: Dictionary = (st["gates"] as Dictionary)[gate_key]
+	while int(g["mod"]) < PopTables.GATE_PARKED and int(st["tick"]) < 400:
+		st = PopSim.step(st, PopInput.neutral())
+		g = (st["gates"] as Dictionary)[gate_key]
+		open_tick = int(st["tick"])
+	check(int(g["mod"]) == PopTables.GATE_PARKED,
+		"the gate parks at 238 once open (PARITY §9 open-reached row; got %d)" % int(g["mod"]))
+	var expected_open_tick: int = int(open_row[0]) / PopTables.DOOR_DELTA[1]   # 188 / 4
+	check(abs(open_tick - expected_open_tick) <= 1,
+		"gate opens in %d±1 ticks (PARITY §9: 188 at +4/frame; got %d)" % [expected_open_tick, open_tick])
+
+	# --- gate closing -----------------------------------------------------
+	var close_tick := open_tick
+	while int(g["mod"]) > 0 and int(st["tick"]) < 900:
+		st = PopSim.step(st, PopInput.neutral())
+		g = (st["gates"] as Dictionary)[gate_key]
+		close_tick = int(st["tick"])
+	check(int(g["mod"]) == 0,
+		"the gate closes back to 0 (PARITY §9 close-reached row)")
+	var expected_close_ticks: int = PopTables.GATE_PARKED / abs(PopTables.DOOR_DELTA[0])  # 238 / 1
+	check(abs((close_tick - open_tick) - expected_close_ticks) <= 1,
+		"gate closes in %d±1 ticks (PARITY §9 normal closing −1/frame; got %d)" % [expected_close_ticks, close_tick - open_tick])
+
+	# --- re-press only after release (PARITY §10) -------------------------
+	# Step off the plate until the timer drops below 2, then step back on: the
+	# plate must fire the gate again.
+	st["x"] = PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN + 6] + 10
+	var off: Dictionary = PopSim.step(st, PopInput.neutral())
+	for _i: int in 5:
+		off = PopSim.step(off, PopInput.neutral())
+	var off_timer: int = int((off["plates"] as Dictionary)["0,3"])
+	check(off_timer < PopTables.PLATE_REPRESS_BELOW,
+		"the hold timer decays below 2 after release (PARITY §10 press-timer row; got %d)" % off_timer)
+	off["x"] = PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN + 3] + 10
+	var back: Dictionary = PopSim.step(off, PopInput.neutral())
+	var back_gate: Dictionary = (back["gates"] as Dictionary)[gate_key]
+	check(int(back_gate["type"]) == 1 and int(back_gate["mod"]) > 0,
+		"stepping back on the plate re-fires the gate (PARITY §10: re-press only when below 2)")
+
+	# --- level-exit door --------------------------------------------------
+	var st2 := _a41_state(99, 6)    # kid off the plate; the door still runs
+	check(int((st2["exit"] as Dictionary)["mod"]) == PopTables.LEVELDOOR_START,
+		"the exit door starts fully open at 43 (PARITY §9 level (exit) door row)")
+	var door_ticks := 0
+	while int((st2["exit"] as Dictionary)["mod"]) > 0 and door_ticks < 50:
+		st2 = PopSim.step(st2, PopInput.neutral())
+		door_ticks += 1
+	check(int((st2["exit"] as Dictionary)["mod"]) == 0,
+		"the exit door closes to 0 (PARITY §9 level (exit) door row)")
+	check(door_ticks == 3,
+		"the exit door fast-closes in 3 ticks through the {0,5,17,99} ramp (PARITY §9; got %d)" % door_ticks)
+
+	# --- closer plate fires a fast close (PARITY §9 fast-close row) --------
+	var closer := {
+		"gates": {"0,2": {"mod": PopTables.GATE_PARKED, "type": 0}},
+		"plates": {"0,1": 0},
+		"links": [{"plate": "0,1", "gate": "0,2"}],
+		"exit": {},
+	}
+	PopLevel.step_entities(closer, 0, 1, PopTables.Tile.BUTTON_DROP)
+	var closer_gate: Dictionary = closer["gates"]["0,2"]
+	check(int(closer_gate["type"]) >= 3 and int(closer_gate["mod"]) < PopTables.GATE_PARKED,
+		"a closer plate starts a fast close (PARITY §9 fast-close row; seg007.c:636-637)")
+
+	# --- determinism: entity state is inside the hash ---------------------
+	var e1 := _a41_state(4242, 3)
+	var e2 := _a41_state(4242, 3)
+	for _i: int in 60:
+		e1 = PopSim.step(e1, PopInput.neutral())
+		e2 = PopSim.step(e2, PopInput.neutral())
+	check(PopSim.hash_state(e1) == PopSim.hash_state(e2),
+		"two identical plate runs hash equal, gate/plate state included")
+	var e3 := _a41_state(9999, 3)
+	for _i: int in 60:
+		e3 = PopSim.step(e3, PopInput.neutral())
+	check(PopSim.hash_state(e1) != PopSim.hash_state(e3),
+		"a different seed diverges with gate/plate state in the hash")
