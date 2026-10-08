@@ -27,7 +27,7 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 | Current stage / phase | Stage A / **A1 Done** · **A2 Done** (A2.3 ticked S005) · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1 Done** (gates/plates/exit door) · **B1 thin slice done** (input-byte echo on the sim; Stage-B bridge still ahead) |
 | Sessions logged | 5 entries (000, 002, 003, 004, 005). Session 001 has no entry — see Time Ledger |
 | Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004 and S005 hours pending the user's confirmed figures (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 272 passed / 0 failed** (243 at S004 close + 24 A4.1 + 5 B1); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 312 passed / 0 failed** (243 at S004 close + 24 A4.1 + 5 B1 + 40 A4.2); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
 | Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P4 and P6 ◐ partial; P5/P7 pending their gates |
 | Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004/S005 hours figures [N]. |
 | Cut line status | Nothing cut yet; W1 exit criteria 3/4 met (refs removed ✅, PARITY.md v1 ✅, sandbox exists & boots ✅ — feel needs playtest; CI workflow landed but not pushed → not "online" yet). No cut-list trigger raised. |
@@ -53,7 +53,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
 | A2 | Sim core | 8 | **Done** — A2.1 + A2.2 + A2.3 all ticked; gate 2 partially covered | 002, 003, 004, 005 |
 | A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
-| A4 | Traps, tiles, duels | 12 | In progress — **A4.1 gates/plates/exit door done**; A4.2–A4.5 pending | 005 |
+| A4 | Traps, tiles, duels | 12 | In progress — **A4.1 gates/plates/exit door + A4.2 spikes/loose/chomper done**; falling-block crush entity is a gap (A4.2 left unticked); A4.3–A4.5 pending | 005 |
 | A5 | Parity verification | 7 | Not started | |
 | B0 | Bridge decision (rebase on sim) | 2 | Not started | |
 | B1 | Temporal Echo, input-level | 6 | In progress — thin **input-byte echo on the sim** done (record/replay, one-bit divergence); Stage-B bridge pending | 005 |
@@ -136,9 +136,16 @@ _(entry in progress — completed as work lands)_
 - **Evidence:** `./verify.sh` **272 passed / 0 failed**, exit 0 (log `verify_s005_b1.log`) — 5 new checks. This is the thin slice only: full Stage-B Echo (room-scoped recording, multiple participants, the bridge to the shipped game) is still ahead.
 - **GAP lines:** (1) the bucket above is sim-level — the replay proves byte-faithfulness, not the shipped Echo; (2) the gate/plate machine has no [O] observation against the reference binary yet (P6 ◐).
 
+**Step 5 — A4.2 spikes, loose floors and chompers (committed `babfd7f`)**
+- **New behaviour:** `PopLevel` gained `trigger()` / `step_traps()` with three machines — **spike cycle** (extend 1→4 → snap 0x8F → hold to 0x81 → retract 6/7/8 → reset 0 and stop), **loose floor** (11-frame press→fall countdown, 0x80–0x83 shake band resetting at 0x84, detach empties the tile), **chomper** (15-frame cycle, bite sets the 0x80 blood flag on frame 2, stops past frame 6 when the kid left its row or died). `mods` and `anims` joined `STATE_KEYS`, and **tiles are now duplicated per run** because detaching a floor mutates one — the previous shared `tiles` reference would have let one run corrupt another.
+- **Accept evidence:** `./verify.sh` **312 passed / 0 failed**, exit 0 (log `verify_s005_a42c.log`) — 40 new checks. Spike phases read 5/15/3 from PARITY §8 and the full 23-tick modifier sequence is asserted tick by tick; loose/chomper values come from PARITY §11; two replayed spike testcases show the extend window kills and the retract window does not.
+- **Bug found in review, not by the test:** my first `crush_test` had the **wrong direction** — I had implemented *block below the feet*, while `check_loose_fall_on_kid` (`seg007.c:1591-1601`) tests `curmob.y < Char.y && Char.y - 30 < curmob.y`, i.e. the block must be **above** the feet within 30 units. The test passed against my own wrong predicate (self-consistent, not reference-corrected); corrected and re-verified with an explicit "block below the feet does not crush" assertion.
+- **GAP:** the **falling loose-floor block entity is not modeled** — the crush rule is a unit predicate only, so `fall`/`crush` in plan A4.2 are partially delivered. **A4.2 is therefore left unticked** pending your call.
+
 **Files touched this session**
 - `plan.md` (A2.3 tick only), `review.md`, `docs/PARITY.md` (+1 row).
 - `scripts/pop/pop_tables.gd`, `scripts/pop/pop_sim.gd`, `scripts/pop/pop_level.gd` (new), `scripts/pop/pop_replay.gd` (new), `tests/test_main.gd`.
+- (A4.2) `pop_tables.gd` gained the PARITY §8/§11 constants, `pop_level.gd` the three trap machines, `pop_sim.gd` the `mods`/`anims` state keys and the per-run tile copy.
 
 **Hours:** not stated — S004 and S005 figures are blank in the session brief; the ledger keeps the cumulative at 10.3 / 34 until reported. **Nothing on the cut list triggered.**
 
@@ -650,7 +657,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
-| 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 done | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo (record/replay, one-bit divergence); +1 PARITY §10 row. Hours pending user figure. | 29 added (272 total) |
+| 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 done | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper (PARITY §8/§11) with a corrected crush predicate; +1 PARITY §10 row. Hours pending user figure. | 69 added (312 total) |
 | 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |
