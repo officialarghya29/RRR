@@ -470,11 +470,14 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
       equality; run-jump covers 2 tiles and standing jump 1 tile of horizontal
       distance (the original's canonical gaps, cross-checked in PARITY.md); falling
       3 rows kills, 2 rows costs 1 HP.
-- [ ] **A2.3 [M]** Add hanging/climbing (up/down, release, hang-straight) +
+- [x] **A2.3 [M]** Add hanging/climbing (up/down, release, hang-straight) +
       crouch + safe-step edge probing.
       **Accept:** scripted inputs can climb out of a 1-tile pit and hang-grab from a
       fall (reproduce SDLPoP grab rule: shift pressed while falling, tile ahead-above
       grabbable).
+      **Status (ticked Session 005):** sim-verified with PARITY-derived frame counts;
+      scenario geometry unmeasured; safe-step at edge distance 0 unmodeled; SDLPoP
+      observation pending.
 
 ### A3 — Presentation shell · ~6 h · [M]
 

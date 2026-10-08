@@ -95,6 +95,32 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 
 <!-- Newest first. Copy the template below for each new session. -->
 
+### Session 005: 2026-10-08 — A2.3 ticked; pre-push audit clean; re-order proposed (A4.1 → B1 → A4.2 → A4.3); A4.1 gates/plates/exit
+_(entry in progress — completed as work lands)_
+
+**Baseline at session start**
+- `./verify.sh`: exit 0, **ALL CHECKS PASSED** — import ok, 5/5 levels clean, **243 passed / 0 failed** (Godot 4.7.2-stable; log `verify_s005_baseline.log`).
+- Git: branch `dev/pop-rebuild`, HEAD = `23ed2c7`; `git status --porcelain --untracked-files=no` empty; `git diff 23ed2c7 --stat` empty — no tracked change outside intent. Untracked and deliberately uncommitted: `tools/frame_decode_check.py`, `tools/smoke_pop.gd`, `tools/smoke_pop.gd.uid`.
+- Housekeeping: two stale hung `test_main.tscn` runs (started 17:09 / 17:13, ~2 h with no output) were found and killed **before** the baseline run, so the 243/0 figure is from a clean single run.
+
+**Step 0 — integrity**
+- `plan.md` and `review.md` read. `plan.md` differs from `23ed2c7` only by the A2.3 tick applied this session (below). No fused-table lines; the Session-004 corruption repair holds.
+- **A2.3 ticked** in `plan.md` with the user-approved wording (checkbox `[ ]`→`[x]` + one note line, no other edit): *sim-verified with PARITY-derived frame counts; scenario geometry unmeasured; safe-step at edge distance 0 unmodeled; SDLPoP observation pending.*
+
+**Step 1 — pre-push audit (report only; nothing pushed)**
+- (a) `git ls-files | grep -E "\.tools|\.log|\.patch|Original|study|SDLPoP|4dprinceprsia"` → **empty** (grep exit 1). ✅
+- (b) `git log --all --oneline -- 4dprinceprsia SDLPoP-1.23 study` → **empty**. ✅ No reference-data commit on any ref; nothing to reach what will be pushed.
+- (c) `.github/workflows/verify.yml` → `on: push` + `pull_request` with **no branch filter**, so it fires on all branches including `dev/**`; the Godot version is pinned in `verify.sh` (`GODOT_VERSION="4.7.2-stable"`); step 1/3 runs `--import` and fails on `SCRIPT ERROR|Parse Error|Failed to load`. ✅ (Note: the pin lives in `verify.sh`, not the workflow; the cache key `godot-4.7.2-stable-linux-x86_64` mirrors it — bump both together.)
+- (d) Licensing re-scan **method**: (1) `grep -rnE "segment[0-9]|__asm|static void|uint16_t|\bseg[0-9]{3}_|typedef struct|SDLPoP|#include" docs/PARITY.md scripts/pop/` — every hit is citation/comment text (a `file:line` reference or the word SDLPoP in a header); **no C declarations, no pasted tables**; (2) scanned for any line >200 chars containing code punctuation (`{};`) — none found. `docs/PARITY.md` and `pop_tables.gd` are numbers + `file:line` citations only. ✅
+- **Verdict: clean to push.** Not pushed — the user pushes.
+
+**Step 2 — proposed re-order (proposal only; `plan.md` NOT edited)**
+- **Proposed order: A4.1 → minimal B1 → A4.2 → A4.3.**
+- **Reason:** the single biggest schedule risk in Stage B is `B1` — rebasing the *existing* Echo/`TemporalManager` gameplay onto the new 12 fps `pop_sim` and its byte-packed `pop_input`. If that rebase turns out to be harder than assumed, it changes what is buildable, so it should be proven early with a thin slice, not discovered at the end of W2. A4.1 (gates/plates/exit door) is the smallest A4 slice that gives the thin Echo something meaningful to *do* (a recorded run that triggers a plate), so A4.1 comes first and minimal B1 immediately after it. A4.2 (spikes/loose floors) and A4.3 (guard duel) then proceed as planned.
+- **What "minimal B1" means:** one new module, `scripts/pop/pop_replay.gd`, that (i) records N ticks of `pop_input` bytes from a live run, (ii) releases a **second sim participant** that replays those exact bytes into its own `PopSim`, (iii) that replayed participant triggers a plate/gate in the level, and (iv) is proven to be honest under the determinism gate.
+- **Acceptance test (plan §8 gate 4 — Echo replay v2 + one-bit divergence):** record N ticks of input bytes; release a second sim participant that replays them; it triggers a plate; **state hashes are identical across two runs** of the same recording; and **flipping one recorded bit makes the run diverge**. Reuse `pop_input` bytes rather than the legacy `TemporalManager` transform path.
+- **Cut-list impact: none.** The order does not add, remove, or re-rank any cut-list item, so this proceeds without waiting for approval (per the session rule). If the rebase turns out to need the legacy `TemporalManager` path beyond a `--legacy-physics` flag, work stops and the specific obstacle is reported instead of worked around.
+
 ### Session 004: 2026-10-08 — A2.3 acceptance rebuilt (under audit); working-tree corruption found and repaired; clean-clone check green
 - Rebuilt `_test_a23_acceptance()` in `tests/test_main.gd`. **Scope A** re-derives the §6/§7 stream lengths and thresholds through the mini play_seq interpreter; **scope B** asserts live PopSim behavior on crafted levels (pit walk drops a row; Shift mid-air grab fires with `grab_timer = 12` and enters `grab_hang`, and does **not** fire without Shift; idle hang release ends in `hang_drop` on f81; Up at `grab_timer 0` routes to `climb_up` on f135; Down from stand enters `crouch` on f107; Shift+forward with floor ahead enters `safe_step_11` on f121).
 - **Corruption repaired (working-tree-only; never committed and not recoverable from git history).** `project.godot` had lost the `GameManager`/`TemporalManager` autoloads; `scripts/pop/pop_input.gd` was stubbed (`to_byte()` returned 0, `from_byte()` returned neutral); `pop_sim.gd` had `const STATE_KEYS` fused onto the tail of a `##` comment. All three were restored to HEAD. A `.godot` import pass is required for `class_name` globals under `--headless`. The exact edit/command that caused them is not recoverable from the repo artifacts (all three `.backup/s004_*` snapshots are clean; no commit, stash or reflog entry holds them) — the strongest evidence points to the Session-003 tool churn, but that is inferred, not proven.
