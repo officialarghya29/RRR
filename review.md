@@ -27,7 +27,7 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 | Current stage / phase | Stage A / **A1 Done** · **A2 Done** (A2.3 ticked S005) · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1 Done** (gates/plates/exit door) · **B1 thin slice done** (input-byte echo on the sim; Stage-B bridge still ahead) |
 | Sessions logged | 5 entries (000, 002, 003, 004, 005). Session 001 has no entry — see Time Ledger |
 | Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004 and S005 hours pending the user's confirmed figures (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 316 passed / 0 failed** (243 at S004 close + 24 A4.1 + 5 B1 + 40 A4.2 + 4 crush); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 341 passed / 0 failed** (243 at S004 close + 24 A4.1 + 5 B1 + 40 A4.2 + 4 crush + 25 A4.3); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
 | Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P4 and P6 ◐ partial; P5/P7 pending their gates |
 | Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004/S005 hours figures [N]. |
 | Cut line status | Nothing cut yet; W1 exit criteria 3/4 met (refs removed ✅, PARITY.md v1 ✅, sandbox exists & boots ✅ — feel needs playtest; CI workflow landed but not pushed → not "online" yet). No cut-list trigger raised. |
@@ -53,7 +53,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
 | A2 | Sim core | 8 | **Done** — A2.1 + A2.2 + A2.3 all ticked; gate 2 partially covered | 002, 003, 004, 005 |
 | A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
-| A4 | Traps, tiles, duels | 12 | In progress — **A4.1 gates/plates/exit door + A4.2 spikes/loose-floor/chomper done**; A4.3–A4.5 pending | 005 |
+| A4 | Traps, tiles, duels | 12 | In progress — **A4.1 gates/plates, A4.2 spikes/loose/chomper done; A4.3 duel built (accept met, unticked: trap deaths for both parties not wired)**; A4.4–A4.5 pending | 005 |
 | A5 | Parity verification | 7 | Not started | |
 | B0 | Bridge decision (rebase on sim) | 2 | Not started | |
 | B1 | Temporal Echo, input-level | 6 | In progress — thin **input-byte echo on the sim** done (record/replay, one-bit divergence); Stage-B bridge pending | 005 |
@@ -143,10 +143,18 @@ _(entry in progress — completed as work lands)_
 - **GAP:** the **falling loose-floor block entity is not modeled** — the crush rule is a unit predicate only, so `fall`/`crush` in plan A4.2 are partially delivered. **A4.2 is therefore left unticked** pending your call.
 - **Correction (same session, supersedes the GAP above):** the falling block **was** then implemented — `_spawn_block` (starts at `y_loose_land[row+1]`, `seg007.c:818-832`), `_step_blocks` (PARITY §7 fall integration carried over as the block's rate, marked placeholder) and `_fell_on_your_head` (`seg007.c:1605-1630`, 1 HP per hit, last HP → `seq_22_crushed`). The live test shows a kid one row below a detaching floor dropping to **hp 1**, and the same run twice hashes equal with the block inside the state hash. **`./verify.sh` 316 passed / 0 failed, exit 0** (log `verify_s005_crush.log`), so **A4.2 is now ticked.**
 
+**Step 6 — A4.3 guard duel at 10 fps (committed `6ec8236`)**
+- **New file:** `scripts/pop/pop_guard.gd` (`PopGuard`) — a self-contained 10 fps duel: en-garde (`f158` loop), advance/retreat, strike/block/parry, per-skill odds + HP + refractory from **PARITY §12**, sword frame chains from **PARITY §13**, drawing from the reference LCG (**PARITY §14** / `PopRng`) in the reference's advance→block→strike order (`seg002.c:864-899`).
+- **Accept met:** a strike in `f153/f154` lands unless the defender parries at `f150/f161` (then the strike is turned aside and the attacker enters the blocked chain). A scripted skill-0 duel **reaches a win** (measured: `winner=kid after 15 ticks, guard hp 0, kid hp 1`), and re-running with `seed=N` yields an **identical transcript and outcome**; a different seed yields a different transcript — plan §8 gate 3.
+- **Evidence:** `./verify.sh` **341 passed / 0 failed**, exit 0 (log `verify_s005_a43b.log`) — 25 new checks, including anti-drift rows for all eight §12 tables and the §13 chains.
+- **Two probes of mine were wrong, not the code:** I first asserted the §13 hit-window row with the substring `"153, 154"`, but the cell reads `f153, f154` (an `f` sits between), so the probe missed; corrected to `"f153, f154"` / `"f150 or f161"`. The assertions themselves were never weakened.
+- **GAP (A4.3 therefore left unticked):** plan A4.3 also asks for **spiked/chomped deaths for both parties**. In the duel both fighters still die on HP alone — the guard is not integrated with the level/trap machines, so a trap cannot kill it. `advance/retreat` dx also does not gate reach (PARITY carries no reach distance, and inventing one would violate "no values from outside PARITY").
+
 **Files touched this session**
 - `plan.md` (A2.3 tick only), `review.md`, `docs/PARITY.md` (+1 row).
 - `scripts/pop/pop_tables.gd`, `scripts/pop/pop_sim.gd`, `scripts/pop/pop_level.gd` (new), `scripts/pop/pop_replay.gd` (new), `tests/test_main.gd`.
 - (A4.2) `pop_tables.gd` gained the PARITY §8/§11 constants, `pop_level.gd` the three trap machines, `pop_sim.gd` the `mods`/`anims` state keys and the per-run tile copy.
+- (A4.3) `scripts/pop/pop_guard.gd` (new) + `_test_a43_duel()` in `tests/test_main.gd`.
 
 **Hours:** not stated — S004 and S005 figures are blank in the session brief; the ledger keeps the cumulative at 10.3 / 34 until reported. **Nothing on the cut list triggered.**
 
@@ -600,7 +608,7 @@ _(entry in progress — completed as work lands)_
 | P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | A2.3 scope A asserts the §6 frame counts (climb_down 10, climb_fail 11, hang_drop 5, grab_timer 12); the **43-frame sway auto-drop is not yet asserted** | ◐ partial | 002, 004 |
 | P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | | ⬜ | 002 |
 | P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | gate open 47 / close 238 / exit door 3 ticks; plate timer 5→1 — within ±1 of PARITY §9–§10 (`_test_a41_entities`); source-matched, not observed | ◐ partial | 005 |
-| P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | | ⬜ | 002 |
+| P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | skill-0 duel reaches a win (kid wins in 15 ticks, guard hp 0) and the transcript is identical for the same seed, different for a different seed (`_test_a43_duel`); source-matched, not observed | ◐ partial | 005 |
 | P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks — source-matched; [O]-observed 12.00 Hz | ✅ | 002, 003 |
 
 Status: ⬜ not tested · ❌ failing · ✅ matching
@@ -615,7 +623,7 @@ Reference values live in tracked `docs/PARITY.md` since Q1 was answered (Session
 |---|---|---|---|
 | Determinism (600 ticks, twice, equal hash; different seeds differ) | ✅ | ✅ | 002 |
 | Kinematics parity table | ◐ partial — run/stand-jump + fall + edge-snap + turn/stop rows | ✅ those rows (189/0) | 003 |
-| Duel transcript | ⬜ | ⬜ | |
+| Duel transcript | ✅ | ✅ | 005 |
 | Echo replay v2 (plus one-bit divergence test) | ◐ thin slice | ✅ thin slice | 005 |
 | Level completability smoke (3 levels) | ⬜ | ⬜ | |
 | CI workflow green | ⬜ | ⬜ | |
@@ -658,7 +666,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
-| 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 done | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper / falling-block crush (PARITY §8/§11) with a corrected crush predicate; +1 PARITY §10 row. Hours pending user figure. | 73 added (316 total) |
+| 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 + A4.3 built | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper / falling-block crush (PARITY §8/§11); A4.3 guard duel with seeded transcripts (PARITY §12–§14). Two of my own test probes corrected (crush direction, §13 substrings). Hours pending user figure. | 98 added (341 total) |
 | 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |
