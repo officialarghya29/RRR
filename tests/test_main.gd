@@ -53,6 +53,9 @@ func _ready() -> void:
 	_section("B1 minimal input-byte echo (plan B1 / §8 gate 4)")
 	_test_b1_minimal_echo()
 
+	_section("A4.2 spikes, loose floors and chompers (plan A4.2)")
+	_test_a42_traps()
+
 	_section("Health component")
 	_test_health()
 
@@ -1736,3 +1739,213 @@ func _test_b1_minimal_echo() -> void:
 	var diverged: Dictionary = flipped.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
 	check(PopSim.hash_state(diverged) != PopSim.hash_state(a),
 		"flipping one recorded bit makes the run diverge (plan §8 gate 4)")
+
+
+# --- Plan A4.2: spikes, loose floors and chompers --------------------------
+#
+# Accept: replayed testcases reproduce documented outcomes; unit tests assert
+# modifier-state transitions from PARITY.md §8/§11 tables. Every expected
+# number is read from a PARITY row; anything without an independent oracle is
+# labelled "sim characterization".
+
+## A flat 4x16 level with one `tile` at (0, `col`).
+func _a42_level(tile: int, col: int) -> Array:
+	var level: Array = []
+	for r: int in 4:
+		var cells: Array = []
+		for c: int in 16:
+			cells.append(tile if (r == 0 and c == col) else PopTables.Tile.FLOOR)
+		level.append(cells)
+	return level
+
+
+## A standing kid in column `kid_col` of a level carrying `tile` at `col`.
+func _a42_state(seed: int, kid_col: int, tile: int, col: int) -> Dictionary:
+	var st: Dictionary = PopSim.initial_state(seed, _a42_level(tile, col))
+	st["row"] = 0
+	st["y"] = int(PopTables.Y_LAND[1])
+	st["dir"] = 1
+	st["seq"] = "stand"
+	st["op"] = 0
+	st["frame"] = 15
+	st["action"] = PopTables.Action.STAND
+	st["x"] = PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN + kid_col] + 10
+	return st
+
+
+func _test_a42_traps() -> void:
+	var md := FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable for the A4.2 cross-checks")
+	if md.is_empty():
+		return
+
+	# --- expected values, read from PARITY §8/§11 -------------------------
+	var extend_frames := _parity_int(md, "8", "extend", 2)        # 5
+	var hold_frames := _parity_int(md, "8", "extended hold", 2)    # 15
+	var retract_frames := _parity_int(md, "8", "retract", 2)       # 3
+	var delay_nums: Array = _ints(_parity_cell(md, "11", "press→fall delay"))
+	var shake_text := _parity_cell(md, "11", "shake band")
+	var crush_text := _parity_cell(md, "11", "crush test")
+	var chomp_text := _parity_cell(md, "11", "chomper cycle")
+
+	check(extend_frames == 5 and hold_frames == 15 and retract_frames == 3,
+		"PARITY §8 phase counts read as 5/15/3")
+	check(PopTables.SPIKE_CYCLE_TICKS == extend_frames + hold_frames + retract_frames,
+		"SPIKE_CYCLE_TICKS equals the PARITY §8 phase sum (got %d)" % PopTables.SPIKE_CYCLE_TICKS)
+	check(PopTables.LOOSE_FALL_DELAY == int(delay_nums[0]),
+		"LOOSE_FALL_DELAY matches PARITY §11 press→fall delay row (got %d)" % int(delay_nums[0]))
+	check(PopTables.LOOSE_SHAKE_START == 0x80 and PopTables.LOOSE_SHAKE_RESET == 0x84
+			and shake_text.contains("0x80") and shake_text.contains("0x83") and shake_text.contains("0x84"),
+		"shake band 0x80–0x83 / reset ≥0x84 matches PARITY §11 shake-band row")
+	check(PopTables.CRUSH_DEPTH == 30 and crush_text.contains("30"),
+		"CRUSH_DEPTH 30 matches PARITY §11 crush-test row")
+	check(PopTables.CHOMPER_FRAMES == 15 and chomp_text.contains("15 frames")
+			and chomp_text.contains("frame 2") and chomp_text.contains("0x80")
+			and chomp_text.contains("frame 6"),
+		"chomper cycle 15 / bite frame 2 / blood 0x80 / stop past frame 6 match PARITY §11")
+
+	# --- spike cycle: modifier transitions (PARITY §8) --------------------
+	var st := _a42_state(7, 2, PopTables.Tile.SPIKES, 5)
+	check(PopLevel.trigger(st, 0, 5), "a spike tile starts its animation (sim characterization, not parity evidence)")
+	var sseq: Array = []
+	for _i: int in 26:
+		st = PopSim.step(st, PopInput.neutral())
+		sseq.append(int((st["mods"] as Dictionary).get("0,5", 0)))
+	check(int(sseq[0]) == 1 and int(sseq[3]) == 4,
+		"extend runs 1..4 over 4 ticks (PARITY §8 extend row; got %d..%d)" % [sseq[0], sseq[3]])
+	check(int(sseq[4]) == PopTables.SPIKE_HOLD_START,
+		"the 5th extend frame snaps to the hold modifier 0x8F (PARITY §8 extend row)")
+	check(int(sseq[18]) == PopTables.SPIKE_HOLD_END,
+		"the hold counts down to 0x81 after 15 frames (PARITY §8 hold row; got 0x%02X)" % int(sseq[18]))
+	check(int(sseq[19]) == PopTables.SPIKE_RETRACT_START,
+		"retract begins at 6 (PARITY §8 hold row: …→6)")
+	check(int(sseq[20]) == 7 and int(sseq[21]) == 8,
+		"retract runs 7 then 8 (PARITY §8 retract row)")
+	check(int(sseq[22]) == 0 and int(sseq[23]) == 0,
+		"the cycle resets to 0 and stops on tick 23 (PARITY §8 retract row: 9→0, stop)")
+
+	# --- harmful-state rules (PARITY §8 "Harmful?") -----------------------
+	var extend_harm := _parity_cell(md, "8", "extend", 3)
+	var hold_harm := _parity_cell(md, "8", "extended hold", 3)
+	var retract_harm := _parity_cell(md, "8", "retract", 3)
+	var disabled_harm := _parity_cell(md, "8", "disabled", 3)
+	var cls_ok := true
+	for m: int in [1, 2, 3, 4]:
+		if PopSim._spike_harm_class(m) != 2:
+			cls_ok = false
+	check(cls_ok and extend_harm.contains("class 2"),
+		"modifiers 1–4 are class 2 (PARITY §8 extend row)")
+	check(PopSim._spike_harm_class(PopTables.SPIKE_HOLD_START) == 1 and hold_harm.contains("class 1"),
+		"the hold modifier is class 1 (PARITY §8 hold row)")
+	var retract_ok := true
+	for m: int in [6, 7, 8]:
+		if PopSim._spike_harm_class(m) != 0:
+			retract_ok = false
+	check(retract_ok and retract_harm.contains("no"),
+		"retract modifiers 6/7/8 are harmless (PARITY §8 retract row)")
+	check(PopSim._spike_harm_class(PopTables.SPIKE_DISABLED) == 0 and disabled_harm.contains("no"),
+		"0xFF is harmless (PARITY §8 disabled row)")
+
+	# --- replayed testcase: extend kills, retract is safe -----------------
+	var kill_level := _a42_level(PopTables.Tile.SPIKES, 3)
+	var ks: Dictionary = PopSim.initial_state(7, kill_level, {"0,3": 3})  # PARITY §8 extend row
+	var kt := 0
+	while kt < 60 and int(ks["dead"]) == 0:
+		ks = PopSim.step(ks, PopInput.make(1))
+		kt += 1
+	check(int(ks["dead"]) == 1,
+		"replay: running spikes in the extend window (mod 3) kill (PARITY §8 extend row)")
+	var ok_level := _a42_level(PopTables.Tile.SPIKES, 3)
+	var os: Dictionary = PopSim.initial_state(7, ok_level, {"0,3": 8})  # PARITY §8 retract row
+	kt = 0
+	while kt < 60 and int(os["x"]) <= 124 and int(os["dead"]) == 0:
+		os = PopSim.step(os, PopInput.make(1))
+		kt += 1
+	check(int(os["dead"]) == 0 and int(os["x"]) > 124,
+		"replay: the retract window (mod 8) lets him run past (PARITY §8 retract row)")
+
+	# --- loose floor: press→fall delay (PARITY §11) -----------------------
+	var lst := _a42_state(5, 2, PopTables.Tile.FLOOR_LOOSE, 5)
+	check(PopLevel.trigger(lst, 0, 5), "a loose floor starts its countdown (sim characterization, not parity evidence)")
+	var lseq: Array = []
+	for _i: int in 13:
+		lst = PopSim.step(lst, PopInput.neutral())
+		lseq.append(int((lst["mods"] as Dictionary).get("0,5", 0)))
+	check(int(lseq[9]) == 10 and int(lseq[10]) == 0,
+		"the loose floor counts 1..10 then detaches on tick 11 (PARITY §11 press→fall delay row)")
+	check(int((lst["tiles"] as Array)[0][5]) == PopTables.Tile.EMPTY,
+		"the detached floor leaves an empty tile (sim characterization of the fall)")
+
+	# --- loose floor: shake band (PARITY §11) -----------------------------
+	var sst := _a42_state(6, 2, PopTables.Tile.FLOOR_LOOSE, 5)
+	(sst["mods"] as Dictionary)["0,5"] = PopTables.LOOSE_SHAKE_START
+	check(PopLevel.trigger(sst, 0, 5), "a loose floor in the shake band keeps shaking (sim characterization, not parity evidence)")
+	var shake_seq: Array = []
+	for _i: int in 6:
+		sst = PopSim.step(sst, PopInput.neutral())
+		shake_seq.append(int((sst["mods"] as Dictionary).get("0,5", 0)))
+	check(int(shake_seq[0]) == 0x81 and int(shake_seq[2]) == 0x83,
+		"the shake band steps 0x81→0x83 (PARITY §11 shake-band row)")
+	check(int(shake_seq[3]) == 0 and int(shake_seq[4]) == 0,
+		"reaching 0x84 resets the modifier to 0 (PARITY §11 shake-band row)")
+
+	# --- the kid falls through a floor that detaches under him -------------
+	var fdt := _a42_state(8, 5, PopTables.Tile.FLOOR_LOOSE, 5)  # kid ON the loose floor
+	check(PopLevel.trigger(fdt, 0, 5), "a loose floor under the kid starts its countdown")
+	var fell := false
+	for _i: int in 14:
+		fdt = PopSim.step(fdt, PopInput.neutral())
+		if int((fdt["tiles"] as Array)[0][5]) == PopTables.Tile.EMPTY \
+				and String(fdt["seq"]) != "stand":
+			fell = true
+	check(fell, "the kid falls through the detached floor (sim characterization, not parity evidence)")
+
+	# --- chomper cycle (PARITY §11) ---------------------------------------
+	var cst := _a42_state(9, 2, PopTables.Tile.CHOMPER, 5)
+	check(PopLevel.trigger(cst, 0, 5), "a chomper starts its cycle (sim characterization, not parity evidence)")
+	var cseq: Array = []
+	for _i: int in 18:
+		cst = PopSim.step(cst, PopInput.neutral())
+		cseq.append(int((cst["mods"] as Dictionary).get("0,5", 0)))
+	check(int(cseq[0]) == 1 and int(cseq[14]) == 15,
+		"the chomper counts frames 1..15 (PARITY §11 chomper-cycle row)")
+	check(int(cseq[15]) == 1,
+		"frame 16 wraps back to 1 (PARITY §11 chomper-cycle row; got %d)" % int(cseq[15]))
+	check((cst["anims"] as Dictionary).has("0,5"),
+		"the chomper keeps cycling while the kid is alive in its row (sim characterization, not parity evidence)")
+
+	# --- chomper stop rule: kid left the row (PARITY §11) -----------------
+	var sst2 := _a42_state(10, 2, PopTables.Tile.CHOMPER, 5)
+	sst2["row"] = 1   # the kid has left the chomper's row
+	check(PopLevel.trigger(sst2, 0, 5), "the chomper starts with the kid one row down")
+	var stopped := false
+	for _i: int in 12:
+		sst2 = PopSim.step(sst2, PopInput.neutral())
+		if not (sst2["anims"] as Dictionary).has("0,5"):
+			stopped = true
+	check(stopped, "the chomper stops past frame 6 when the kid left its row (PARITY §11)")
+
+	# --- chomper bite sets the blood flag on frame 2 (PARITY §11) ---------
+	var bst := _a42_state(11, 5, PopTables.Tile.CHOMPER, 5)  # kid ON the chomper tile
+	check(PopLevel.trigger(bst, 0, 5), "the chomper starts with the kid in its tile")
+	var bitten := -1
+	for _i: int in 4:
+		bst = PopSim.step(bst, PopInput.neutral())
+		var bm: int = int((bst["mods"] as Dictionary).get("0,5", 0))
+		# capture the first tick the blood flag appears — it must be frame 2
+		if (bm & PopTables.CHOMPER_BLOOD) and bitten == -1:
+			bitten = bm
+	check(bitten != -1 and (bitten & 0x7F) == PopTables.CHOMPER_BITE_FRAME,
+		"biting the kid sets the blood flag on frame 2 (PARITY §11 chomper-cycle row; got 0x%02X)" % bitten)
+
+	# --- crush rule (PARITY §11 crush-test row) ---------------------------
+	var kid_y := int(PopTables.Y_LAND[1])
+	check(PopLevel.crush_test(kid_y, kid_y - 10, 3, 3),
+		"a block 10 units ABOVE the feet crushes (PARITY §11 crush-test row; seg007.c:1591-1601)")
+	check(not PopLevel.crush_test(kid_y, kid_y - PopTables.CRUSH_DEPTH - 1, 3, 3),
+		"a block 31 units above the feet does not (PARITY §11 crush-test row)")
+	check(not PopLevel.crush_test(kid_y, kid_y + 10, 3, 3),
+		"a block below the feet does not (seg007.c:1591 curmob.y < Char.y)")
+	check(not PopLevel.crush_test(kid_y, kid_y - 10, 3, 4),
+		"a different column is not a crush (PARITY §11 crush-test row)")
+	print("  GAP: the falling loose-floor block entity is not modeled — the crush rule is a unit predicate only.")

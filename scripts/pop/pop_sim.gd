@@ -35,7 +35,7 @@ extends RefCounted
 ## migration is measured (plan gate 2); safe-step-on-edge-at-distance-0
 ## (`seg005.c:595-605` seq_44 path) is A2.3-optional and absent; check_knock,
 ## check_spike_below side effects are not modeled.
-const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col", "gates", "plates", "exit"]
+const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col", "gates", "plates", "exit", "mods", "anims"]
 
 ## Measured: 8 ticks (flip + frames 45–52 → stand), docs/PARITY.md §18,
 ## `seqtbl.c:440-449`.
@@ -70,19 +70,32 @@ static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}, e
 		"grab_timer": 0,
 		"grab_col": 0,
 		"rng": PopRng.normalize_seed(seed),
-		# Level data (static): tiles[row][col] = PopTables.Tile id, rows 0..3,
-		# cols 0..9; out of range reads as EMPTY. mods is copied so one run's
-		# spike disabling can never leak into another run's state.
-		"tiles": tiles,
+		# Level data (static at load, mutable during a run): tiles[row][col] =
+		# PopTables.Tile id, rows 0..3, cols 0..9; out of range reads as EMPTY.
+		# tiles is duplicated per run because trap detach mutates it, and mods is
+		# copied so one run's spike disabling can never leak into another run's
+		# state.
+		"tiles": _dup_tiles(tiles),
 		"mods": mods.duplicate(),
 		# A4.1 level entities (hashed): gate modifiers/animation, plate hold
 		# timers and the level-exit door. links is static level data (not
-		# hashed), like tiles/mods.
+		# hashed), like tiles.
 		"gates": _dup_entities(entities.get("gates", {})),
 		"plates": _dup_entities(entities.get("plates", {})),
 		"exit": (entities.get("exit", {}) as Dictionary).duplicate(),
 		"links": (entities.get("links", []) as Array).duplicate(),
+		# A4.2: which tiles currently run a trap animation (hashed).
+		"anims": {},
 	}
+
+
+## Per-run copy of the tile grid: a detaching loose floor empties its cell,
+## and two runs sharing one array would corrupt each other.
+static func _dup_tiles(src: Array) -> Array:
+	var out: Array = []
+	for r: Variant in src:
+		out.append((r as Array).duplicate())
+	return out
 
 
 ## One-level deep copy of an entity dictionary (gates hold a nested dict; a
@@ -117,6 +130,7 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 		# reference: check_press (seg006.c:1676-1698) + process_trobs (seg007.c:21-40)
 		PopLevel.step_entities(s, int(s["row"]), _col_of(_foot_x(s)),
 			_tile(s, int(s["row"]), _col_of(_foot_x(s))))
+		PopLevel.step_traps(s, int(s["row"]), _col_of(_foot_x(s)), int(s["dead"]))
 	s.erase("input_shift")  # helpers consumed it; never leaks into the returned state
 	return s
 

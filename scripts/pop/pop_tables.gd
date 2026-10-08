@@ -130,6 +130,26 @@ const PLATE_HOLD_TIMER: int = 5
 const PLATE_REPRESS_BELOW: int = 2
 const PLATE_JAMMED: int = 0x1F        ## 31 = jammed, cannot fire (`seg007.c:713-715`)
 
+# --- Spike cycle (PARITY §8; `animate_spike`, `seg007.c:310-329`) ----------
+const SPIKE_HOLD_START: int = 0x8F    ## modifier set on the 5th extend frame (`seg007.c:320-322`)
+const SPIKE_HOLD_END: int = 0x81      ## last hold state; next tick falls to 0x80 → 6 (`seg007.c:313-317`)
+const SPIKE_RETRACT_START: int = 6    ## retract frames 6 → 7 → 8 → (9 → 0, stop) (`seg007.c:324-327`)
+const SPIKE_DISABLED: int = 0xFF      ## permanent, set on a kill (`seg005.c:216-218`)
+const SPIKE_CYCLE_TICKS: int = 23     ## 5 extend + 15 hold + 3 retract, ≈1.9 s [D] (PARITY §8)
+
+# --- Loose floors and chompers (PARITY §11; `seg007.c:809-829`, `281-306`) --
+const LOOSE_FALL_DELAY: int = 11      ## press→fall delay (`data.h:827`, `seg007.c:825`)
+const LOOSE_SHAKE_START: int = 0x80   ## shake band 0x80–0x83 (`seg007.c:813-829`)
+const LOOSE_SHAKE_RESET: int = 0x84   ## ≥ 0x84 resets the modifier to 0 (`seg007.c:813-829`)
+## `y_loose_land` — the y a detached block rests at, per starting row
+## (`seg007.c:809`); equals Y_LAND + 10.
+const LOOSE_LAND_ROWS: Array[int] = [2, 65, 128, 191, 254]
+const CRUSH_DEPTH: int = 30           ## feet within 30 y-units above the block (`seg007.c:1185-1193`)
+const CHOMPER_FRAMES: int = 15        ## cycle length (`data.h:860`)
+const CHOMPER_BITE_FRAME: int = 2     ## bite sound on frame 2 (`seg007.c:281-306`)
+const CHOMPER_STOP_FRAME: int = 6     ## stops past frame 6 when the kid left/died (`seg007.c:286-300`)
+const CHOMPER_BLOOD: int = 0x80       ## blood flag in the modifier (`seg007.c:283`)
+
 # --- Direction change and run stop (PARITY §18) ----------------------------
 const TURN_TICKS: int = 8             ## `seqtbl.c:440-449`: flip + frames 45–52, then stand
 const RUN_STOP_TICKS: int = 8         ## `seqtbl.c:619-627`: frames 53,54,55,56,49,50,51,52, then stand
