@@ -24,20 +24,20 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 |---|---|
 | Last updated | 2026-10-08 (Session 004) |
 | Days to deadline | 24 (as of 2026-10-07) |
-| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** (pop_tables + step function, acceptance green) · **A2.3 rebuilt, under audit — NOT ticked** · A3 not started |
+| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** · **A2.3 rebuilt, under audit — NOT ticked** · **A3 in progress** (SimClock + sandbox + input latch landed; feel **not verified, needs human playtest**) |
 | Sessions logged | 3 entries (000, 002, 003). Session 001 has no entry — see Time Ledger |
 | Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining; W1 day 2. S004 hours pending the user's confirmed figure (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 227 passed / 0 failed** (189 at S003 close + 34 A2.3 + 2 A2.1 gap checks + 2 Section 3 evidence checks); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A2.3 under audit. |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 243 passed / 0 failed** (189 at S003 close + 34 A2.3 + 2 A2.1 + 2 Section 3 + 16 A3); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A2.3 under audit; A3 feel unverified. |
 | Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P2/P3 source-matched, not observed; P4–P7 pending their gates |
-| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). Outstanding decisions: S003 commit grouping, push (never without approval), S002 hours figure [N]. |
-| Cut line status | Nothing cut yet; W1 exit criteria 2/4 met (refs removed ✅, PARITY.md v1 ✅; sandbox playable + CI pending — W1 day 2) |
+| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004 hours figures [N]. |
+| Cut line status | Nothing cut yet; W1 exit criteria 3/4 met (refs removed ✅, PARITY.md v1 ✅, sandbox exists & boots ✅ — feel needs playtest; CI workflow landed but not pushed → not "online" yet). No cut-list trigger raised. |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
 ### Weekly checkpoints (from plan §9)
 
 | Week | Dates | Exit checkpoint | Met? |
 |---|---|---|---|
-| W1 | Oct 6–12 | Sandbox playable; PARITY.md v1; refs removed from repo; CI online | ⬜ |
+| W1 | Oct 6–12 | Sandbox playable; PARITY.md v1; refs removed from repo; CI online | ◐ 3/4 — sandbox boots (playtest pending), PARITY.md v1 ✅, refs removed ✅; CI workflow landed, not pushed |
 | W2 | Oct 13–19 | Stage A exit criteria met; one level on new core; Echo v2 | ⬜ |
 | W3 | Oct 20–26 | 3 levels completable; SFX in; Linux + Windows builds validated | ⬜ |
 | W4 | Oct 27–30 | Video cut; GDD/slides updated; exports boot-tested; suite green | ⬜ |
@@ -52,7 +52,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | §2.4 | Repo cleanup and licensing actions | n/a | In progress | 000, 002 |
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
 | A2 | Sim core | 8 | In progress — **A2.1 + A2.2 done & verified**; gate 2 partially covered; **A2.3 rebuilt, under audit (not ticked)** | 002, 003, 004 |
-| A3 | Presentation shell | 6 | Not started | |
+| A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
 | A4 | Traps, tiles, duels | 12 | Not started | |
 | A5 | Parity verification | 7 | Not started | |
 | B0 | Bridge decision (rebase on sim) | 2 | Not started | |
@@ -104,6 +104,8 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 - **A2.3 acceptance-test loss (found in Session 003, recorded here):** `_test_a23_acceptance()` was absent from the tree and unrecoverable from git history, stash, reflog and editor backups (never committed). It was rebuilt this session. Kept as a Session-004 bullet rather than rewriting the Session-003 entry.
 - **Evidence upgrades (Section 3):** PARITY gained a §2 `Edge snap on landing` row (`seg005.c:126-131`) and a §4 `Standing-jump trigger` row (`seg005.c:385-395`, `seg005.c:453-458`, `seg005.c:673-675`). The A2.2 landing-snap asserts now read the §2 row and are labelled PARITY-sourced; the (b1b) trigger asserts read the §4 row and are labelled PARITY-sourced. Stale `seg005.c:422-424`/`522-524` standing-jump citations in `pop_sim.gd` corrected. **Note:** the reference lines originally proposed for the trigger (422-424, 522-524) are the `up_pressed` level-door block and a joystick-reset block — the real trigger is in `control_standing`/`up_pressed` (385-395/453-458). Other `pop_sim.gd` comments carry `seg005.c:` citations that a full audit should re-check.
 - **Evidence:** harness **227 passed / 0 failed**; `./verify.sh` exit 0 (see Change Index). Clean-clone check (no study/, reference folders, logs or `.godot/`; `--import` first) green — no dependency on local-only files.
+- **A3 started (plan A3.1/A3.2/A3.3):** `sim_clock.gd` (12/10 Hz fixed step from a variable render delta), `pop_input_latch.gd` (render-rate union → one input per tick, plus a new `grab` action), and `pop_view.gd` + `scenes/pop/pop_lab.tscn` (flat floor + 1-tile pit + raised ledge; interpolated body, sim-snapped frame). New A3 test section (+16 checks; harness **243 passed / 0 failed**); `pop_lab.tscn` boots clean headless. Committed A3.1, then A3.3 (the view consumes the latch), then A3.2.
+- **Playtest checklist (A3 sandbox — NOT verified headlessly; run `pop_lab.tscn`):** run cadence (no stutter); stop → stand; turn; standing jump clears the col-4 pit (forward+Up); run jump; climb up at the row-1 ledge; hang (Shift at the lip); drop (release the hang); fall damage / full-ledge-height fall; P pause + `.` frame-step exactly one tick.
 - **GAP lines:** (1) A2.3 scenario geometry is sim-level (pit/grab/hang/climb/crouch/safe-step helpers are crafted levels, not PARITY-derived); (2) safe-step-on-edge-at-distance-0 is unmodelled (A2.3-optional; `seg005.c:595-605`).
 - **A2.3 is NOT ticked:** not every A2.3 criterion has a PARITY-sourced assertion (scope B is sim characterization). Hours not stated — pending the user's confirmed S004 figure.
 
@@ -599,7 +601,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
-| 004 | 2026-10-08 | A2.3 rebuilt (under audit) | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green. Hours pending user figure. | 38 added (227 total) |
+| 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |
 | 000 | 2026-10-06 | §2.4 + A1.1 | 1.5 | Baseline captured; .gitignore reference entries added; A1.1 study extractor built, fixed, and run to produce study/ level_00–15 notes; verify.sh still green. No commit yet (awaiting user confirmation on Q1/Q2 + commit timing). | 0 added |
