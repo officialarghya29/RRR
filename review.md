@@ -22,14 +22,14 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-08 (Session 004) |
-| Days to deadline | 24 (as of 2026-10-07) |
-| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** · **A2.3 rebuilt, under audit — NOT ticked** · **A3 in progress** (SimClock + sandbox + input latch landed; feel **not verified, needs human playtest**) |
-| Sessions logged | 3 entries (000, 002, 003). Session 001 has no entry — see Time Ledger |
-| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining; W1 day 2. S004 hours pending the user's confirmed figure (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 243 passed / 0 failed** (189 at S003 close + 34 A2.3 + 2 A2.1 + 2 Section 3 + 16 A3); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A2.3 under audit; A3 feel unverified. |
-| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P2/P3 source-matched, not observed; P4–P7 pending their gates |
-| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004 hours figures [N]. |
+| Last updated | 2026-10-08 (Session 005) |
+| Days to deadline | 23 (as of 2026-10-08) |
+| Current stage / phase | Stage A / **A1 Done** · **A2 Done** (A2.3 ticked S005) · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1 Done** (gates/plates/exit door) · **B1 thin slice done** (input-byte echo on the sim; Stage-B bridge still ahead) |
+| Sessions logged | 5 entries (000, 002, 003, 004, 005). Session 001 has no entry — see Time Ledger |
+| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004 and S005 hours pending the user's confirmed figures (not estimated here). |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 272 passed / 0 failed** (243 at S004 close + 24 A4.1 + 5 B1); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
+| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P4 and P6 ◐ partial; P5/P7 pending their gates |
+| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004/S005 hours figures [N]. |
 | Cut line status | Nothing cut yet; W1 exit criteria 3/4 met (refs removed ✅, PARITY.md v1 ✅, sandbox exists & boots ✅ — feel needs playtest; CI workflow landed but not pushed → not "online" yet). No cut-list trigger raised. |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
@@ -51,12 +51,12 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 |---|---|---|---|---|
 | §2.4 | Repo cleanup and licensing actions | n/a | In progress | 000, 002 |
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
-| A2 | Sim core | 8 | In progress — **A2.1 + A2.2 done & verified**; gate 2 partially covered; **A2.3 rebuilt, under audit (not ticked)** | 002, 003, 004 |
+| A2 | Sim core | 8 | **Done** — A2.1 + A2.2 + A2.3 all ticked; gate 2 partially covered | 002, 003, 004, 005 |
 | A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
-| A4 | Traps, tiles, duels | 12 | Not started | |
+| A4 | Traps, tiles, duels | 12 | In progress — **A4.1 gates/plates/exit door done**; A4.2–A4.5 pending | 005 |
 | A5 | Parity verification | 7 | Not started | |
 | B0 | Bridge decision (rebase on sim) | 2 | Not started | |
-| B1 | Temporal Echo, input-level | 6 | Not started | |
+| B1 | Temporal Echo, input-level | 6 | In progress — thin **input-byte echo on the sim** done (record/replay, one-bit divergence); Stage-B bridge pending | 005 |
 | B2 | Three re-themed levels | 10 | Not started | |
 | B3 | Combat and boss | 4 | Not started | |
 | B4 | Audio and art | 6 | Not started | |
@@ -88,6 +88,8 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | 001 | 2026-10-06 | 1 | 2.5 | 31.5 | Figure reported by the user post-close in Session 002 (placeholder filled: "1 h"). No entry was opened for this session (process miss; recorded here in Session 002). Believed scope: commit 947cbbb (refs partitioned out of the tree + extractor) and the plan.md Session-000 notes/checkbox ticks [not verified — from artifacts, not from a log]. |
 | 002 | 2026-10-06 | 4.8 | 7.3 | 26.7 | A1.1 fix (selftest + negative control + TILE_NAMES), A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered post-close), SDLPoP built locally without sudo, --screenshot-level cross-check passed, tick model corrected to 12/10 fps, determinism gate green, A1.1+A1.2 ticked, plan+review committed (02c6a29). Hours = wall clock 17:10–21:58 from file mtimes (includes post-close extension). |
 | 003 | 2026-10-06/07 | 3.0 | 10.3 | 23.7 | Pre-commit audit + 4 user-approved commits (`b6dd845`, `e0814bc`, `ec27e2a`, `fc03e94` — **not pushed**); plan.md:432 note corrected (approved); A2.1 `pop_tables.gd` + drift test; A2.2 step function + acceptance tests (189/0, verify exit 0); Step 5 observation: tick **12.00 Hz** and standing jump **≈38 u** observed [O]; run-jump/fall NOT observed. Hours = wall clock 22:09–01:10 from file mtimes. S002 hours figure `[N]` still blank — row 002 keeps 4.8 until reported. |
+| 004 | 2026-10-08 | [N] | 10.3 (S004–005 pending) | — | A2.3 acceptance rebuilt under audit; working-tree corruption repaired; A3.1 SimClock + A3.3 latch + A3.2 pop_lab sandbox; 243/0. Hours pending the user's confirmed figure. |
+| 005 | 2026-10-08 | [N] | 10.3 (S004–005 pending) | — | A2.3 ticked; pre-push audit clean (no push); A4.1 gates/plates/exit door + `pop_level.gd` room-grid loader; thin B1 input-byte echo; 272/0. Hours pending the user's confirmed figure. |
 
 ---
 
@@ -120,6 +122,25 @@ _(entry in progress — completed as work lands)_
 - **What "minimal B1" means:** one new module, `scripts/pop/pop_replay.gd`, that (i) records N ticks of `pop_input` bytes from a live run, (ii) releases a **second sim participant** that replays those exact bytes into its own `PopSim`, (iii) that replayed participant triggers a plate/gate in the level, and (iv) is proven to be honest under the determinism gate.
 - **Acceptance test (plan §8 gate 4 — Echo replay v2 + one-bit divergence):** record N ticks of input bytes; release a second sim participant that replays them; it triggers a plate; **state hashes are identical across two runs** of the same recording; and **flipping one recorded bit makes the run diverge**. Reuse `pop_input` bytes rather than the legacy `TemporalManager` transform path.
 - **Cut-list impact: none.** The order does not add, remove, or re-rank any cut-list item, so this proceeds without waiting for approval (per the session rule). If the rebase turns out to need the legacy `TemporalManager` path beyond a `--legacy-physics` flag, work stops and the specific obstacle is reported instead of worked around.
+
+**Step 3 — A4.1 gates, plates and the level exit (done, committed `4b9c0cd`)**
+- **New files:** `scripts/pop/pop_level.gd` (room-grid loader + the gate/plate/exit machines), `scripts/pop/pop_replay.gd` (Step 4). **Changed:** `pop_tables.gd` (PARITY §9/§10 constants), `pop_sim.gd` (entity state in `STATE_KEYS` + `initial_state`/`run` entity argument; `step()` advances entities; `hash_state` now folds dicts/arrays), `tests/test_main.gd` (`_test_a41_entities`), `docs/PARITY.md` (one new §10 row).
+- **Model (all values from PARITY §9/§10, cited per branch):** gate modifiers with `DOOR_DELTA = [-1, 4, 4]`, open threshold 188 → park 238, permanent 0xFF, fast-close speeds 20…120; a raise plate rounds the modifier up to a multiple of 4 and starts `opening`, a closer plate starts `fast closing`; the level-exit door starts at 43 and fast-closes through `{0,5,17,99}`; the plate hold timer is set to 5 and decrements per tick, re-pressing the gate only when it was below 2.
+- **Reference finding (recorded):** the reference plate does **not** re-open a gate every tick it is held — `trigger_button` resets the timer to 5 each held tick, so the gate fires once and then runs §9's schedule (open in ~47 ticks, close ~238 ticks later). Our model matches this; the earlier guess that a held plate keeps a gate continuously open was wrong. A plate is re-pressable only after the kid steps off long enough for the timer to drop below 2.
+- **Accept:** a test level built by the loader exercises plate→gate timing **within ±1 tick** of the PARITY rows — open 47±1 (188 @ +4/frame), close 238±1 (−1/frame), exit door 3 ticks, plate timer 5. Every assertion comment names its PARITY row; the machine behaviour with no independent oracle (level shape, press→state) is labelled "sim characterization". Determinism gate stays green (entity state included).
+- **Evidence:** `./verify.sh` **267 passed / 0 failed**, exit 0 (log `verify_s005_a41b.log`) — 24 new checks over the 243 baseline.
+
+**Step 4 — minimal B1, thin input-byte Echo (done, committed `dcbdc73`)**
+- **New file:** `scripts/pop/pop_replay.gd` (`PopReplay`) — records a live run's per-tick `pop_input` bytes and replays them into a **second sim participant** (`replay()`), with a one-bit-flip probe. The legacy `TemporalManager` path was **not touched** (no `--legacy-physics` flag was needed).
+- **Accept (plan §8 gate 4):** record 40 ticks; the replay participant reproduces the recorded final state and triggers the plate (the linked gate moves); two replays hash identical; flipping one recorded bit diverges. All four assert green.
+- **Evidence:** `./verify.sh` **272 passed / 0 failed**, exit 0 (log `verify_s005_b1.log`) — 5 new checks. This is the thin slice only: full Stage-B Echo (room-scoped recording, multiple participants, the bridge to the shipped game) is still ahead.
+- **GAP lines:** (1) the bucket above is sim-level — the replay proves byte-faithfulness, not the shipped Echo; (2) the gate/plate machine has no [O] observation against the reference binary yet (P6 ◐).
+
+**Files touched this session**
+- `plan.md` (A2.3 tick only), `review.md`, `docs/PARITY.md` (+1 row).
+- `scripts/pop/pop_tables.gd`, `scripts/pop/pop_sim.gd`, `scripts/pop/pop_level.gd` (new), `scripts/pop/pop_replay.gd` (new), `tests/test_main.gd`.
+
+**Hours:** not stated — S004 and S005 figures are blank in the session brief; the ledger keeps the cumulative at 10.3 / 34 until reported. **Nothing on the cut list triggered.**
 
 ### Session 004: 2026-10-08 — A2.3 acceptance rebuilt (under audit); working-tree corruption found and repaired; clean-clone check green
 - Rebuilt `_test_a23_acceptance()` in `tests/test_main.gd`. **Scope A** re-derives the §6/§7 stream lengths and thresholds through the mini play_seq interpreter; **scope B** asserts live PopSim behavior on crafted levels (pit walk drops a row; Shift mid-air grab fires with `grab_timer = 12` and enters `grab_hang`, and does **not** fire without Shift; idle hang release ends in `hang_drop` on f81; Up at `grab_timer 0` routes to `climb_up` on f135; Down from stand enters `crouch` on f107; Shift+forward with floor ahead enters `safe_step_11` on f121).
@@ -570,7 +591,7 @@ _(entry in progress — completed as work lands)_
 | P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | impacts 21 soft / 30 → −1 HP / 33 → death (y=242 hard-land asserted) — source-matched, not observed | ✅ | 002, 003 |
 | P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | A2.3 scope A asserts the §6 frame counts (climb_down 10, climb_fail 11, hang_drop 5, grab_timer 12); the **43-frame sway auto-drop is not yet asserted** | ◐ partial | 002, 004 |
 | P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | | ⬜ | 002 |
-| P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | | ⬜ | 002 |
+| P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | gate open 47 / close 238 / exit door 3 ticks; plate timer 5→1 — within ±1 of PARITY §9–§10 (`_test_a41_entities`); source-matched, not observed | ◐ partial | 005 |
 | P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | | ⬜ | 002 |
 | P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks — source-matched; [O]-observed 12.00 Hz | ✅ | 002, 003 |
 
@@ -587,7 +608,7 @@ Reference values live in tracked `docs/PARITY.md` since Q1 was answered (Session
 | Determinism (600 ticks, twice, equal hash; different seeds differ) | ✅ | ✅ | 002 |
 | Kinematics parity table | ◐ partial — run/stand-jump + fall + edge-snap + turn/stop rows | ✅ those rows (189/0) | 003 |
 | Duel transcript | ⬜ | ⬜ | |
-| Echo replay v2 (plus one-bit divergence test) | ⬜ | ⬜ | |
+| Echo replay v2 (plus one-bit divergence test) | ◐ thin slice | ✅ thin slice | 005 |
 | Level completability smoke (3 levels) | ⬜ | ⬜ | |
 | CI workflow green | ⬜ | ⬜ | |
 
@@ -610,6 +631,8 @@ Nothing ships without a row. Reference-derived *numbers* are logged here too (as
 | `study/OBSERVATION.md`, `study/obs_probe.py`, `study/obs_analyze.py` | study notes + tools (untracked) | written Session 003 | n/a (study only, not shipped) | Observation method + our measurements; citations only | 003 | n/a (never committed) |
 | 37 DOS `*.DAT` files copied into `SDLPoP-1.23/data/` | reference game data (inside untracked reference folder) | `cp -n` from `4dprinceprsia/` | GPL-3-era original data — **study use only, never staged or shipped** | n/a (reference material) | 003 | n/a (stays out of repo/build) |
 | `SDLPoP-1.23/stub_img.c` + stub `libSDL2_image-2.0.so.0` | study tooling (untracked) | written Session 003 (3-symbol stub) | n/a (own code, not shipped) | No — stub only, superseded by real sdlroot libs | 003 | n/a (deletable) |
+| `scripts/pop/pop_level.gd`, `scripts/pop/pop_replay.gd` (A4.1 / thin B1) | code (tracked) | written Session 005 | n/a (code) | **Yes** — gate/plate/door machine carries `seg007.c`-cited constants (D5 posture); no code copied | 005 | n/a (cited facts) |
+| `docs/PARITY.md` §9 gate/plate/door values + new §10 press-timer row | tracked doc | read Session 005 from `seg007.c` | n/a (docs) | **Yes** — reference-derived numbers with `file:line` citations | 005 | n/a (cited facts) |
 
 ---
 
@@ -627,6 +650,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 done | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo (record/replay, one-bit divergence); +1 PARITY §10 row. Hours pending user figure. | 29 added (272 total) |
 | 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |

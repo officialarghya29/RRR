@@ -493,10 +493,13 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
 
 ### A4 — Traps, tiles, duels · ~12 h · [M except as marked]
 
-- [ ] **A4.1 [M]** Gates, plates (opener/closer + doorlink data), level-exit door in
+- [x] **A4.1 [M]** Gates, plates (opener/closer + doorlink data), level-exit door in
       sim + `pop_level.gd` room grid loading.
       **Accept:** a test level exercises plate→gate open/close timing within ±1 tick
       of measured values.
+      **Status (ticked Session 005):** met — plate→gate open 47±1 / close 238±1,
+      exit door 3 ticks, plate timer 5, all read from PARITY §9/§10 (`_test_a41_entities`).
+      The ±1-tick windows are against the cited values, not an [O] observation (P6 ◐).
 - [ ] **A4.2 [M]** Spikes (cycle + harmful-state rules), loose floors (shake 11,
       fall, crush), chompers.
       **Accept:** replayed testcases reproduce documented outcomes; unit tests assert
