@@ -22,6 +22,7 @@ const DEFAULTS: Dictionary = {
 	&"heavy_attack": [KEY_K],
 	&"block": [KEY_L],
 	&"dodge": [KEY_SHIFT],
+	&"grab": [KEY_SHIFT],
 	&"temporal_record": [KEY_Q],
 	&"pause": [KEY_ESCAPE],
 	&"restart": [KEY_R],

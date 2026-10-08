@@ -41,6 +41,9 @@ func _ready() -> void:
 	_section("A3.1 SimClock (plan A3.1)")
 	_test_sim_clock()
 
+	_section("A3.3 InputActions → pop_input latch (plan A3.3)")
+	_test_pop_input_latch()
+
 	_section("Health component")
 	_test_health()
 
@@ -207,6 +210,20 @@ func _test_sim_clock() -> void:
 		fight_ticks += fight.advance(1.0 / 60.0)
 	check(fight.hz == PopTables.TICK_HZ_SWORD and fight_ticks == PopTables.TICK_HZ_SWORD,
 		"sword drawn switches to %d Hz (got %d Hz, %d ticks)" % [PopTables.TICK_HZ_SWORD, fight.hz, fight_ticks])
+
+
+func _test_pop_input_latch() -> void:
+	# --- A3.3 input latch: sub-tick tap survives to the next tick ---------
+	var input := PopInputLatch.new()
+	input.sample(false, true, false, false, false)   # frame 1: tap right
+	input.sample(false, false, false, false, false)  # frame 2: released
+	var delivered := input.take()
+	check(delivered.x == 1,
+		"a tap shorter than one tick is latched and delivered (x=%d)" % delivered.x)
+	check(input.take().is_neutral(), "the latch resets after it is consumed")
+	input.sample(true, true, false, false, false)    # opposite directions cancel
+	check(input.take().x == 0, "opposite directions in one interval cancel")
+	check(InputMap.has_action(&"grab"), "the grab action is registered for the latch")
 
 
 func _test_health() -> void:
