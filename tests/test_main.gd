@@ -50,6 +50,9 @@ func _ready() -> void:
 	_section("A4.1 gates, plates and the level exit (plan A4.1)")
 	_test_a41_entities()
 
+	_section("B1 minimal input-byte echo (plan B1 / §8 gate 4)")
+	_test_b1_minimal_echo()
+
 	_section("Health component")
 	_test_health()
 
@@ -1695,3 +1698,41 @@ func _test_a41_entities() -> void:
 		e3 = PopSim.step(e3, PopInput.neutral())
 	check(PopSim.hash_state(e1) != PopSim.hash_state(e3),
 		"a different seed diverges with gate/plate state in the hash")
+
+
+# --- Plan B1 (thin slice): input-byte echo --------------------------------
+#
+# Accept (plan §8 gate 4): record N ticks of input bytes, release a second sim
+# participant that replays them, it triggers a plate, and the state hashes are
+# identical across two runs — while flipping one recorded bit makes the run
+# diverge. Reuses pop_input bytes; the legacy TemporalManager path is untouched.
+func _test_b1_minimal_echo() -> void:
+	var bundle := PopLevel.small_test_level()
+	# Hold right for 40 ticks: the kid runs from column 0 across the plate at
+	# column 3, which triggers the linked gate.
+	var script: Array = []
+	for _i: int in 40:
+		script.append(PopInput.make(1, 0, 0).to_byte())
+
+	var rec: Dictionary = PopReplay.record_run(20261008, script,
+		bundle["tiles"], bundle["mods"], bundle["entities"])
+	var echo: PopReplay = rec["replay"]
+	var recorded: Dictionary = rec["final"]
+	check(echo.size() == 40, "the echo recorded 40 input ticks (plan B1)")
+
+	# A second sim participant replays the recorded bytes into its own run.
+	var a: Dictionary = echo.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
+	var b: Dictionary = echo.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
+	check(PopSim.hash_state(a) == PopSim.hash_state(recorded),
+		"the replay participant reproduces the recorded final state")
+	check(PopSim.hash_state(a) == PopSim.hash_state(b),
+		"two replays of the same recording hash identical (plan §8 gate 4)")
+	var gate: Dictionary = (a["gates"] as Dictionary)["0,7"]
+	check(int(gate["mod"]) > PopTables.GATE_CLOSED,
+		"the replayed run triggers the plate, which moves the linked gate")
+
+	# Flipping one recorded input bit must change the run (causality).
+	var flipped: PopReplay = echo.with_flipped_bit(5, 0)
+	var diverged: Dictionary = flipped.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
+	check(PopSim.hash_state(diverged) != PopSim.hash_state(a),
+		"flipping one recorded bit makes the run diverge (plan §8 gate 4)")
