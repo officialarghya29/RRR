@@ -19,6 +19,12 @@ Thumbs.db
 *.swp
 *~
 
+# Local verification logs (per-session headless-Godot run captures)
+*.log
+
+# Python tool cache
+tools/__pycache__/
+
 # ----------------------------------------------------------------------
 # Study references (local behavioral study only — plan section 2.3/2.4).
 # Kept on disk for analysis; must not be committed to the public repo.
