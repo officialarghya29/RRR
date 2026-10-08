@@ -39,7 +39,7 @@ const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", 
 
 ## Measured: 8 ticks (flip + frames 45–52 → stand), docs/PARITY.md §18,
 ## `seqtbl.c:440-449`.
-const TURN_TICKS: int = 8
+const TURN_TICKS: int = PopTables.TURN_TICKS
 ## Measured floor y for row 0 = `y_land[row+1]`, docs/PARITY.md §2 (`data.h:506`).
 const STAND_Y: int = 55
 ## Start x: mid-tile so the foot (x − weight 3 for frame 15) sits inside
@@ -112,8 +112,8 @@ static func run(seed: int, script: Array, tiles: Array = [], mods: Dictionary = 
 # --- Input → sequence selection (our control model, re-derived from the
 # reference control functions as cited per branch; plan §4.6). The A2.2
 # up-from-stand standing jump is deliberately gone: the reference binds
-# standing jump to up+forward (seg005.c:422-424, seg005.c:522-524) and
-# routes plain Up to the jump-up/hang family.
+# standing jump to up+forward (seg005.c:385-395, seg005.c:453-458; PARITY
+# §4 "Standing-jump trigger") and routes plain Up to the jump-up/hang family.
 static func _control(s: Dictionary, input: PopInput) -> void:
 	if int(s["dead"]) != 0:
 		return
@@ -125,7 +125,7 @@ static func _control(s: Dictionary, input: PopInput) -> void:
 		"stand":
 			# control_standing (seg005.c:338-433): Shift branch first, then
 			# the plain-movement chain. Keyboard standing jump = up+forward
-			# (seg005.c:422-424); plain up = jump-up family (up_pressed,
+			# (seg005.c:385-395); plain up = jump-up family (up_pressed,
 			# seg005.c:482-524); down = crouch/climb-down (down_pressed,
 			# seg005.c:461-495); shift+forward = safe step (`seg005.c:592-605`).
 			if input.shift == 1:
@@ -141,7 +141,7 @@ static func _control(s: Dictionary, input: PopInput) -> void:
 			else:
 				if input.x == dir and input.x != 0:
 					if input.y == -1:
-						_start_seq(s, "stand_jump")   # fwd+up: standing jump (seg005.c:422-424)
+						_start_seq(s, "stand_jump")   # fwd+up: standing jump (seg005.c:385-395)
 					else:
 						_start_seq(s, "startrun")     # forward: start run (seg005.c:421-424)
 				elif input.x == -dir and input.x != 0:

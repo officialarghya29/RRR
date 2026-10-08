@@ -562,6 +562,14 @@ func _test_pop_tables_vs_parity() -> void:
 	check(_parity_int(md, "18", "Run stop", 1) == PopTables.RUN_STOP_TICKS,
 		"RUN_STOP_TICKS matches PARITY §18")
 
+	# §6 stand frame: climb/turn/land all jump to `stand`, whose opening frame
+	# the reference fixes at 15 (`seqtbl.c:261-263`). This binds pop_tables'
+	# stand sequence to the PARITY row — the gap that let the old "stand at
+	# frame 18" wording (a tick-index/frame-id conflation) survive A2.1.
+	var stand_open := int(PopTables.SEQUENCES["stand"][1][1])
+	check(_parity_int(md, "6", "stand frame") == stand_open,
+		"stand sequence opening frame f%d matches PARITY §6 (`seqtbl.c:261-263`)" % stand_open)
+
 	check(_int_array_equal(_ints(_parity_cell(md, "2", "Non-floor tiles")), PopTables.NON_FLOOR_TILES),
 		"NON_FLOOR_TILES matches PARITY §2")
 	nums = _ints(_parity_row(md, "8", "extend")[3] if _parity_row(md, "8", "extend").size() > 3 else "")
@@ -570,6 +578,12 @@ func _test_pop_tables_vs_parity() -> void:
 
 	# pop_sim's measured replacements must equal the table values they cite.
 	check(PopSim.TURN_TICKS == PopTables.TURN_TICKS, "pop_sim TURN_TICKS uses PopTables.TURN_TICKS")
+	# ...and it must be *bound* to the table in source: the value check above
+	# passes for a hardcoded literal too, which would silently decouple the
+	# constant from PopTables (the corruption the Session 004 audit found).
+	var pop_sim_src := FileAccess.get_file_as_string("res://scripts/pop/pop_sim.gd")
+	check(pop_sim_src.contains("const TURN_TICKS: int = PopTables.TURN_TICKS"),
+		"pop_sim binds TURN_TICKS to PopTables.TURN_TICKS in source, not a literal")
 	check(PopSim.STAND_Y == int(PopTables.Y_LAND[1]), "pop_sim STAND_Y is the measured row-0 floor y")
 
 	# --- id maps (§16): our enums vs reference ids 1:1 ---------------------
@@ -1017,7 +1031,7 @@ func _test_a22_acceptance(md: String = "") -> void:
 	var run1 := PopSim.run(777, script, level)
 	var run2 := PopSim.run(777, script, level)
 	check(PopSim.hash_state(run1) == PopSim.hash_state(run2),
-		"double-run of the 400-tick script hashes equal (A2.2 determinism)")
+		"double-run of the 400-tick script hashes equal (A2.2 determinism; sim characterization, not parity evidence)")
 	# Measurement, not a gate: where does the script leave him on a flat floor?
 	print("  MEAS 400-tick flat-floor run ends: x=%d hp=%d dead=%d row=%d seq=%s" % [
 		int(run1["x"]), int(run1["hp"]), int(run1["dead"]),
@@ -1053,7 +1067,7 @@ func _test_a22_acceptance(md: String = "") -> void:
 	var total_dx := -1
 	var t := 0
 	while t < 60:
-		st = PopSim.step(st, PopInput.make(1, -1))  # forward+up: standing jump (seg005.c:422-424)
+		st = PopSim.step(st, PopInput.make(1, -1))  # forward+up: standing jump (seg005.c:385-395)
 		t += 1
 		if int(st["frame"]) == 27 and land_dx < 0:  # landing frame, PARITY §4
 			land_dx = int(st["x"]) - x0
@@ -1061,7 +1075,7 @@ func _test_a22_acceptance(md: String = "") -> void:
 			total_dx = int(st["x"]) - x0
 			break
 	check(String(st["seq"]) == "stand" and total_dx >= 0,
-		"standing jump plays out and returns to stand in %d ticks" % t)
+		"standing jump plays out and returns to stand in %d ticks (sim characterization, not parity evidence)" % t)
 	var hdr4 := _parity_row(md, "4", "frame").slice(1)
 	var want4 := _expand_cells(hdr4, _parity_row(md, "4", "cum x").slice(1))
 	var i27 := _frame_index(hdr4, 27)
@@ -1075,17 +1089,20 @@ func _test_a22_acceptance(md: String = "") -> void:
 		"standing-jump total travel %d == PARITY §4 end (%d)" % [total_dx, want_end4])
 
 	# --- (b1b) standing-jump trigger mapping: forward+Up vs plain Up ---------
-	# Reference bind: standing jump = up+forward (seg005.c:422-424,
-	# seg005.c:522-524). Plain Up from stand does NOT start stand_jump;
-	# it routes to the jump-up / hang family (gaps_005.c:428-431).
+	# Reference bind (PARITY §4 "Standing-jump trigger"): keyboard forward+Up
+	# starts stand_jump from control_standing (seg005.c:385-395) / up_pressed
+	# (seg005.c:453-458); plain Up from stand routes to the jump-up family.
+	var trigger_row := _parity_row(md, "4", "Standing-jump trigger")
+	check(trigger_row.size() >= 2,
+		"PARITY §4 carries the Standing-jump trigger row (forward+Up → stand_jump)")
 	var tj: Dictionary = PopSim.initial_state(4242, level)
 	var tj0_seq := String(tj["seq"])
 	var tj_fw: Dictionary = PopSim.step(tj.duplicate(), PopInput.make(1, -1))
 	var tj_pu: Dictionary = PopSim.step(tj.duplicate(), PopInput.make(0, -1))
 	check(String(tj_fw["seq"]) == "stand_jump",
-		"forward+Up from stand starts stand_jump (got %s)" % String(tj_fw["seq"]))
+		"forward+Up from stand starts stand_jump (PARITY-sourced §4; got %s)" % String(tj_fw["seq"]))
 	check(String(tj_pu["seq"]) != "stand_jump",
-		"plain Up from stand does NOT start stand_jump (got %s)" % String(tj_pu["seq"]))
+		"plain Up from stand does NOT start stand_jump (PARITY-sourced §4; got %s)" % String(tj_pu["seq"]))
 
 	# --- (b2) run jump: 2-tile gap, cross-checked vs PARITY §5 -----------
 	st = PopSim.initial_state(5150, level)
@@ -1095,7 +1112,7 @@ func _test_a22_acceptance(md: String = "") -> void:
 		st = PopSim.step(st, PopInput.make(1))
 		t += 1
 	check(String(st["seq"]) == "run_cycle" and int(st["x"]) > start_x,
-		"the kid runs forward and reaches the run cycle (x %d → %d in %d ticks)" % [start_x, int(st["x"]), t])
+		"the kid runs forward and reaches the run cycle (x %d → %d in %d ticks; sim characterization, not parity evidence)" % [start_x, int(st["x"]), t])
 	var jx0 := int(st["x"])
 	var dx43 := -1
 	var dx44 := -1
@@ -1111,7 +1128,7 @@ func _test_a22_acceptance(md: String = "") -> void:
 			back_dx = int(st["x"]) - jx0
 			break
 	check(back_dx >= 0 and String(st["seq"]) == "run_cycle",
-		"run jump lands and rejoins the run cycle (x back at +%d)" % back_dx)
+		"run jump lands and rejoins the run cycle (x back at +%d; sim characterization, not parity evidence)" % back_dx)
 	var hdr5 := _parity_row(md, "5", "frame").slice(1)
 	var want5 := _expand_cells(hdr5, _parity_row(md, "5", "cum x").slice(1))
 	var i43 := _frame_index(hdr5, 43)
@@ -1214,13 +1231,13 @@ func _test_a22_acceptance(md: String = "") -> void:
 	check(int(ss["dead"]) == 1 and int(ss["hp"]) == 0,
 		"running onto extended spikes kills (hp %d, dead %d, at tick %d)" % [int(ss["hp"]), int(ss["dead"]), ht])
 	check(String(ss["seq"]) == "impale" and int(ss["frame"]) == 177,
-		"spike contact plays impale frame 177 (seq %s, frame %d)" % [String(ss["seq"]), int(ss["frame"])])
+		"spike contact plays impale frame 177 (seq %s, frame %d; sim characterization, not parity evidence)" % [String(ss["seq"]), int(ss["frame"])])
 	check(int(ss["y"]) == int(PopTables.Y_LAND[1]),
 		"impale snaps y to the row floor (y %d == y_land %d)" % [int(ss["y"]), int(PopTables.Y_LAND[1])])
 	check(int((ss["mods"] as Dictionary).get("0,3", 0)) == 0xFF,
 		"the spiked tile is disabled to 0xFF (got 0x%02X)" % int((ss["mods"] as Dictionary).get("0,3", 0)))
 	check(int(smods["0,3"]) == 2,
-		"the caller's mods dict is untouched — a run cannot leak state")
+		"the caller's mods dict is untouched — a run cannot leak state (sim characterization, not parity evidence)")
 	# Control: retracted spikes (mod 0xFF reads back as class 0) must let the
 	# same kid run past the same tile alive.
 	var hs: Dictionary = PopSim.initial_state(7, slevel, {"0,3": 0xFF})
@@ -1231,24 +1248,29 @@ func _test_a22_acceptance(md: String = "") -> void:
 	check(int(hs["dead"]) == 0 and int(hs["hp"]) == PopTables.KID_HP_START and int(hs["x"]) > 124,
 		"retracted spikes (0xFF) let the kid run past safely (x %d, hp %d)" % [int(hs["x"]), int(hs["hp"])])
 
-	# --- floor-edge snap on landing (seg005.c:128-132) -------------------
-	# Case 1: no floor within 3 units ahead of the foot → pulled back 3
+	# --- floor-edge snap on landing (PARITY §2 "Edge snap on landing") ---
+	# Reference (seg005.c:126-131 in land()): no floor ahead within 3 units of
+	# the foot → Char.x = char_dx_forward(-3).
+	var snap_units := _parity_int(md, "2", "Edge snap on landing")
+	check(snap_units == 3,
+		"A2.2 reads PARITY §2 edge snap of 3 units (got %d)" % snap_units)
+	# Case 1: no floor within snap_units ahead of the foot → pulled back snap_units
 	# (then soft_land's opening dx +1 moves him again — the net is −3).
 	var elevel := _flat_level()
 	elevel[1][6] = PopTables.Tile.EMPTY
 	var snapped := _crafted_landing(elevel, 141)  # foot 139 → 2 units from edge
-	check(int(snapped["x"]) == 141 - 3 + 1,
-		"edge landing with no floor ahead pulls back 3 units (x 141 → %d)" % int(snapped["x"]))
+	check(int(snapped["x"]) == 141 - snap_units + 1,
+		"edge landing with no floor ahead pulls back %d units (PARITY-sourced §2; x 141 → %d)" % [snap_units, int(snapped["x"])])
 	check(int(snapped["y"]) == int(PopTables.Y_LAND[2]) and String(snapped["seq"]) == "soft_land",
 		"landing snaps y to y_land and plays soft land (y %d, seq %s)" % [int(snapped["y"]), String(snapped["seq"])])
-	# Case 2: same hole, but 6 units from the edge → no pull-back.
+	# Case 2: same hole, but 6 units from the edge → no pull-back (3 < 6 fails).
 	var loose := _crafted_landing(elevel, 137)
 	check(int(loose["x"]) == 137 + 1,
-		"a landing 6 units from the edge is not pulled back (x 137 → %d)" % int(loose["x"]))
-	# Case 3: floor continues past the edge → the second operand fails, no pull-back.
+		"a landing 6 units from the edge is not pulled back (PARITY-sourced §2; x 137 → %d)" % int(loose["x"]))
+	# Case 3: floor continues past the edge → the first operand fails, no pull-back.
 	var guarded := _crafted_landing(level, 141)
 	check(int(guarded["x"]) == 141 + 1,
-		"floor continuing past the edge disables the pull-back (x 141 → %d)" % int(guarded["x"]))
+		"floor continuing past the edge disables the pull-back (PARITY-sourced §2; x 141 → %d)" % int(guarded["x"]))
 
 
 # --- A2.3 acceptance: hang / climb / grab / crouch / safe-step (plan A2.3)
@@ -1268,8 +1290,12 @@ func _test_a23_acceptance(md: String) -> void:
 	# scope A: §6/§7 frame-count and threshold re-derivation via the mini
 	# play_seq interpreter (seqtbl.c semantics, not the real PopSim step).
 	var climb_up_ticks := _seq_ticks("climb_up", 18)
+	# 18 is the tick count re-derived from pop_tables.SEQUENCES (6 f135–f140 +
+	# 8 f141–f148 + f149 + f118 + f119 + the stand tick); §6 states only the
+	# 6-frame opening, so this is a table-derived check, not a §-row value
+	# (sim characterization, not parity evidence).
 	check(climb_up_ticks.size() == 18,
-		"climb_up runs 18 ticks (PARITY §6: f135–f140 + jmp(stand) in 18 frames; seqtbl.c:590-595)")
+		"climb_up runs 18 ticks (table-derived; f135–f140 + jmp(stand) over 18 ticks; seqtbl.c:590-600) (sim characterization, not parity evidence)")
 	# The stream ends by jumping into `stand`, whose opening frame is the
 	# SEQUENCES value (f15). Assert against that rather than a hardcoded
 	# number so a stand-table edit is caught here (PARITY §6: “f141 … stand”).
@@ -1328,9 +1354,9 @@ func _test_a23_acceptance(md: String) -> void:
 		pit = PopSim.step(pit, PopInput.make(1, 0, 0))
 		pit_ticks += 1
 	check(String(pit["seq"]) != "stand",
-		"walking into a 1-tile pit leaves stand (sim behavior, not a PARITY constant)")
+		"walking into a 1-tile pit leaves stand (sim characterization, not parity evidence)")
 	check(int(pit["row"]) > 0,
-		"pit walk drops the kid to row %d (sim behavior, not a PARITY constant)" % int(pit["row"]))
+		"pit walk drops the kid to row %d (sim characterization, not parity evidence)" % int(pit["row"]))
 
 	# mid-air grab from a fall: success case.
 	var grab_level := _hang_lip_level(5, 3)   # lip cols 0..4, floor at row 3
@@ -1351,11 +1377,11 @@ func _test_a23_acceptance(md: String) -> void:
 		if int(grab_state["grab_timer"]) == PopTables.GRAB_TIMER:
 			grabbed = true
 	check(grabbed,
-		"mid-air grab fires on a fall with Shift held and a grabbable ledge ahead-above (sim behavior, not a PARITY constant)")
+		"mid-air grab fires on a fall with Shift held and a grabbable ledge ahead-above (sim characterization, not parity evidence)")
 	check(int(grab_state["grab_timer"]) == PopTables.GRAB_TIMER,
 		"successful mid-air grab sets grab_timer = %d (PARITY §6: grab_timer = 12)" % int(grab_state["grab_timer"]))
 	check(String(grab_state["seq"]) == "grab_hang",
-		"successful mid-air grab enters grab_hang (sim behavior, not a PARITY constant)")
+		"successful mid-air grab enters grab_hang (sim characterization, not parity evidence)")
 
 	# mid-air grab must NOT fire without Shift.
 	var nograb_state := _setup_hang_at_lip(PopSim.initial_state(2222, grab_level), grab_level, 133)
@@ -1375,9 +1401,9 @@ func _test_a23_acceptance(md: String) -> void:
 		if int(nograb_state["grab_timer"]) == PopTables.GRAB_TIMER:
 			should_not_grab = false
 	check(should_not_grab,
-		"mid-air grab does NOT fire without Shift held (sim behavior, not a PARITY constant)")
+		"mid-air grab does NOT fire without Shift held (sim characterization, not parity evidence)")
 	check(String(nograb_state["seq"]) != "grab_hang",
-		"no-Shift fall does not enter grab_hang (sim behavior, not a PARITY constant)")
+		"no-Shift fall does not enter grab_hang (sim characterization, not parity evidence)")
 
 	# hang release / drop.
 	var release_state := _setup_hang_at_lip(PopSim.initial_state(3333, grab_level), grab_level, 60)
@@ -1386,7 +1412,7 @@ func _test_a23_acceptance(md: String) -> void:
 		release_state = PopSim.step(release_state, PopInput.make(0, 0, 0))
 		gt += 1
 	check(String(release_state["seq"]) == "hang_drop",
-		"idle hang release ends in hang_drop (sim behavior, not a PARITY constant)")
+		"idle hang release ends in hang_drop (sim characterization, not parity evidence)")
 	check(int(release_state["frame"]) == 81,
 		"hang_drop starts on f81 (PARITY §6: hangdrop f81–f85; seqtbl.c:602-607)")
 
@@ -1396,7 +1422,7 @@ func _test_a23_acceptance(md: String) -> void:
 		climb_state = PopSim.step(climb_state, PopInput.make(0, 0, 0))
 	climb_state = PopSim.step(climb_state, PopInput.make(0, -1, 0))
 	check(String(climb_state["seq"]) == "climb_up",
-		"Up at grab_timer 0 routes to climb_up (sim behavior, not a PARITY constant)")
+		"Up at grab_timer 0 routes to climb_up (sim characterization, not parity evidence)")
 	check(int(climb_state["frame"]) == 135,
 		"climb_up starts on f135 (PARITY §6: 6 frames f135–f140; seqtbl.c:590-600)")
 
@@ -1405,7 +1431,7 @@ func _test_a23_acceptance(md: String) -> void:
 	crouch_state["dir"] = 1
 	crouch_state = PopSim.step(crouch_state, PopInput.make(0, 1, 0))
 	check(String(crouch_state["seq"]) == "crouch",
-		"Down from stand enters crouch (sim behavior, not a PARITY constant)")
+		"Down from stand enters crouch (sim characterization, not parity evidence)")
 	check(int(crouch_state["frame"]) == 107,
 		"crouch starts on f107 (PARITY §6 context: stoop head; seqtbl.c:857-861)")
 
@@ -1417,7 +1443,7 @@ func _test_a23_acceptance(md: String) -> void:
 	var edge_state := _setup_stand_at_edge(PopSim.initial_state(6666, edge_level), edge_level, 75, 1)
 	edge_state = PopSim.step(edge_state, PopInput.make(1, 0, 1))
 	check(String(edge_state["seq"]) == "safe_step_11",
-		"shift+forward with floor ahead enters safe_step_11 (sim behavior, not a PARITY constant)")
+		"shift+forward with floor ahead enters safe_step_11 (sim characterization, not parity evidence)")
 	check(int(edge_state["frame"]) == 121,
 		"safe_step_11 starts on f121 (PARITY §6 context: step frames; seqtbl.c:765-774)")
 	print("  GAP: A2.3 scenario geometry is sim-level, not PARITY-derived (pit/grab/hang/climb/crouch/safe-step helpers above).")
