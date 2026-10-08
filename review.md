@@ -22,13 +22,13 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-07 (Session 003) |
+| Last updated | 2026-10-08 (Session 004) |
 | Days to deadline | 24 (as of 2026-10-07) |
-| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** (pop_tables + step function, acceptance green) · A2.3 next |
+| Current stage / phase | Stage A / **A1 Done** · **A2.1 + A2.2 Done** (pop_tables + step function, acceptance green) · **A2.3 rebuilt, under audit — NOT ticked** · A3 not started |
 | Sessions logged | 3 entries (000, 002, 003). Session 001 has no entry — see Time Ledger |
-| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining; W1 day 2 |
-| Test status | **final ./verify.sh at Session 003 close: exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 189 passed / 0 failed** (121 at S002 close + 68 A2.1/A2.2) |
-| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P4–P7 pending their gates |
+| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining; W1 day 2. S004 hours pending the user's confirmed figure (not estimated here). |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 227 passed / 0 failed** (189 at S003 close + 34 A2.3 + 2 A2.1 gap checks + 2 Section 3 evidence checks); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A2.3 under audit. |
+| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P2/P3 source-matched, not observed; P4–P7 pending their gates |
 | Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). Outstanding decisions: S003 commit grouping, push (never without approval), S002 hours figure [N]. |
 | Cut line status | Nothing cut yet; W1 exit criteria 2/4 met (refs removed ✅, PARITY.md v1 ✅; sandbox playable + CI pending — W1 day 2) |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
@@ -51,7 +51,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 |---|---|---|---|---|
 | §2.4 | Repo cleanup and licensing actions | n/a | In progress | 000, 002 |
 | A1 | Study data extraction | 5 | **Done** (A1.1 + A1.2 ticked; PARITY.md written) | 000, 002 |
-| A2 | Sim core | 8 | In progress — **A2.1 + A2.2 done & verified** (189/0); gate 2 partially covered; A2.3 next | 002, 003 |
+| A2 | Sim core | 8 | In progress — **A2.1 + A2.2 done & verified**; gate 2 partially covered; **A2.3 rebuilt, under audit (not ticked)** | 002, 003, 004 |
 | A3 | Presentation shell | 6 | Not started | |
 | A4 | Traps, tiles, duels | 12 | Not started | |
 | A5 | Parity verification | 7 | Not started | |
@@ -94,6 +94,18 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 ## Session Log
 
 <!-- Newest first. Copy the template below for each new session. -->
+
+### Session 004: 2026-10-08 — A2.3 acceptance rebuilt (under audit); working-tree corruption found and repaired; clean-clone check green
+- Rebuilt `_test_a23_acceptance()` in `tests/test_main.gd`. **Scope A** re-derives the §6/§7 stream lengths and thresholds through the mini play_seq interpreter; **scope B** asserts live PopSim behavior on crafted levels (pit walk drops a row; Shift mid-air grab fires with `grab_timer = 12` and enters `grab_hang`, and does **not** fire without Shift; idle hang release ends in `hang_drop` on f81; Up at `grab_timer 0` routes to `climb_up` on f135; Down from stand enters `crouch` on f107; Shift+forward with floor ahead enters `safe_step_11` on f121).
+- **Corruption repaired (working-tree-only; never committed and not recoverable from git history).** `project.godot` had lost the `GameManager`/`TemporalManager` autoloads; `scripts/pop/pop_input.gd` was stubbed (`to_byte()` returned 0, `from_byte()` returned neutral); `pop_sim.gd` had `const STATE_KEYS` fused onto the tail of a `##` comment. All three were restored to HEAD. A `.godot` import pass is required for `class_name` globals under `--headless`. The exact edit/command that caused them is not recoverable from the repo artifacts (all three `.backup/s004_*` snapshots are clean; no commit, stash or reflog entry holds them) — the strongest evidence points to the Session-003 tool churn, but that is inferred, not proven.
+- **Audit found one further decoupling:** `pop_sim.gd` carried `const TURN_TICKS: int = 8` (HEAD had `PopTables.TURN_TICKS`). Restored, and A2.1 now asserts the *source* binding (a literal would pass a value-only check).
+- **Circularity audit:** every A2.2/A2.3 assertion is now labelled by origin. Scope-B and geometry assertions carry "(sim characterization, not parity evidence)"; the table-derived `climb_up` 18-tick count is labelled likewise. PARITY-sourced assertions are the §2/§4/§5/§6/§7/§8/§18 values read from `docs/PARITY.md`.
+- **PARITY §6 discrepancy resolved (D13):** "stand at frame 18" is the **tick index**; the **frame id** is f15 (`seqtbl.c:261-263`). §6 reworded and a `stand frame | f15` row added; A2.1 binds the stand sequence to it.
+- **A2.3 acceptance-test loss (found in Session 003, recorded here):** `_test_a23_acceptance()` was absent from the tree and unrecoverable from git history, stash, reflog and editor backups (never committed). It was rebuilt this session. Kept as a Session-004 bullet rather than rewriting the Session-003 entry.
+- **Evidence upgrades (Section 3):** PARITY gained a §2 `Edge snap on landing` row (`seg005.c:126-131`) and a §4 `Standing-jump trigger` row (`seg005.c:385-395`, `seg005.c:453-458`, `seg005.c:673-675`). The A2.2 landing-snap asserts now read the §2 row and are labelled PARITY-sourced; the (b1b) trigger asserts read the §4 row and are labelled PARITY-sourced. Stale `seg005.c:422-424`/`522-524` standing-jump citations in `pop_sim.gd` corrected. **Note:** the reference lines originally proposed for the trigger (422-424, 522-524) are the `up_pressed` level-door block and a joystick-reset block — the real trigger is in `control_standing`/`up_pressed` (385-395/453-458). Other `pop_sim.gd` comments carry `seg005.c:` citations that a full audit should re-check.
+- **Evidence:** harness **227 passed / 0 failed**; `./verify.sh` exit 0 (see Change Index). Clean-clone check (no study/, reference folders, logs or `.godot/`; `--import` first) green — no dependency on local-only files.
+- **GAP lines:** (1) A2.3 scenario geometry is sim-level (pit/grab/hang/climb/crouch/safe-step helpers are crafted levels, not PARITY-derived); (2) safe-step-on-edge-at-distance-0 is unmodelled (A2.3-optional; `seg005.c:595-605`).
+- **A2.3 is NOT ticked:** not every A2.3 criterion has a PARITY-sourced assertion (scope B is sim characterization). Hours not stated — pending the user's confirmed S004 figure.
 
 ### Session 003: 2026-10-06/07 — 4 approved commits; A2.1 + A2.2 built and verified (189/0); first gameplay observation (12.00 Hz, standing jump)
 
@@ -492,6 +504,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | D10 | 2026-10-06 | 003 | plan.md:432 Session-000 note corrected (content edit) — user-approved. | Its offset claims were disproven in S002; leaving stale numbers in the tracked plan violates rule 5. | Leaving it (stale, misleading); silent rewrite (history would hide the correction — instead it ships in `ec27e2a` with the old text still in history). | Yes — the pre-correction text stays in commit `02c6a29`. |
 | D11 | 2026-10-06 | 003 | Copy the 37 DOS DATs (`cp -n`) into `SDLPoP-1.23/data/` for observation. | DAT load chain takes precedence (`seg009.c`) → gameplay sprites without PNG fallback; non-destructive, inside the untracked reference folder, reversible. | Deleting/moving originals (destructive — rejected); staging DATs (never allowed). | Yes — delete the copies to revert. |
 | D12 | 2026-10-06 | 003 | Session 003's A2.1/A2.2 code + docs left uncommitted pending user decision. | The 4-commit approval covered the S002 groups only; no implicit approval for new work. | Committing anyway (would exceed the approval); amending old commits (rewrites approved history — rejected). | Yes — commit whenever the user says. |
+| D13 | 2026-10-07/08 | 004 | (a) The A2.2 standing-jump failures were caused by the A2.3 control rewrite, not "pre-existing": the reference binds standing jump to up+forward (`seg005.c:385-395`, `seg005.c:453-458`; PARITY §4) with plain Up routing to the jump-up/hang family, and the test input was aligned to that. (b) PARITY §6's "stand at frame 18" conflated the **tick index (18)** with the **frame id**: the reference `stand` sequence opens on frame **15** (`seqtbl.c:261-263`: `act(actions_0_stand), frame_15_stand, jmp(stand)`), so climb/turn/land reach f15 after 18 climb ticks. §6 was reworded, a machine-readable `stand frame = f15` row added, and A2.1 now binds `PopTables.SEQUENCES["stand"]` to it and asserts `pop_sim` binds `TURN_TICKS` to `PopTables.TURN_TICKS` in source. | Both were wording/decoupling errors, not sim bugs — the reference and the table agree. No assertion was weakened; the mis-attributed phrase was corrected and the previously unchecked binding is now asserted. | (a) Leaving the mis-attribution (would violate rule 5); (b) changing the sim to frame 18 (table and reference both say 15). | Yes — docs/test text only; no behavior change. |
 
 ---
 
@@ -525,15 +538,17 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | ID | Behavior | Reference | Ours | Status | Session |
 |---|---|---|---|---|---|
 | P1 | Standing jump horizontal distance | ≈36 u ≈2.57 tiles at landing frame f27 (stream: PARITY.md §4; source-derived, [S]) **[O]-corroborated ≈38 u** (observed bbox 175 px) | landing 36 u / total 39 u (`_test_a22_acceptance`) | ✅ | 002, 003 |
-| P2 | Running jump horizontal distance | ≈67 u ≈4.79 tiles total f34→f7 (PARITY.md §5; [S]) | landing 62 u (f44) / total 67 u; f43 = 58 u | ✅ | 002, 003 |
-| P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | impacts 21 soft / 30 → −1 HP / 33 → death (y=242 hard-land asserted) | ✅ | 002, 003 |
-| P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | | ⬜ | 002 |
+| P2 | Running jump horizontal distance | ≈67 u ≈4.79 tiles total f34→f7 (PARITY.md §5; [S]) | landing 62 u (f44) / total 67 u; f43 = 58 u — source-matched, not observed | ✅ | 002, 003 |
+| P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | impacts 21 soft / 30 → −1 HP / 33 → death (y=242 hard-land asserted) — source-matched, not observed | ✅ | 002, 003 |
+| P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | A2.3 scope A asserts the §6 frame counts (climb_down 10, climb_fail 11, hang_drop 5, grab_timer 12); the **43-frame sway auto-drop is not yet asserted** | ◐ partial | 002, 004 |
 | P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | | ⬜ | 002 |
 | P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | | ⬜ | 002 |
 | P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | | ⬜ | 002 |
-| P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks | ✅ | 002, 003 |
+| P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks — source-matched; [O]-observed 12.00 Hz | ✅ | 002, 003 |
 
 Status: ⬜ not tested · ❌ failing · ✅ matching
+
+Note: P2 and P3 are source-matched, not observed. Their “Ours” columns come from the A2.2 acceptance tests and are tied to cited PARITY.md rows; they were not observed against the running reference binary in Session 003.
 
 Reference values live in tracked `docs/PARITY.md` since Q1 was answered (Session 002). "Ours" for P1/P2/P3/P8 measured in Session 003 from the A2.2 acceptance tests; P8's reference is additionally [O]-observed (12.00 Hz, `study/OBSERVATION.md`). P4–P7 remain untested (gates 2 remainder / duel work).
 
@@ -584,6 +599,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 004 | 2026-10-08 | A2.3 rebuilt (under audit) | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green. Hours pending user figure. | 38 added (227 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |
 | 002 | 2026-10-06 | A1.1+A1.2 done, A2 gate 1 | 4.1+ext | Session 000's offsets proven wrong and extractor fixed (selftest w/ negative control + TILE_NAMES fix); A1.2 → study/STUDY_NOTES.md + tracked docs/PARITY.md (Q1 answered); SDLPoP built locally (no sudo) and `--screenshot-level` cross-check passed (start/guard/floor 12/12); tick model corrected to 12/10 fps; determinism gate green; A1.1+A1.2 ticked. | 5 added (121 total) |
 | 000 | 2026-10-06 | §2.4 + A1.1 | 1.5 | Baseline captured; .gitignore reference entries added; A1.1 study extractor built, fixed, and run to produce study/ level_00–15 notes; verify.sh still green. No commit yet (awaiting user confirmation on Q1/Q2 + commit timing). | 0 added |
