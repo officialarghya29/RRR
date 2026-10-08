@@ -191,6 +191,7 @@ static func trigger(s: Dictionary, row: int, col: int) -> bool:
 ## `seg007.c:21-90`). The kid's row/column/dead flag are passed in so the
 ## chomper stop rule and the loose-floor detach can see him.
 static func step_traps(s: Dictionary, kid_row: int, kid_col: int, kid_dead: int) -> void:
+	_step_blocks(s, kid_col)   # falling loose-floor blocks advance every tick
 	var anims: Dictionary = s.get("anims", {})
 	if anims.is_empty():
 		return
@@ -258,6 +259,7 @@ static func _animate_loose(s: Dictionary, key: String, anims: Dictionary,
 			var row: Array = tiles[parts[0]]
 			if parts[1] >= 0 and parts[1] < row.size():
 				row[parts[1]] = PopTables.Tile.EMPTY   # the floor is gone
+				_spawn_block(s, int(parts[0]), int(parts[1]))  # the block falls
 		return
 	mods[key] = mod
 
@@ -293,6 +295,78 @@ static func crush_test(kid_y: int, block_y: int, kid_col: int, block_col: int) -
 	if block_y >= kid_y:            # at or below the feet: not on his head
 		return false
 	return kid_y - PopTables.CRUSH_DEPTH < block_y
+
+
+## The block a detached loose floor becomes (`seg007.c:818-832`): it starts
+## at `y_loose_land[row + 1]` — 10 units below that row's floor — and falls.
+static func _spawn_block(s: Dictionary, row: int, col: int) -> void:
+	var blocks: Array = s.get("blocks", [])
+	blocks.append({"col": col, "row": row,
+		"y": int(PopTables.LOOSE_LAND_ROWS[row + 1]), "speed": 0})
+	s["blocks"] = blocks
+
+
+## Advance every falling block: accelerate (PARITY §7's integration, carried
+## over as the block's fall rate), run `check_loose_fall_on_kid` against the
+## kid, and drop the block once it lands on the floor below.
+static func _step_blocks(s: Dictionary, kid_col: int) -> void:
+	var blocks: Array = s.get("blocks", [])
+	if blocks.is_empty():
+		return
+	var keep: Array = []
+	var kid_y: int = int(s["y"])
+	var kid_dead: int = int(s["dead"])
+	for b: Dictionary in blocks:
+		var col: int = int(b["col"])
+		var row: int = int(b["row"])
+		var speed: int = int(b["speed"]) + PopTables.FALL_ACCEL
+		if speed > PopTables.FALL_SPEED_MAX:
+			speed = PopTables.FALL_SPEED_MAX
+		var y: int = int(b["y"]) + speed
+		if kid_dead == 0 and col == kid_col and crush_test(kid_y, y, kid_col, col):
+			_fell_on_your_head(s)   # check_loose_fall_on_kid (seg007.c:1591-1601)
+			kid_dead = int(s["dead"])
+			kid_y = int(s["y"])
+		var land := _block_land_y(s, row, col)
+		if land >= 0 and y >= land:
+			continue                 # landed: no longer a moving block
+		if land < 0 and y > 300:
+			continue                 # fell out of the bottom
+		keep.append({"col": col, "row": row, "y": y, "speed": speed})
+	s["blocks"] = keep
+
+
+## The first floor below `row` in this column, or -1 when there is none.
+static func _block_land_y(s: Dictionary, row: int, col: int) -> int:
+	for r: int in range(row + 1, 4):
+		if _is_floor(_tile_in(s, r, col)) and r + 1 < PopTables.Y_LAND.size():
+			return int(PopTables.Y_LAND[r + 1])
+	return -1
+
+
+## `fell_on_your_head` (`seg007.c:1605-1630`): the block pins the kid to his
+## row's floor and knocks 1 HP off; the last HP kills. The reference's
+## level-13 exception for running frames 5–14 is not carried in PARITY, so
+## the general frame rule is modeled (frame outside 5–14).
+static func _fell_on_your_head(s: Dictionary) -> void:
+	var frame: int = int(s["frame"])
+	var action: int = int(s["action"])
+	if not ((frame < 5 or frame >= 15) and (action < 2 or action == PopTables.Action.TURN)):
+		return
+	var row: int = int(s["row"])
+	if row + 1 < PopTables.Y_LAND.size():
+		s["y"] = int(PopTables.Y_LAND[row + 1])
+	s["hp"] = int(s["hp"]) - 1
+	if int(s["hp"]) <= 0:
+		s["hp"] = 0
+		s["dead"] = 1
+		s["seq"] = "hard_land"   # seq_22_crushed — our death presentation
+		s["op"] = 0
+		s["frame"] = 185
+
+
+static func _is_floor(tile: int) -> bool:
+	return not (tile in PopTables.NON_FLOOR_TILES)
 
 
 static func _tile_in(s: Dictionary, row: int, col: int) -> int:

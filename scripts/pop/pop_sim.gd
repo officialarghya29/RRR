@@ -35,7 +35,7 @@ extends RefCounted
 ## migration is measured (plan gate 2); safe-step-on-edge-at-distance-0
 ## (`seg005.c:595-605` seq_44 path) is A2.3-optional and absent; check_knock,
 ## check_spike_below side effects are not modeled.
-const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col", "gates", "plates", "exit", "mods", "anims"]
+const STATE_KEYS: Array[String] = ["tick", "x", "y", "row", "dir", "seq", "op", "frame", "action", "hp", "dead", "fall_y", "fall_x", "rng", "grab_timer", "grab_col", "gates", "plates", "exit", "mods", "anims", "blocks"]
 
 ## Measured: 8 ticks (flip + frames 45–52 → stand), docs/PARITY.md §18,
 ## `seqtbl.c:440-449`.
@@ -84,8 +84,10 @@ static func initial_state(seed: int, tiles: Array = [], mods: Dictionary = {}, e
 		"plates": _dup_entities(entities.get("plates", {})),
 		"exit": (entities.get("exit", {}) as Dictionary).duplicate(),
 		"links": (entities.get("links", []) as Array).duplicate(),
-		# A4.2: which tiles currently run a trap animation (hashed).
+		# A4.2: which tiles currently run a trap animation, and the loose-floor
+		# blocks currently falling (both hashed).
 		"anims": {},
+		"blocks": [],
 	}
 
 

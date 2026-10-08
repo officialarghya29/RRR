@@ -1948,4 +1948,25 @@ func _test_a42_traps() -> void:
 		"a block below the feet does not (seg007.c:1591 curmob.y < Char.y)")
 	check(not PopLevel.crush_test(kid_y, kid_y - 10, 3, 4),
 		"a different column is not a crush (PARITY §11 crush-test row)")
-	print("  GAP: the falling loose-floor block entity is not modeled — the crush rule is a unit predicate only.")
+
+	# --- the falling block actually crushes a kid below it -----------------
+	var cdt := _a42_state(12, 5, PopTables.Tile.FLOOR_LOOSE, 5)
+	cdt["row"] = 1
+	cdt["y"] = int(PopTables.Y_LAND[2])   # the kid stands a row below that floor
+	check(PopLevel.trigger(cdt, 0, 5), "the loose floor above the kid starts its countdown")
+	var hit := false
+	for _i: int in 30:
+		cdt = PopSim.step(cdt, PopInput.neutral())
+		if int(cdt["hp"]) < PopTables.KID_HP_START:
+			hit = true
+	check(hit, "the falling block crushes a kid in the same column below it (PARITY §11 crush-test row; seg007.c:1591-1601; hp %d)" % int(cdt["hp"]))
+
+	# The same run twice must hash equal — the falling block is part of state.
+	var cdt2 := _a42_state(12, 5, PopTables.Tile.FLOOR_LOOSE, 5)
+	cdt2["row"] = 1
+	cdt2["y"] = int(PopTables.Y_LAND[2])
+	check(PopLevel.trigger(cdt2, 0, 5), "the determinism run triggers the same floor")
+	for _i: int in 30:
+		cdt2 = PopSim.step(cdt2, PopInput.neutral())
+	check(PopSim.hash_state(cdt) == PopSim.hash_state(cdt2),
+		"the crush run is reproducible with the falling block in the hash")
