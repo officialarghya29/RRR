@@ -38,6 +38,9 @@ func _ready() -> void:
 	_section("A2.3 hang/climb/grab/crouch/safe-step acceptance (plan A2.3)")
 	_test_a23_acceptance("")
 
+	_section("A3.1 SimClock (plan A3.1)")
+	_test_sim_clock()
+
 	_section("Health component")
 	_test_health()
 
@@ -161,6 +164,49 @@ func _test_input_map() -> void:
 	var before := InputMap.action_get_events(&"jump").size()
 	InputActions.ensure_defaults()
 	check(InputMap.action_get_events(&"jump").size() == before, "ensure_defaults is idempotent")
+
+
+func _test_sim_clock() -> void:
+	# --- A3.1 SimClock: real-time → tick counts ---------------------------
+	var hz := PopTables.TICK_HZ_TRAVERSE
+	var clock := SimClock.new()
+	var ticks := 0
+	for _i: int in range(60):
+		ticks += clock.advance(1.0 / 60.0)
+	check(ticks == hz,
+		"60 frames of 1/60 s produce %d ticks at %d Hz (got %d)" % [hz, hz, ticks])
+	var half := SimClock.new()
+	var half_ticks := 0
+	for _i: int in range(30):
+		half_ticks += half.advance(1.0 / 60.0)
+	check(half_ticks == hz / 2,
+		"0.5 s produces half the ticks (%d, got %d)" % [hz / 2, half_ticks])
+	check(half.alpha >= 0.0 and half.alpha < 1.0,
+		"alpha stays in [0,1) between ticks (got %f)" % half.alpha)
+
+	# --- A3.1 prev/curr/alpha consistency ---------------------------------
+	var s0 := PopSim.initial_state(1)
+	var s1 := PopSim.step(s0, PopInput.make(1))
+	var interp := SimClock.new(s0)
+	check(interp.curr == s0 and interp.ticks == 0,
+		"a fresh clock holds one state as both prev and curr")
+	interp.push(s1)
+	check(interp.prev == s0 and interp.curr == s1 and interp.ticks == 1,
+		"push shifts curr→prev and counts the tick")
+	check(is_equal_approx(interp.lerp_channel("x"), float(s0["x"])),
+		"alpha 0 interpolates exactly at prev (x=%.1f)" % interp.lerp_channel("x"))
+	interp.alpha = 0.5
+	var mid := 0.5 * (float(s0["x"]) + float(s1["x"]))
+	check(absf(interp.lerp_channel("x") - mid) < 0.001,
+		"alpha 0.5 interpolates the midpoint (%.2f ~ %.2f)" % [interp.lerp_channel("x"), mid])
+
+	# --- A3.1 sword-drawn rate switching ----------------------------------
+	var fight := SimClock.new({}, true)
+	var fight_ticks := 0
+	for _i: int in range(60):
+		fight_ticks += fight.advance(1.0 / 60.0)
+	check(fight.hz == PopTables.TICK_HZ_SWORD and fight_ticks == PopTables.TICK_HZ_SWORD,
+		"sword drawn switches to %d Hz (got %d Hz, %d ticks)" % [PopTables.TICK_HZ_SWORD, fight.hz, fight_ticks])
 
 
 func _test_health() -> void:
