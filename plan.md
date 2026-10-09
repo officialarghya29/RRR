@@ -509,11 +509,18 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
       15-frame cycle are all asserted from PARITY §8/§11, with replayed spike kill/safe
       runs and a live falling-block crush. Crush uses PARITY §7 fall integration as the
       block's fall rate (marked placeholder — the block's rate is not in PARITY §11).
-- [ ] **A4.3 [M]** Guard duel at 10 fps: en-garde, advance/retreat, strike/block/parry,
+- [x] **A4.3 [M]** Guard duel at 10 fps: en-garde, advance/retreat, strike/block/parry,
       per-skill probability tables through `pop_rng`, HP/refractimer, spiked/chomped
       deaths for both parties.
       **Accept:** scripted duel inputs vs. skill-0 guard win/lose deterministically;
       re-run with `seed=N` produces identical duel transcripts (asserted in tests).
+      **Status (ticked Session 006):** met — reach gated by `char_opp_dist` (new
+      PARITY §20: hits inside [8|12, 29), f154 only damages), the `seg002.c:737-899`
+      decision bands with draws only where the reference draws, §13 walk-chain dx
+      (+6 forward / −5 back), and spike/chomper death checks on both fighters every
+      tick. Same seed → identical transcript and outcome, different seed → different;
+      the attack script resolves (winner kid after 35 ticks). Source-matched with
+      `file:line`, not observed against SDLPoP (`_test_a43_duel`, 413/0).
 - [ ] **A4.4 [N]** Loose-floor pinging via the mob system (falling tile carries
       between rooms).
 - [ ] **A4.5 [N]** Potions (+1 HP, +max) and the skeleton (skip if time).
