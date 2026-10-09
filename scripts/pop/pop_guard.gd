@@ -433,7 +433,7 @@ static func _decide(guard: Dictionary, kid: Dictionary, rng: PopRng,
 	return 0
 
 
-## guard_advance (`seg002.c:864-870`): the advprob draw happens only when the
+## The guard advance (`seg002.c:864-870`): the advance-odds draw happens only when the
 ## guard is skill 0 or the kid's sword-strike timer has run out; a failed or
 ## skipped draw stands — it never retreats.
 static func _guard_advance(guard: Dictionary, kid: Dictionary, rng: PopRng,
@@ -450,8 +450,8 @@ static func _guard_advance(guard: Dictionary, kid: Dictionary, rng: PopRng,
 ## (re)strike can act from here — parry() and forward_with_sword are frame-gated
 ## in the reference (`seg005.c:1054-1061`, `seg005.c:918-921`), and
 ## sword_strike() accepts only f150/f161 (`seg005.c:1044-1047`). Skipped on
-## opponent f169/f151 with no draw (`seg002.c:891`); restrikeprob when self is
-## in f150/f161, else strikeprob (`seg002.c:893-899`). The draw is consumed even
+## opponent f169/f151 with no draw (`seg002.c:891`); re-strike odds when self is
+## in f150/f161, else strike odds (`seg002.c:893-899`). The draw is consumed even
 ## when sword_strike() later refuses the frame (`seg005.c:1036-1049`), so from
 ## f169 the draw is spent but no chain starts.
 static func _hold_strike(guard: Dictionary, kid: Dictionary, rng: PopRng,
