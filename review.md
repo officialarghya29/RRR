@@ -98,6 +98,97 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 
 <!-- Newest first. Copy the template below for each new session. -->
 
+### Session 007: 2026-10-09 — Step 0 integrity/legal rework (§20 + guard tables → own schema); B1 gap list; B0 design note (AWAITING APPROVAL); A5.1 parity harness
+_(entry opened mid-session; completed at close)_
+
+**Baseline at session start**
+- Branch `dev/pop-rebuild`, HEAD `f4dbbe0` (S006 close); tracked tree clean; untracked scratch (never committed): `tools/frame_decode_check.py`, `tools/smoke_pop.gd`, `tools/smoke_pop.gd.uid`.
+- Last green: `verify_s007_baseline.log` — **413 passed / 0 failed, exit=0** (captured directly with `echo "exit=$?"` appended).
+
+**Step 0 — integrity and legal audit**
+
+*(0.1) Baseline + tree:* `./verify.sh` → **413/0, exit=0** (`verify_s007_baseline.log`); `git diff HEAD --stat` → empty; only the 3 untracked scratch files above. Nothing changed unexpectedly.
+
+*(0.2) Legal audit of §20 (35 rows) + guard tables in code, per plan §2.2 gray-zone rule:*
+- **Verdict, §20:** after the rework every one of the 35 rows is a **re-expressed fact with a `file:line` citation** — none is a copy of the source's table layout. Before the rework several cells were *close* copies: source identifiers (`advprob[skill]`, `restrikeprob`, `strikeprob`, `impblockprob`), source state/expression text (`justblocked timer`, `take_hp(100)`, `(mod & 0x7F) == 2`, `Opp.x - Char.x`), and source-flavoured row names (`min hurt range drawn/undrawn`).
+- **Verdict, guard tables in code:** `pop_guard.gd` previously held 8 parallel skill-major row arrays (`STRIKE_ODDS`, `RESTRIKE_ODDS`, `BLOCK_ODDS`, `IMPBLOCK_ODDS`, `ADVANCE_ODDS`, `REFRACTIMER`, `BONUS_HP`, `BASE_HP`) — same order, same shape, same names as the source's `data.h:835-847` arrays → **that was a copied expression**. Now replaced.
+- **What I changed (commit `b3d7a60`, plus comment cleanup `f5caf79`):**
+  1. `scripts/pop/pop_guard.gd`: the 8 arrays → **`PROFILES: Array[Dictionary]`** — 12 profile-major records with *our* field names (`strike`, `restrike`, `block`, `immediate_block`, `advance`, `refractory`, `bonus_hp`, `base_hp`) — transposed vs the source's skill-major columns, grouped and named by us; accessors `profile(skill)` / `column(field)` / `odds(skill, field)` / `guard_hp`. Values unchanged (cited facts); every call site updated. Renames: `JUSTBLOCKED_START` → `REBLOCK_START`, state key `"justblocked"` → `"reblock"`, `_min_hurt` → `_reach_min`. Comments: `Opp.x - Char.x` → prose; `min_hurt_range` (source var) → "reach minimum"; `take_hp(100)` → "100-damage instant death"; `advprob`/`strikeprob`/`restrikeprob` → "advance odds"/"strike odds"/"re-strike odds".
+  2. `docs/PARITY.md` §20 rewritten: regrouped into **four subgroups in our order** (Distance and reach · Guard decisions and timers · Movement (walk chains) · Trap deaths = 10+13+4+8 = 35 rows); intro de-coded (no C expressions in cells); row labels ours (`reach minimum drawn/undrawn`, `re-block timer`); citation column (`file:line`) kept on every row. Also fixed one pasted C expression outside §20 (§2 edge-snap cell `Char.x = char_dx_forward(-3)` → prose, citation kept).
+  3. `scripts/pop/pop_tables.gd`: two stale citations corrected (`seg005.c:216-218` → `220-222`; `seg007.c:1185-1193` → `1185-1195`); values unchanged.
+  4. `tests/test_main.gd`: probes updated to the new API/labels — same expected values, no assertion weakened (`PopGuard.odds/column/profile`, `"reach minimum …"`, `"re-block timer"`, `"stored cycle frame reads 2"`).
+- **§12 doc table noted (out of the asked scope, flagged honestly):** row labels are already ours (`strike odds` … `base HP`) with source symbols named *only* as citation anchors; the orientation (rows in `data.h` line order, 12 skill columns) follows the data itself. The executable code no longer mirrors it (profile-major). Say the word if you want §12 re-grouped too.
+- **No source text/comments pasted — confirmed by scan:** greps for `static const`, `#include`, `goto`, `Opp.`, `Char.`, `take_hp(`, `advprob|strikeprob|restrikeprob|impblockprob`, `justblocked`, `min_hurt` over `pop_guard.gd`/`pop_tables.gd` and over §20 → **empty** (the only remaining source-symbol mentions anywhere are the §12 "citation anchors" note and `char_opp_dist()` in prose intros, both explicit citations).
+
+*(0.3) Both legal greps re-run — both empty:*
+- `git ls-files | grep -i "sdlpop|4dprince|prince of persia|/study/"` → **empty** (grep exit 1). ✅
+- `git log --all --oneline -- 4dprinceprsia SDLPoP-1.23 study` → **empty** (0 hits on every ref). ✅
+- Extra check I ran beyond the two: `git log --all --grep=sdlpop -i` matches exactly one commit, `947cbbb` "Partition the reference-study folders out of the tracked tree…" — its diff is only `.gitignore` + `tools/pop_level_to_notes.py`, i.e. the commit that *keeps* the reference folders untracked; no reference data in any commit.
+
+*(0.4) A4.3 tick justification:* **Ticked under "every criterion has a PARITY-sourced assertion" — NO caveat, no untick.** Both accept criteria (scripted duel win/lose deterministic; `seed=N` → identical transcripts) are asserted live, and every underlying behaviour check cites PARITY rows (§12 odds/HP, §13 chains, §20 reach/timers/walk/trap rows — all read from the doc at test runtime). The only characterization-labelled items (duel start distance 20, `BLOCK_HOLD`) are *not* acceptance criteria. Exact note for approval (plan.md A4.3, verbatim):
+
+> **Status (ticked Session 006):** met — reach gated by `char_opp_dist` (new PARITY §20: hits inside [8|12, 29), f154 only damages), the `seg002.c:737-899` decision bands with draws only where the reference draws, §13 walk-chain dx (+6 forward / −5 back), and spike/chomper death checks on both fighters every tick. Same seed → identical transcript and outcome, different seed → different; the attack script resolves (winner kid after 35 ticks). Source-matched with `file:line`, not observed against SDLPoP (`_test_a43_duel`, 413/0).
+
+→ Approve or reject; if rejected I untick A4.3 and propose a note instead.
+
+*(0.5) Provenance of the 62 new assertions (grouped).* Counted by diffing PASS lines `verify_s006_step1b.log` (351) → `verify_s006_step2.log` (413): **64 new PASS lines, 2 pre-existing lines reworded** (f153→f154 strike probe; duel-outcome 15→35 ticks) → **net +62**.
+
+| Group | Count | PARITY row range | Origin |
+|---|---|---|---|
+| §20 anti-drift value rows (doc cell == our constant) | 17 | §20, all four subgroups (reach, decisions, movement, traps) | PARITY value |
+| Signed-distance (`opp_dist`) formula probes | 4 | §20 intro paragraph (`seg006.c:2117-2131`) | PARITY value |
+| Reach/resolve edge probes (hit lands/doesn't at band edges, parry edges) | 7 | §20 "Distance and reach" rows + §13 parry frames | PARITY value |
+| Decision-ladder bands + RNG-consumption probes | 18 | §20 "Guard decisions and timers" + §12 odds + §14 RNG | PARITY value (draw semantics `seg002.c:857-899`) |
+| Walk-chain dx probes (advance/fastadvance/retreat) | 3 | §20 "Movement (walk chains)" | PARITY value |
+| Distance-driven duels (sword-only/advance/retreat/reproducibility) | 4 | §20 movement rows applied to a live duel | mixed: dx PARITY; start distance 20 + scripts = **sim characterization** |
+| Trap unit rows + chomper/spike duels | 9 | §20 "Trap deaths" (8 rows) | PARITY value (windows/cycle); hazard placement + duel seeds = **characterization** |
+| **Total** | **62** | | |
+
+**Step 1 — B1 gap list (what blocks B1.1/B1.2 from being ticked)**
+
+**B1.1 `TemporalRecorder` v2 — NOT ticked.** Accept criteria from plan:
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| recorder tests updated | ❌ not met (for `TemporalRecorder` v2) | PopReplay's ring tests exist (96-B cap, eviction, event vectors), but `TemporalRecorder` itself is untouched — `tests/test_main.gd:287 _test_recorder` still asserts the legacy duration-based transform path |
+| buffer cap enforced | ◐ partial | enforced in `PopReplay.RING_CAPACITY = 96` (tested); `TemporalRecorder` still caps by take duration, not bytes |
+| determinism test replays through a live sim, not transform lerp | ◐ partial | `PopReplay.replay()/replay_events()` step `PopSim.step` directly and are tested — but the *determinism test through the echo surface* still runs the legacy transform path (`tests/test_main.gd:1714` "legacy TemporalManager path is untouched") |
+
+Missing to tick: byte-per-tick `TemporalRecorder` v2 + its tests, and the determinism test rewired to replay through a live sim **via the echo surface**.
+
+**B1.2 `TemporalEcho` v2 — NOT ticked.**
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| existing 116 assertions still pass *with v2 in place* | ❌ not met | v2 is not wired into `TemporalEcho`; the 116 pass against the legacy path, which proves nothing about v2 (`temporal_manager.gd:206 spawn_echo(snapshots)` still takes transform snapshots) |
+| new test: two echoes from the same input buffer → identical plate-timing events | ◐ partial | `PopReplay` asserts two replays hash-equal + recorded==replayed event vectors — but not through the `TemporalEcho`/`TemporalManager` surface the levels use |
+
+Missing to tick: swap the echo's payload from snapshots to input bytes while keeping the `event_replayed`/`echo_event_replayed` signal surface, prove the 116 on v2, add the two-echoes-identical-plate-timing test at that surface.
+
+**B1.3 — not started** (echo visibility to sim-side plates, energy economy on the new path, level-1 tutorial puzzle solvable test).
+
+→ **B1.1/B1.2/B1.3 all stay unticked** until v2 replaces the legacy path.
+
+**B0 design note (plan B0.1) — WRITE-ONLY, AWAITING USER APPROVAL BEFORE ANY B0 CODING**
+
+*How the sim path becomes the main game.* Two paths exist today: (1) the **game path** — `GameManager.load_level` → `LevelBuilder` builds nodes, `Player` is a Godot-physics controller, echoes are transform snapshots; (2) the **sim path** — `pop_lab.tscn`/`PopView` runs `SimClock` + `PopSim.step` (pure integer state dict) with a placeholder renderer. B0 inverts the default: the game boots the sim path.
+
+- **New core node `SimWorld` (scripts/pop/…):** owns `SimClock` + the `PopSim` state + `PopLevel` entities (tiles/mods/gates/plates/exit) for the loaded level. Per tick: latch intent (`PopInputLatch`) → `PopInput` byte → `PopSim.step` → diff old/new state → emit **sim events** on `EventBus` (reusing its signal surface): `player_hp_changed`, `player_died`, `player_moved(x,row,dir)`, plus entity milestones already produced by `PopReplay.entity_events` (`plate press`, `gate opening/parked/closed/fast-close/open`, `exit`).
+- **Player:** `Player` (physics controller) is replaced on the new path by a thin **view node** that renders `clock.prev/curr` with `lerp_channel` (same interpolation `PopView` already uses) and maps input actions → the input byte. Death/respawn/checkpoint flow stays on EventBus, fed by sim events.
+- **Echo:** `TemporalManager` records input bytes + per-tick event vectors (`PopReplay` ring, already built); `spawn_echo` gains a bytes variant that spawns a **second sim participant** stepping `PopSim.step` from the release moment (final-pose hold preserved). Signal surface (`echo_created/expired/event_replayed`) unchanged, so `lever.gd` and the HUD keep working untouched.
+- **Plates / puzzle framework:** levels stay data (`listens_to`/`bind_sources` topology in the catalog). On the new path the plate/door/timed-gate *nodes become views of sim entities*: authoritative state lives in `state["plates"]/["gates"]/["exit"]`; node `_process` syncs visuals + `Activator.set_active` from sim diffs, so `ActuatorUtil` wiring and the catalog stay as-is. Echo plate visibility = B1.3 (see risk 3).
+- **Enemies:** stay Godot-side actors consuming sim events (`player_moved`/`player_died`, guard duel events); the duel itself runs `PopGuard` inside `SimWorld` ticks. Presentation (walk anims, aggro telegraphs) remains Godot.
+- **HUD:** unchanged consumer — it already listens to `EventBus` (health, recording, boss, objective). Only the *producers* change (sim diffs instead of physics nodes).
+- **Stays Godot-side:** rendering/interpolation/animation selection, camera, audio, menus, level construction (`LevelBuilder` builds tiles+decoration, converts catalog → `PopLevel` bundle), input capture → byte packing, temporal **energy economy** (unchanged), checkpoints (position triggers read sim x/y), all art (A3.3).
+- **`--legacy-physics` flag:** parsed at boot (same mechanism as `--level=N`). Default = new sim path; `--legacy-physics` selects today's full stack (physics `Player` + snapshot echoes) untouched, so the current vertical slice stays runnable as the video fallback until B2 is verified (plan B0.1). `verify.sh` gains a second boot loop with the flag so **both paths** are verified every run; tests keep asserting both.
+- **3 biggest risks + fallbacks:**
+  1. **Sim coverage gaps break a level** (ladders, crouch, falling out of bounds, loose floors are A4.4/A4.5/N or unported). *Fallback:* B0's acceptance play-through targets one hand-built level using only shipped mechanics (run/jump/hang/spike/plate/gate); `--legacy-physics` remains the shippable path; cut-list order already drops A4.4→A4.5 first.
+  2. **Feel mismatch at 12 Hz** (input latency/turning reads wrong vs the physics controller → R4). *Fallback:* tune **view-side only** (interpolation, input buffering in `PopInputLatch`, camera) — sim constants never move to fix feel; A5.2 clip is the recurring check; worst case the video ships on `--legacy-physics` while A5.1 remains the fidelity proof.
+  3. **Two sim participants vs one entity world** (echo + player stepping shared plates/gates could double-advance timers — B1.3). *Fallback:* staged — first ship the echo as its own participant whose sim-side effects are applied from its recorded **event vectors** (stamped, not recomputed against the shared world); if that can't make the tutorial puzzle identical, rewire the one tutorial plate through the existing Godot-side `echo_event_replayed` path (already proven by `lever.gd`).
+- **Hours estimate:** B0 wiring + flag + both-path verify ≈ **3–4 h** (plan says ~2 h — flagged, unconfirmed); remaining B1.1+B1.2+B1.3 ≈ **5–6 h** (plan's 6 h for all of B1). Not confirmed figures.
+
+→ **No B0 code until this note is approved.** Step 2 (A5.1) proceeds meanwhile.
+
 ### Session 006: 2026-10-09 — Step 0 audit answers; Echo bounded ring (96 B + event vectors); A4.3 reach + trap deaths (PARITY §20); A4.3 ticked
 _(entry completed at close)_
 
