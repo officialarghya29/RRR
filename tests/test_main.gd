@@ -2065,18 +2065,110 @@ func _test_a43_duel() -> void:
 	check(s13.contains("f150 or f161") and PopGuard.PARRY_FRAMES == [150, 161],
 		"the parry frames f150/f161 match PARITY §13")
 
-	# --- a strike lands only when the defender is not parrying ------------
+	# --- §20 reach rows (anti-drift) ----------------------------------------
+	var s20 := _parity_section(md, "20")
+	check(s20.contains("char_opp_dist") and _parity_int(md, "20", "front offset") == PopGuard.FRONT_OFFSET,
+		"the +13 front offset matches PARITY §20 (seg006.c:2127-2129)")
+	check(_parity_int(md, "20", "hit range max") == PopGuard.HIT_MAX and PopGuard.HIT_MAX == 29,
+		"the hit range max 29 matches PARITY §20 (seg002.c:1021)")
+	check(_parity_int(md, "20", "min hurt range drawn") == PopGuard.HIT_MIN_DRAWN
+			and PopGuard.HIT_MIN_DRAWN == 12,
+		"min hurt range with the defender drawn is 12 (PARITY §20, seg002.c:1018)")
+	check(_parity_int(md, "20", "min hurt range undrawn") == PopGuard.HIT_MIN_UNSHEATHED,
+		"min hurt range with the defender undrawn is 8 (PARITY §20, seg002.c:1016)")
+	check(_parity_int(md, "20", "damage frame") == PopGuard.STRIKE_DAMAGE_FRAME,
+		"the damage frame f154 matches PARITY §20 (seg002.c:1014)")
+	check(_parity_int(md, "20", "engage gate") == PopGuard.ENGAGE_RANGE,
+		"the engage gate 35 matches PARITY §20 (seg002.c:758)")
+	check(_parity_int(md, "20", "too-close band") == PopGuard.TOO_CLOSE
+			and _parity_int(md, "20", "too-close unsheathed") == PopGuard.TOO_CLOSE_UNSHEATHED,
+		"the too-close bands 12/8 match PARITY §20 (seg002.c:759)")
+	check(_parity_int(md, "20", "armed advance band") == PopGuard.ARMED_ADVANCE_BELOW,
+		"the armed advance band 10 matches PARITY §20 (seg002.c:849)")
+	check(_parity_int(md, "20", "strike band low") == PopGuard.TOO_CLOSE,
+		"the strike band low edge 12 matches PARITY §20 (seg002.c:854)")
+	check(_parity_int(md, "20", "parry far") == PopGuard.PARRY_FAR,
+		"the parry-far retreat threshold 32 matches PARITY §20 (seg005.c:1063)")
+	check(_parity_int(md, "20", "kid strike timer") == PopGuard.STRIKE_TIMER_START,
+		"the kid strike timer 15 matches PARITY §20 (seg005.c:994)")
+	check(_parity_int(md, "20", "justblocked timer") == PopGuard.JUSTBLOCKED_START,
+		"the justblocked timer 4 matches PARITY §20 (seg002.c:1028)")
+	check(_ints(_parity_cell(md, "20", "advance dx")) == [2, 4, 6]
+			and PopGuard.CHAIN_DX["advance"] == [2, 4, 0],
+		"advance dx +2/+4 (total +6) matches PARITY §20 (seqtbl.c:316-318)")
+	check(_ints(_parity_cell(md, "20", "fastadvance dx")) == [6, 6]
+			and PopGuard.CHAIN_DX["fastadvance"] == [6, 0],
+		"fastadvance dx +6 matches PARITY §20 (seqtbl.c:322-323)")
+	check(_ints(_parity_cell(md, "20", "retreat dx")) == [-3, -2, -5]
+			and PopGuard.CHAIN_DX["retreat"] == [-3, -2],
+		"retreat dx -3/-2 (total -5) matches PARITY §20 (seqtbl.c:327-328)")
+	check(s20.contains("7–14") and s20.contains("34–39") and s20.contains("43 and 26"),
+		"the spike harm windows match PARITY §20 (seg006.c:958-960)")
+	check(s20.contains("(mod & 0x7F) == 2") and s20.contains("1…15"),
+		"the chomper kill state and cycle match PARITY §20 (seg004.c:444, seg007.c:284-289)")
+
+	# --- char_opp_dist (PARITY §20 distance rows) ---------------------------
+	check(PopGuard.opp_dist(100, 0, 107, -1) == 20,
+		"facing fighters: raw 7 + 13 = signed 20 (seg006.c:2123-2129)")
+	check(PopGuard.opp_dist(107, -1, 100, 0) == 20,
+		"the guard computes the same signed distance (seg006.c:2124-2126)")
+	check(PopGuard.opp_dist(100, 0, 95, -1) == -5,
+		"an opponent behind the char stays negative — no +13 (seg006.c:2127)")
+	check(PopGuard.opp_dist(100, 0, 107, 0) == 7,
+		"same directions get no +13 (seg006.c:2127-2129)")
+
+	# --- a strike lands only inside [min_hurt, 29) --------------------------
 	var g1 := PopGuard.initial(0)
 	var k1 := PopGuard.initial_kid()
 	g1["seq"] = "strike"
-	g1["frame"] = PopGuard.KID_HIT_FRAMES[0]     # the guard is in its hit window
-	g1["index"] = 3
+	g1["frame"] = PopGuard.STRIKE_DAMAGE_FRAME        # f154: the poke (`seg002.c:1014`)
+	g1["index"] = 4
 	var t1: Array = []
 	PopGuard._resolve(k1, g1, t1)
 	check(int(k1["hp"]) == PopTables.KID_HP_START - 1,
-		"a strike in f153 hits an undefended kid (PARITY §13 hit window; hp %d)" % int(k1["hp"]))
+		"a strike in f154 hits an undefended kid at distance 20 (PARITY §20; hp %d)" % int(k1["hp"]))
 	check(t1 == ["kid:hit"], "the hit is recorded in the transcript")
 
+	# f153 passes the hit gate but never damages (correction vs Session 005:
+	# `seg002.c:1014` checks frame_154_poking only)
+	var g1b := PopGuard.initial(0)
+	var k1b := PopGuard.initial_kid()
+	g1b["seq"] = "strike"
+	g1b["frame"] = PopGuard.KID_HIT_FRAMES[0]         # f153: wind-up
+	var t1b: Array = []
+	PopGuard._resolve(k1b, g1b, t1b)
+	check(int(k1b["hp"]) == PopTables.KID_HP_START and t1b.is_empty(),
+		"f153 alone does not damage (PARITY §20 damage frame 154; hp %d)" % int(k1b["hp"]))
+
+	# reach edges around the drawn minimum 12 and max 29 (`seg002.c:1018-1021`)
+	var g3 := PopGuard.initial(0)
+	var k3 := PopGuard.initial_kid()
+	g3["seq"] = "strike"
+	g3["frame"] = PopGuard.STRIKE_DAMAGE_FRAME
+	var t3: Array = []
+	PopGuard._resolve(k3, g3, t3, 11)
+	check(int(k3["hp"]) == PopTables.KID_HP_START,
+		"distance 11 is short of the drawn minimum 12 (hp %d)" % int(k3["hp"]))
+	var g4 := PopGuard.initial(0)
+	var k4 := PopGuard.initial_kid()
+	g4["seq"] = "strike"
+	g4["frame"] = PopGuard.STRIKE_DAMAGE_FRAME
+	var t4: Array = []
+	PopGuard._resolve(k4, g4, t4, 29)
+	check(int(k4["hp"]) == PopTables.KID_HP_START,
+		"distance 29 is outside the hit range (hp %d)" % int(k4["hp"]))
+	k4["sword"] = 0                                   # an undrawn defender: min 8
+	var t5: Array = []
+	PopGuard._resolve(k4, g4, t5, 8)
+	check(int(k4["hp"]) == PopTables.KID_HP_START - 1,
+		"an undrawn defender is hit from distance 8 (PARITY §20; hp %d)" % int(k4["hp"]))
+	k4["hp"] = PopTables.KID_HP_START
+	var t6: Array = []
+	PopGuard._resolve(k4, g4, t6, 7)
+	check(int(k4["hp"]) == PopTables.KID_HP_START,
+		"distance 7 is short of the undrawn minimum 8 (hp %d)" % int(k4["hp"]))
+
+	# parry turn-aside needs 0 <= distance < 29 (`seg002.c:1009-1013`)
 	var g2 := PopGuard.initial(0)
 	var k2 := PopGuard.initial_kid()
 	g2["seq"] = "strike"
@@ -2088,6 +2180,18 @@ func _test_a43_duel() -> void:
 	check(int(k2["hp"]) == PopTables.KID_HP_START and String(g2["seq"]) == "blocked",
 		"a parry at f150 stops the hit and turns the strike aside (PARITY §13)")
 	check(t2 == ["k:parry"], "the parry is recorded in the transcript")
+	check(int(g2["justblocked"]) == PopGuard.JUSTBLOCKED_START,
+		"a parried guard attack sets justblocked = 4 (PARITY §20, seg002.c:1028)")
+	var g5 := PopGuard.initial(0)
+	var k5 := PopGuard.initial_kid()
+	g5["seq"] = "strike"
+	g5["frame"] = PopGuard.STRIKE_DAMAGE_FRAME
+	k5["seq"] = "block"
+	k5["frame"] = PopGuard.PARRY_FRAMES[0]
+	var t7: Array = []
+	PopGuard._resolve(k5, g5, t7, 30)   # >= 29: outside the parry branch, no damage either
+	check(int(k5["hp"]) == PopTables.KID_HP_START and t7.is_empty(),
+		"beyond 29 the parry no longer turns the strike aside (hp %d)" % int(k5["hp"]))
 
 	# --- the scripted duel (plan §8 gate 3) -------------------------------
 	var attack: Array = []
@@ -2115,7 +2219,273 @@ func _test_a43_duel() -> void:
 		"the long pacing run is reproducible for the same seed")
 	check((p1["transcript"] as Array) != (p2["transcript"] as Array),
 		"a different seed produces a different duel transcript (PARITY §14 generator)")
-	print("  MEAS duel(seed 20261008, skill 0, attack): winner=%s ticks=%d guard_hp=%d kid_hp=%d transcript=%d events" % [
+	# --- the decision ladder bands (PARITY §20) ------------------------------
+	var rr := PopRng.new()
+	rr.state = PopRng.normalize_seed(4242)
+	var before := rr.state
+	var kg := PopGuard.initial_kid()
+	var gg := PopGuard.initial(0)
+	var td: Array = []
+	check(PopGuard._decide(gg, kg, rr, td, 40) != 0 and String(gg["seq"]) == "advance"
+			and rr.state == before,
+		"far (40 >= 35): advance with no RNG draw (seg002.c:758/795-801)")
+
+	gg = PopGuard.initial(0)
+	gg["refractimer"] = 5
+	kg = PopGuard.initial_kid()
+	rr.state = PopRng.normalize_seed(4242)
+	before = rr.state
+	td = []
+	check(PopGuard._decide(gg, kg, rr, td, 40) == 0 and String(gg["seq"]) == "ready"
+			and rr.state == before,
+		"far while refracted: hold with no RNG draw (seg002.c:773)")
+
+	gg = PopGuard.initial(0)
+	kg = PopGuard.initial_kid()
+	rr.state = PopRng.normalize_seed(4242)
+	before = rr.state
+	td = []
+	check(PopGuard._decide(gg, kg, rr, td, 10) != 0 and String(gg["seq"]) == "advance"
+			and rr.state == before,
+		"too close (10 < 12): close in with no RNG draw (seg002.c:759-766)")
+
+	gg = PopGuard.initial(0)
+	kg = PopGuard.initial_kid()
+	kg["dir"] = -1                    # the kid has turned: both face left
+	rr.state = PopRng.normalize_seed(4242)
+	before = rr.state
+	td = []
+	check(PopGuard._decide(gg, kg, rr, td, 10) != 0 and String(gg["seq"]) == "retreat"
+			and rr.state == before,
+		"too close facing the same way: back off (seg002.c:761-763)")
+
+	# [12, 29), kid idle in f155: exactly one strike draw
+	gg = PopGuard.initial(0)
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 155                 # neither a block-react nor a strike-skip frame
+	rr.state = PopRng.normalize_seed(4242)
+	var probe := PopRng.new()
+	probe.state = rr.state
+	var draw := probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state,
+		"the armed band draws exactly once when only the strike can fire (seg002.c:857-899)")
+	if PopGuard.STRIKE_ODDS[0] > draw:
+		check(String(gg["seq"]) == "strike" and td == ["g:strike"],
+			"a firing strike draw starts the strike chain (draw %d < 61)" % draw)
+	else:
+		check(String(gg["seq"]) == "ready" and td.is_empty(),
+			"a failed strike draw stands (draw %d >= 61)" % draw)
+
+	# [12, 29), kid in f152: block draw then strike draw, in that order
+	gg = PopGuard.initial(0)
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 152
+	rr.state = PopRng.normalize_seed(77)
+	probe.state = rr.state
+	var d1 := probe.rand_below(256)
+	var d2 := probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state,
+		"block then strike draws twice per tick (seg002.c:875, seg002.c:897)")
+	var want: Array = []
+	var want_seq := "ready"
+	if PopGuard.BLOCK_ODDS[0] > d1:
+		want.append("g:block")
+		want_seq = "block"
+	if PopGuard.STRIKE_ODDS[0] > d2:
+		want.append("g:strike")       # strike overrides block (seg005.c:993-997)
+		want_seq = "strike"
+	check(td == want and String(gg["seq"]) == want_seq,
+		"the transcript and chain match both draws (block %d, strike %d)" % [d1, d2])
+
+	# refracted: the block still draws, the strike branch does not (seg002.c:853)
+	gg = PopGuard.initial(0)
+	gg["refractimer"] = 5
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 152
+	rr.state = PopRng.normalize_seed(77)
+	probe.state = rr.state
+	d1 = probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state,
+		"refracted: the block draws but the strike does not (seg002.c:853, seg002.c:875)")
+	if PopGuard.BLOCK_ODDS[0] > d1:
+		check(String(gg["seq"]) == "block" and td == ["g:block"],
+			"a firing block draw starts the block (draw %d < 150)" % d1)
+	else:
+		check(String(gg["seq"]) == "ready" and td.is_empty(),
+			"a failed block draw stands (draw %d >= 150)" % d1)
+
+	# block hold: restrike from f150 uses restrikeprob (PARITY §12 row)
+	gg = PopGuard.initial(0)
+	gg["seq"] = "block"
+	gg["frame"] = PopGuard.PARRY_FRAMES[0]      # f150 in the hold loop
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 155
+	rr.state = PopRng.normalize_seed(4242)
+	probe.state = rr.state
+	probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state and String(gg["seq"]) == "block" and td.is_empty(),
+		"skill 0 restrike odds 0: the hold never re-strikes (PARITY §12, seg002.c:893-895)")
+
+	gg = PopGuard.initial(9)
+	gg["seq"] = "block"
+	gg["frame"] = PopGuard.PARRY_FRAMES[0]
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 155
+	rr.state = PopRng.normalize_seed(4242)
+	probe.state = rr.state
+	var d3 := probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state,
+		"the hold restrike draws exactly once (seg002.c:893-895)")
+	if PopGuard.RESTRIKE_ODDS[9] > d3:
+		check(String(gg["seq"]) == "block_strike" and td == ["g:strike"],
+			"skill 9 restrike odds 255: the hold re-strikes from f150 (draw %d)" % d3)
+	else:
+		check(String(gg["seq"]) == "block" and td.is_empty(),
+			"a failed restrike keeps the hold (draw %d)" % d3)
+
+	# from f169 the strike draw is consumed but sword_strike refuses the frame
+	gg = PopGuard.initial(0)
+	gg["seq"] = "block"
+	gg["frame"] = PopGuard.CHAIN_BLOCK[0]       # f169
+	kg = PopGuard.initial_kid()
+	kg["frame"] = 155
+	rr.state = PopRng.normalize_seed(4242)
+	probe.state = rr.state
+	var d4 := probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 20)
+	check(rr.state == probe.state and String(gg["seq"]) == "block" and td.is_empty(),
+		"from f169 the draw is spent but no chain starts (seg005.c:1036-1049; draw %d)" % d4)
+
+	# guard_advance draws nothing while the kid's sword-strike timer runs for
+	# skill > 0 (skill 0 always draws; seg002.c:864-865)
+	gg = PopGuard.initial(1)
+	kg = PopGuard.initial_kid()
+	kg["sword_strike"] = PopGuard.STRIKE_TIMER_START
+	rr.state = PopRng.normalize_seed(4242)
+	before = rr.state
+	td = []
+	check(PopGuard._decide(gg, kg, rr, td, 32) == 0 and String(gg["seq"]) == "ready"
+			and rr.state == before,
+		"skill 1 + kid strike timer: guard_advance draws nothing (seg002.c:864-865)")
+
+	gg = PopGuard.initial(0)
+	kg = PopGuard.initial_kid()
+	kg["sword_strike"] = PopGuard.STRIKE_TIMER_START
+	rr.state = PopRng.normalize_seed(4242)
+	probe.state = rr.state
+	var d5 := probe.rand_below(256)
+	td = []
+	PopGuard._decide(gg, kg, rr, td, 32)         # [29, 35): the armed advance band
+	check(rr.state == probe.state,
+		"skill 0 always draws advprob, whatever the strike timer (seg002.c:865)")
+	if PopGuard.ADVANCE_ODDS[0] > d5:
+		check(String(gg["seq"]) == "advance",
+			"a firing advance draw starts the advance (draw %d < 255)" % d5)
+	else:
+		check(String(gg["seq"]) == "ready",
+			"a failed advance draw stands (draw %d >= 255)" % d5)
+
+	# a hurt guard waits out his own refractimer (check_sword_hurt)
+	var gh := PopGuard.initial(0)
+	var kh := PopGuard.initial_kid()
+	kh["seq"] = "strike"
+	kh["frame"] = PopGuard.STRIKE_DAMAGE_FRAME
+	var th: Array = []
+	PopGuard._resolve(kh, gh, th)
+	check(int(gh["hp"]) == PopGuard.guard_hp(0) - 1
+			and int(gh["refractimer"]) == PopGuard.REFRACTIMER[0],
+		"a hit on the guard sets refractimer to 16 (PARITY §12, seg002.c:973)")
+
+	# --- the walk chains pay their dx beside each frame (PARITY §13/§20) ----
+	var walk := PopGuard.initial_kid()
+	check(PopGuard._start(walk, "fastadvance") == 6 and PopGuard._advance(walk) == 0,
+		"fastadvance pays +6 at f164 and nothing at f165 (seqtbl.c:322-323)")
+	walk = PopGuard.initial(0)
+	check(PopGuard._start(walk, "advance") == 2 and PopGuard._advance(walk) == 4
+			and PopGuard._advance(walk) == 0,
+		"advance pays +2 f163 then +4 f164 (seqtbl.c:316-318)")
+	walk = PopGuard.initial_kid()
+	check(PopGuard._start(walk, "retreat") == -3 and PopGuard._advance(walk) == -2,
+		"retreat pays -3 f160 then -2 f157 (seqtbl.c:327-328)")
+
+	# --- distance actually gates the duel ----------------------------------
+	# sword-only commands never move anyone (no dx in the §13 strike/block
+	# chains), so the duel closes at exactly the start distance
+	check(int(w1["dist"]) == PopGuard.START_DIST,
+		"a sword-only duel ends at the start distance %d (sim characterization)" % PopGuard.START_DIST)
+	var walk1: Array = ["advance"]
+	for i: int in 60:
+		walk1.append("idle")
+	var m1 := PopGuard.duel(20261008, 0, walk1, 60)
+	check("k:advance" in (m1["transcript"] as Array) and int(m1["dist"]) == 14,
+		"the kid's fastadvance closes 20 → 14 (PARITY §20 fastadvance dx +6; dist %d)" % int(m1["dist"]))
+	var m2 := PopGuard.duel(20261008, 0, walk1, 60)
+	check((m1["transcript"] as Array) == (m2["transcript"] as Array) and int(m2["dist"]) == 14,
+		"a movement duel is reproducible for the same seed (dist %d)" % int(m2["dist"]))
+	var walk2: Array = ["retreat"]
+	for i: int in 60:
+		walk2.append("idle")
+	var m3 := PopGuard.duel(20261008, 0, walk2, 60)
+	check("k:retreat" in (m3["transcript"] as Array) and int(m3["dist"]) == 25,
+		"the kid's retreat opens 20 → 25 (PARITY §20 retreat dx -5; dist %d)" % int(m3["dist"]))
+
+	# --- trap deaths for both parties (PARITY §20) ---------------------------
+	var ts: Array = []
+	var tk := PopGuard.initial_kid()
+	tk["frame"] = 10                                # a running frame
+	PopGuard.trap_step(tk, "kid", {"kind": "spike", "harmful": 2}, 1, ts)
+	check(int(tk["hp"]) == 0 and ts == ["kid:spiked"],
+		"harm class 2 on a run frame spikes the kid (seg006.c:958-959)")
+	ts = []
+	var tk2 := PopGuard.initial_kid()
+	tk2["frame"] = 10
+	PopGuard.trap_step(tk2, "kid", {"kind": "spike", "harmful": 1}, 1, ts)
+	check(int(tk2["hp"]) == PopTables.KID_HP_START and ts.is_empty(),
+		"harm class 1 on a run frame is safe (seg006.c:959)")
+	ts = []
+	var tg := PopGuard.initial(0)
+	tg["frame"] = 43                                # landing from a run-jump
+	PopGuard.trap_step(tg, "guard", {"kind": "spike", "harmful": 1}, 1, ts)
+	check(int(tg["hp"]) == 0 and ts == ["guard:spiked"],
+		"harm class 1 on frame 43 spikes the guard (seg006.c:960)")
+	ts = []
+	var tg2 := PopGuard.initial(0)                  # en garde: f158 is outside both windows
+	PopGuard.trap_step(tg2, "guard", {"kind": "spike", "harmful": 2}, 1, ts)
+	check(int(tg2["hp"]) == PopGuard.guard_hp(0) and ts.is_empty(),
+		"an en-garde guard is never spiked by the frame rule (seg006.c:958-960)")
+
+	# a chomper kills on stored modifier 2 of the 15-frame cycle
+	var ch_script: Array = []
+	for i: int in 10:
+		ch_script.append("idle")
+	var ch1 := PopGuard.duel(99, 0, ch_script, 1, {"kid": [{"kind": "chomper"}]})
+	check(String(ch1["winner"]) == "none" and int(ch1["kid_hp"]) == PopTables.KID_HP_START,
+		"tick 1 of the chomper cycle is safe (stored frame 1)")
+	var ch2 := PopGuard.duel(99, 0, ch_script, 10, {"kid": [{"kind": "chomper"}]})
+	check("kid:chomped" in (ch2["transcript"] as Array) and String(ch2["winner"]) == "guard",
+		"the chomper bites the kid at stored frame 2 (seg004.c:444; winner %s)" % String(ch2["winner"]))
+	var ch3 := PopGuard.duel(99, 0, ch_script, 10, {"guard": [{"kind": "chomper"}]})
+	check("guard:chomped" in (ch3["transcript"] as Array) and String(ch3["winner"]) == "kid",
+		"the chomper bites the guard too (seg004.c:569-585; winner %s)" % String(ch3["winner"]))
+	var ch4 := PopGuard.duel(99, 0, ch_script, 10, {"kid": [{"kind": "chomper"}]})
+	check((ch2["transcript"] as Array) == (ch4["transcript"] as Array),
+		"a chomper duel is reproducible for the same seed")
+	var sp1 := PopGuard.duel(99, 0, ch_script, 400,
+		{"kid": [{"kind": "spike", "harmful": 2}]})
+	check(not str(sp1["transcript"]).contains(":spiked"),
+		"a live spike hazard never spikes an en-garde fighter (seg006.c:958-960)")
+
+	print("  MEAS duel(seed 20261008, skill 0, attack): winner=%s ticks=%d guard_hp=%d kid_hp=%d dist=%d transcript=%d events" % [
 		String(w1["winner"]), int(w1["ticks"]), int(w1["guard_hp"]), int(w1["kid_hp"]),
-		(w1["transcript"] as Array).size()])
-	print("  GAP: A4.3 — spiked/chomped *causes* of death are not wired into the duel (both parties die on HP only); guard advance/retreat dx does not gate reach.")
+		int(w1["dist"]), (w1["transcript"] as Array).size()])

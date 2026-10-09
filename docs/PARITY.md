@@ -140,7 +140,7 @@ State machine from `animate_spike` (`seg007.c:310-329`); durations counted here 
 | extend | 0→1→2→3→4→(5→0x8F) | 5 | yes while 1–4 (class 2) |
 | extended hold | 0x8F→…→0x81→6 | 15 | yes (class 1) |
 | retract | 6→7→8→(9→0, stop) | 3 | no |
-| disabled | 0xFF | permanent | no (set on a kill, `seg005.c:216-218`) |
+| disabled | 0xFF | permanent | no (set on a kill, `seg005.c:220-222`) |
 
 Full cycle ≈ **23 logic frames ≈ 1.9 s** at 12 fps [D]. Harmfulness classes:
 `is_spike_harmful()` (`seg007.c:1171-1176`); contact rules differ for running frames
@@ -185,7 +185,7 @@ schedule independently. `seg007.c:742-768`, `seg007.c:783-791`. Ours: — pendin
 | press→fall delay | 11 logic frames (≈0.9 s at 12 fps) | `data.h:827`, `seg007.c:825` |
 | shake band | modifier 0x80–0x83, resets ≥0x84 | `seg007.c:813-829` |
 | detach landing rows | {2, 65, 128, 191, 254} | `seg007.c:809` |
-| crush test | same room+col, feet within 30 y-units above block | `seg007.c:1185-1193` |
+| crush test | same room+col, feet within 30 y-units above block | `seg007.c:1185-1195` |
 | chomper cycle | 15 frames ≈ 1.25 s; bite sound on frame 2; blood flag 0x80; stops past frame 6 when kid left/dead | `data.h:860`, `seg007.c:281-306` |
 
 ## 12. Guard decision tables and HP
@@ -227,7 +227,7 @@ the 12-wide tables. Ours: — pending gate 3.
 | blocked strike | f167→f155…→ready | `seqtbl.c:342-344` |
 | block→strike | f162→f152… | `seqtbl.c:347-349` |
 | strike→block | f159,f160→f150 | `seqtbl.c:356-358` |
-| advance / fast / retreat | dx+2 f163, dx+4 f164 / dx+6 f164 / dx−3 f160, dx−2 f157 | `seqtbl.c:314-329` |
+| advance / fast / retreat | dx+2 f163, dx+4 f164, f165 / dx+6 f164, f165 / dx−3 f160, dx−2 f157 | `seqtbl.c:314-329` |
 
 At 10 fps: hit possible 0.4–0.5 s after input, full chain 0.8 s [D].
 Ours: — pending A4.3 duels / gate 3.
@@ -487,3 +487,60 @@ these 8 — observed turnaround is 9 ticks. [D]
   behavior-verified.
 - Level-1 cross-validation done: `--screenshot-level-extras` map vs byte extraction
   matched on start marker and guard label positions (Session 002; see review.md).
+
+## 20. Reach, distance, and duel trap deaths
+
+Signed distance comes from `char_opp_dist()` (`seg006.c:2117-2131`): `Opp.x - Char.x`
+(`seg006.c:2123`), negated when the character faces left (`seg006.c:2124-2126`;
+`dir_0_right = 0`, `dir_FF_left = -1`, `types.h:389-391`), plus 13 when the value is
+≥ 0 and the two face different directions (`seg006.c:2127-2129`), 999 across rooms
+(`seg006.c:2120-2122`). Positive = opponent in front; with fighters facing each
+other both sides compute the same number. Row labels are our schema; the duel
+(`scripts/pop/pop_guard.gd`) cites these rows.
+
+| Quantity | Value | Citation |
+|---|---|---|
+| sword status | 0 = sheathed, 2 = drawn | `types.h:319-321` |
+| front offset | 13 (added when non-negative and directions differ) | `seg006.c:2127-2129` |
+| hit gate | same row, own sword drawn, attacker in f153/f154 | `seg002.c:1000-1004` |
+| damage frame | 154 (only the poke lands; the wind-up does not) | `seg002.c:1014` |
+| hit range max | 29 (`distance >= min_hurt_range` and `distance < 29`) | `seg002.c:1021` |
+| min hurt range drawn | 12 | `seg002.c:1018` |
+| min hurt range undrawn | 8 | `seg002.c:1016` |
+| parry turn-aside | `0 <= distance < 29` and defender f150/f161: defender forced to f161, attacker plays the f167-blocked chain; a guard attacker also sets justblocked 4 | `seg002.c:1009-1013`, `seg002.c:1026-1030` |
+| justblocked timer | 4, decremented every logic frame | `seg002.c:1028`, `seg002.c:634` |
+| kid strike timer | 15 on the kid's strike input, decremented every logic frame | `seg005.c:993-994`, `seg002.c:635` |
+| guard refractory | set to refractimer[skill] when the guard is hurt, decremented every logic frame | `seg002.c:965-974`, `seg002.c:636` |
+| falling-opponent hold | hold when `distance >= 12` and the kid is in fall frames 102–117 | `seg002.c:751-756` |
+| engage gate | 35 (engage only when `distance < 35`) | `seg002.c:758` |
+| too-close band | 12 (`(sword undrawn and distance < 8) or distance < 12`: same direction → back, else close in) | `seg002.c:759-766` |
+| too-close unsheathed | 8 | `seg002.c:759` |
+| far behavior | floor ahead → forward, else backward; no RNG draw; gated by refractimer == 0 | `seg002.c:795-801`, `seg002.c:773` |
+| armed advance band | 10 (`distance < 10` or `distance >= 29` → advance) | `seg002.c:849-850` |
+| strike band low | 12 (with the refractory spent: closer than that → advance instead of strike) | `seg002.c:854-855` |
+| advance draw | advprob[skill] drawn only when `guard_skill == 0` or `kid_sword_strike == 0`, otherwise no draw | `seg002.c:864-867` |
+| block draw | only on opponent f152/f153/f162; impblockprob when justblocked nonzero, else blockprob | `seg002.c:873-885` |
+| strike draw | skipped on opponent f169/f151 with no draw; restrikeprob when self in f150/f161, else strikeprob | `seg002.c:889-899` |
+| parry far | 32 (a guard's parry beyond it becomes back-with-sword) | `seg005.c:1063-1065` |
+| parry-frame retreat | guard in f161 with the strike input held → back-with-sword | `seg005.c:989-991` |
+| sword walk chains | guard forward = `advance` (seq 56), guard back = `retreat` (seq 57), kid forward = `fastadvance` (seq 86) | `seqtbl.c:220`, `types.h:1041-1042`, `types.h:1067` |
+| advance dx | 2, 4, total 6 | `seqtbl.c:316-318`, frames f163/f164/f165 |
+| fastadvance dx | 6, total 6 | `seqtbl.c:322-323`, frames f164/f165 |
+| retreat dx | -3, -2, total -5 | `seqtbl.c:327-328`, frames f160/f157 |
+| kid trap checks | every frame with resurrect_time 0: check_spiked, check_chomped_kid | `seg000.c:1205-1208` |
+| guard trap checks | in the drawn room and 44 ≤ x < 211: check_spiked, check_chomped_guard | `seg000.c:1230-1235` |
+| spike run frames | 7–14 and 34–39 need harm class ≥ 2 | `seg006.c:958-959` |
+| spike land frames | 43 and 26 trip on any nonzero harm class | `seg006.c:960` |
+| spiked death | spike modifier → 0xFF, snap, take_hp(100) → death | `seg005.c:220-246` |
+| chomper kill state | `(mod & 0x7F) == 2` (frame 2, closed) plus collision overlap | `seg004.c:439-450`, `seg004.c:569-585` |
+| chomper cycle | stored modifier runs 1…15 and wraps to 1; frame 2 is the bite | `seg007.c:284-289` |
+| chomped death | blood flag 0x80, snap, take_hp(100) → death | `seg004.c:452-484` |
+
+Notes for the duel: it starts at signed distance 20 with both fighters en garde
+(sim characterization — reference spawn distances are level data). The duel does
+not model `can_guard_see_kid` (`seg002.c:740-756`): a scripted kid that advances
+twice from the start would cross the guard, which the reference resolves by losing
+sight; our scripted runs stay on the kid's side. Frames 150–169 are outside the
+`check_spiked` windows (`seg006.c:958-960`), so an en-garde fighter is never
+spiked by that check — the duel still runs the check on every tick for both
+fighters, and chomper deaths fire from the cycle row above.
