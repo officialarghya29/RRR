@@ -17,15 +17,25 @@ extends RefCounted
 ## Pure and integer-only: `duel()` is a function of its seed, skill, scripted
 ## kid inputs and hazards, so the same seed always yields the same transcript.
 
-# --- §12 decision tables (index = skill; `data.h:835-847`) ------------------
-const STRIKE_ODDS: Array[int] = [61, 100, 61, 61, 61, 40, 100, 220, 0, 48, 32, 48]
-const RESTRIKE_ODDS: Array[int] = [0, 0, 0, 5, 5, 175, 16, 8, 0, 255, 255, 150]
-const BLOCK_ODDS: Array[int] = [0, 150, 150, 200, 200, 255, 200, 250, 0, 255, 255, 255]
-const IMPBLOCK_ODDS: Array[int] = [0, 61, 61, 100, 100, 145, 100, 250, 0, 145, 255, 175]
-const ADVANCE_ODDS: Array[int] = [255, 200, 200, 200, 255, 255, 200, 0, 0, 255, 100, 100]
-const REFRACTIMER: Array[int] = [16, 16, 16, 16, 8, 8, 8, 8, 0, 8, 0, 0]
-const BONUS_HP: Array[int] = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
-const BASE_HP: Array[int] = [4, 3, 3, 3, 3, 4, 5, 4, 4, 5, 5, 5]
+# --- §12 guard skill profiles (index = our skill level 0..11) ---------------
+# Plan §2.2: the reference stores each property as its own 12-wide array
+# (`data.h:835-847`); transliterating that layout would be copied expression,
+# so ours is profile-major — one record per skill, our field names, our
+# grouping. Every value is a cited fact (PARITY §12 rows), not ported code.
+const PROFILES: Array[Dictionary] = [
+	{"strike": 61, "restrike": 0, "block": 0, "immediate_block": 0, "advance": 255, "refractory": 16, "bonus_hp": 0, "base_hp": 4},
+	{"strike": 100, "restrike": 0, "block": 150, "immediate_block": 61, "advance": 200, "refractory": 16, "bonus_hp": 0, "base_hp": 3},
+	{"strike": 61, "restrike": 0, "block": 150, "immediate_block": 61, "advance": 200, "refractory": 16, "bonus_hp": 0, "base_hp": 3},
+	{"strike": 61, "restrike": 5, "block": 200, "immediate_block": 100, "advance": 200, "refractory": 16, "bonus_hp": 0, "base_hp": 3},
+	{"strike": 61, "restrike": 5, "block": 200, "immediate_block": 100, "advance": 255, "refractory": 8, "bonus_hp": 1, "base_hp": 3},
+	{"strike": 40, "restrike": 175, "block": 255, "immediate_block": 145, "advance": 255, "refractory": 8, "bonus_hp": 0, "base_hp": 4},
+	{"strike": 100, "restrike": 16, "block": 200, "immediate_block": 100, "advance": 200, "refractory": 8, "bonus_hp": 0, "base_hp": 5},
+	{"strike": 220, "restrike": 8, "block": 250, "immediate_block": 250, "advance": 0, "refractory": 8, "bonus_hp": 0, "base_hp": 4},
+	{"strike": 0, "restrike": 0, "block": 0, "immediate_block": 0, "advance": 0, "refractory": 0, "bonus_hp": 0, "base_hp": 4},
+	{"strike": 48, "restrike": 255, "block": 255, "immediate_block": 145, "advance": 255, "refractory": 8, "bonus_hp": 0, "base_hp": 5},
+	{"strike": 32, "restrike": 255, "block": 255, "immediate_block": 255, "advance": 100, "refractory": 0, "bonus_hp": 0, "base_hp": 5},
+	{"strike": 48, "restrike": 150, "block": 255, "immediate_block": 175, "advance": 100, "refractory": 0, "bonus_hp": 0, "base_hp": 5},
+]
 
 # --- §13 sword frame chains -------------------------------------------------
 const READY_FRAME: int = 158                     ## ready: f158 loop (`seqtbl.c:287`)
@@ -65,7 +75,7 @@ const TOO_CLOSE_UNSHEATHED: int = 8       ## too-close with sword undrawn (`seg0
 const ARMED_ADVANCE_BELOW: int = 10       ## armed advance band (`seg002.c:849`)
 const PARRY_FAR: int = 32                 ## parry becomes retreat at ≥32 (`seg005.c:1063`)
 const STRIKE_TIMER_START: int = 15        ## kid_sword_strike on strike (`seg005.c:994`)
-const JUSTBLOCKED_START: int = 4          ## justblocked when a guard attack is parried (`seg002.c:1028`)
+const REBLOCK_START: int = 4            ## re-block timer set when a guard attack is turned aside (`seg002.c:1028`)
 ## Duel geometry: kid at START_X facing right, guard START_DIST - FRONT_OFFSET
 ## units to his right facing left, i.e. signed distance START_DIST (both are
 ## sim characterization — reference spawn distances are level data).
@@ -74,11 +84,30 @@ const START_DIST: int = 20
 
 
 static func guard_skill_max() -> int:
-	return BASE_HP.size() - 1
+	return PROFILES.size() - 1
+
+
+## One skill's profile record (our schema; values cited via PARITY §12).
+static func profile(skill: int) -> Dictionary:
+	return PROFILES[skill]
+
+
+## One field as a skill-major column (property view), for anti-drift checks
+## against the PARITY §12 rows.
+static func column(field: String) -> Array:
+	var out: Array = []
+	for p: Dictionary in PROFILES:
+		out.append(int(p[field]))
+	return out
+
+
+static func odds(skill: int, field: String) -> int:
+	return int(PROFILES[skill][field])
 
 
 static func guard_hp(skill: int) -> int:
-	return BASE_HP[skill] + BONUS_HP[skill]
+	var p := PROFILES[skill]
+	return int(p["base_hp"]) + int(p["bonus_hp"])
 
 
 static func initial(skill: int, dir: int = -1) -> Dictionary:
@@ -91,7 +120,7 @@ static func initial(skill: int, dir: int = -1) -> Dictionary:
 		"frame": READY_FRAME,
 		"index": 0,
 		"refractimer": 0,
-		"justblocked": 0,
+		"reblock": 0,
 		"dead": 0,
 	}
 
@@ -109,8 +138,9 @@ static func initial_kid() -> Dictionary:
 	}
 
 
-## `char_opp_dist()` (`seg006.c:2117-2131`): Opp.x - Char.x, negated when the
-## character faces left (`dir_0_right = 0`, `dir_FF_left = -1`, `types.h:389-391`),
+## Signed distance, per the reference function (`seg006.c:2117-2131`): x of the
+## opponent minus x of the character, negated when the character faces left
+## (`dir_0_right = 0`, `dir_FF_left = -1`, `types.h:389-391`),
 ## plus FRONT_OFFSET when the result is ≥ 0 and the two face different
 ## directions. Positive = opponent in front. The cross-room 999 case is omitted:
 ## the duel is one room.
@@ -123,9 +153,9 @@ static func opp_dist(x_self: int, dir_self: int, x_opp: int, dir_opp: int) -> in
 	return d
 
 
-## min_hurt_range: 8 if the defender's sword is undrawn, 12 if drawn
-## (`seg002.c:1016-1018`).
-static func _min_hurt(defender_sword: int) -> int:
+## Reach minimum (our name; PARITY §20): 8 while the defender's sword is
+## undrawn, 12 once drawn (`seg002.c:1016-1018`).
+static func _reach_min(defender_sword: int) -> int:
 	return HIT_MIN_UNSHEATHED if defender_sword < SWORD_DRAWN else HIT_MIN_DRAWN
 
 
@@ -164,8 +194,8 @@ static func duel(seed: int, skill: int, kid_script: Array, max_ticks: int,
 		# per-frame timer decay (`seg002.c:634-636`)
 		if int(guard["refractimer"]) > 0:
 			guard["refractimer"] = int(guard["refractimer"]) - 1
-		if int(guard["justblocked"]) > 0:
-			guard["justblocked"] = int(guard["justblocked"]) - 1
+		if int(guard["reblock"]) > 0:
+			guard["reblock"] = int(guard["reblock"]) - 1
 		if int(kid["sword_strike"]) > 0:
 			kid["sword_strike"] = int(kid["sword_strike"]) - 1
 		# trap checks run at the end of the frame for both parties
@@ -292,10 +322,10 @@ static func _kid_command(kid: Dictionary, cmd: String, transcript: Array) -> int
 ## (`seg002.c:1001`) away — both fighters share one row — and `dist` is the
 ## attacker's `char_opp_dist()` (`seg006.c:2117-2131`). A strike processes only
 ## in f153/f154 with the attacker's sword drawn (`seg002.c:1000-1004`); only
-## f154 damages, inside [min_hurt, 29) where min_hurt is 8 if the defender's
+## f154 damages, inside [reach min, 29) where the reach minimum is 8 if the defender's
 ## sword is undrawn and 12 if drawn (`seg002.c:1014-1021`). A defender in
 ## f150/f161 turns the strike aside instead while 0 <= distance < 29
-## (`seg002.c:1009-1013`); a guard attacker also sets justblocked = 4
+## (`seg002.c:1009-1013`); a guard attacker also starts the re-block timer
 ## (`seg002.c:1028`).
 static func _resolve(kid: Dictionary, guard: Dictionary, transcript: Array,
 		dist: int = START_DIST) -> void:
@@ -305,20 +335,20 @@ static func _resolve(kid: Dictionary, guard: Dictionary, transcript: Array,
 			and int(guard["sword"]) == SWORD_DRAWN:
 		if kid_frame in PARRY_FRAMES and dist >= 0 and dist < HIT_MAX:
 			kid["frame"] = PARRY_FRAMES[1]             # defender forced to f161 (`seg002.c:1026`)
-			guard["justblocked"] = JUSTBLOCKED_START   # attacker is the guard (`seg002.c:1028`)
+			guard["reblock"] = REBLOCK_START       # attacker is the guard (`seg002.c:1028`)
 			transcript.append("k:parry")
 			_start(guard, "blocked")                   # f167-blocked chain (`seg002.c:1030`)
 		elif guard_frame == STRIKE_DAMAGE_FRAME \
-				and dist >= _min_hurt(int(kid["sword"])) and dist < HIT_MAX:
+				and dist >= _reach_min(int(kid["sword"])) and dist < HIT_MAX:
 			_damage(kid, "kid", transcript)
 	if String(kid["seq"]) == "strike" and kid_frame in KID_HIT_FRAMES \
 			and int(kid["sword"]) == SWORD_DRAWN:
 		if guard_frame in PARRY_FRAMES and dist >= 0 and dist < HIT_MAX:
-			guard["frame"] = PARRY_FRAMES[1]           # no justblocked: the attacker is the kid
+			guard["frame"] = PARRY_FRAMES[1]           # no re-block timer: the attacker is the kid
 			transcript.append("g:parry")
 			_start(kid, "blocked")
 		elif kid_frame == STRIKE_DAMAGE_FRAME \
-				and dist >= _min_hurt(int(guard["sword"])) and dist < HIT_MAX:
+				and dist >= _reach_min(int(guard["sword"])) and dist < HIT_MAX:
 			_damage(guard, "guard", transcript)
 
 
@@ -332,7 +362,7 @@ static func _damage(p: Dictionary, who: String, transcript: Array) -> void:
 		transcript.append("%s:hit" % who)
 	if who == "guard":
 		# a hurt guard waits out his own refractimer (`seg002.c:965-974`)
-		p["refractimer"] = REFRACTIMER[int(p["skill"])]
+		p["refractimer"] = int(PROFILES[int(p["skill"])]["refractory"])
 
 
 ## The guard's decision frame, following autocontrol_guard_active /
@@ -374,8 +404,9 @@ static func _decide(guard: Dictionary, kid: Dictionary, rng: PopRng,
 	var kid_frame := int(kid["frame"])
 	var block_fired := false
 	if kid_frame in KID_BLOCK_REACT_FRAMES:
-		var b_odds: Array = IMPBLOCK_ODDS if int(guard["justblocked"]) != 0 else BLOCK_ODDS
-		block_fired = int(b_odds[skill]) > rng.rand_below(256)   # `seg002.c:875-881`
+		var b_odds: int = odds(skill, "immediate_block") if int(guard["reblock"]) != 0 \
+				else odds(skill, "block")
+		block_fired = b_odds > rng.rand_below(256)   # `seg002.c:875-881`
 	if int(guard["refractimer"]) != 0:
 		# strike/advance branch gated by the refractory (`seg002.c:853`)
 		if block_fired:
@@ -389,8 +420,8 @@ static func _decide(guard: Dictionary, kid: Dictionary, rng: PopRng,
 			transcript.append("g:block")
 		return 0
 	var restrike := int(guard["frame"]) in PARRY_FRAMES   # `seg002.c:893-895`
-	var s_odds: Array = RESTRIKE_ODDS if restrike else STRIKE_ODDS
-	var strike_fired := int(s_odds[skill]) > rng.rand_below(256)
+	var s_odds: int = odds(skill, "restrike") if restrike else odds(skill, "strike")
+	var strike_fired := s_odds > rng.rand_below(256)
 	if block_fired:
 		_start(guard, "block")
 		transcript.append("g:block")
@@ -409,7 +440,7 @@ static func _guard_advance(guard: Dictionary, kid: Dictionary, rng: PopRng,
 		transcript: Array) -> int:
 	var skill := int(guard["skill"])
 	if skill == 0 or int(kid["sword_strike"]) == 0:
-		if ADVANCE_ODDS[skill] > rng.rand_below(256):
+		if odds(skill, "advance") > rng.rand_below(256):
 			transcript.append("g:advance")
 			return _start(guard, "advance")
 	return 0
@@ -432,8 +463,8 @@ static func _hold_strike(guard: Dictionary, kid: Dictionary, rng: PopRng,
 		return 0
 	var skill := int(guard["skill"])
 	var restrike := int(guard["frame"]) in PARRY_FRAMES
-	var odds: Array = RESTRIKE_ODDS if restrike else STRIKE_ODDS
-	if int(odds[skill]) > rng.rand_below(256) and restrike:
+	var o: int = odds(skill, "restrike") if restrike else odds(skill, "strike")
+	if o > rng.rand_below(256) and restrike:
 		_start(guard, "block_strike")
 		transcript.append("g:strike")
 	return 0
@@ -466,7 +497,7 @@ static func trap_step(p: Dictionary, who: String, hazard: Dictionary,
 		var phase := int(hazard.get("phase", 1))
 		var stored := ((phase - 1 + (tick - 1)) % PopTables.CHOMPER_FRAMES) + 1
 		if stored == 2:
-			# chomped(): take_hp(100) → death (`seg004.c:452-484`)
+			# chomped(): 100-damage instant death (`seg004.c:452-484`)
 			_kill(p, who, "chomped", transcript)
 
 

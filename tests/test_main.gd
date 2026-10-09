@@ -2036,16 +2036,16 @@ func _test_a43_duel() -> void:
 		return
 
 	# --- §12 decision tables / HP (anti-drift) ----------------------------
-	check(_a43_row(md, "strike odds") == PopGuard.STRIKE_ODDS, "strike odds match PARITY §12")
-	check(_a43_row(md, "re-strike odds") == PopGuard.RESTRIKE_ODDS, "re-strike odds match PARITY §12")
-	check(_a43_row(md, "block odds") == PopGuard.BLOCK_ODDS, "block odds match PARITY §12")
-	check(_a43_row(md, "immediate re-block odds") == PopGuard.IMPBLOCK_ODDS, "immediate re-block odds match PARITY §12")
-	check(_a43_row(md, "advance odds") == PopGuard.ADVANCE_ODDS, "advance odds match PARITY §12")
-	check(_a43_row(md, "refractory frames") == PopGuard.REFRACTIMER, "refractory frames match PARITY §12")
-	check(_a43_row(md, "bonus HP") == PopGuard.BONUS_HP, "bonus HP matches PARITY §12")
-	check(_a43_row(md, "base HP") == PopGuard.BASE_HP, "base HP matches PARITY §12")
+	check(_a43_row(md, "strike odds") == PopGuard.column("strike"), "strike odds match PARITY §12")
+	check(_a43_row(md, "re-strike odds") == PopGuard.column("restrike"), "re-strike odds match PARITY §12")
+	check(_a43_row(md, "block odds") == PopGuard.column("block"), "block odds match PARITY §12")
+	check(_a43_row(md, "immediate re-block odds") == PopGuard.column("immediate_block"), "immediate re-block odds match PARITY §12")
+	check(_a43_row(md, "advance odds") == PopGuard.column("advance"), "advance odds match PARITY §12")
+	check(_a43_row(md, "refractory frames") == PopGuard.column("refractory"), "refractory frames match PARITY §12")
+	check(_a43_row(md, "bonus HP") == PopGuard.column("bonus_hp"), "bonus HP matches PARITY §12")
+	check(_a43_row(md, "base HP") == PopGuard.column("base_hp"), "base HP matches PARITY §12")
 	check(PopGuard.guard_hp(0) == 4, "a skill-0 guard has 4 HP (PARITY §12 base 4 + bonus 0)")
-	check(PopGuard.REFRACTIMER[0] == 16, "skill-0 refractory is 16 frames (PARITY §12)")
+	check(PopGuard.odds(0, "refractory") == 16, "skill-0 refractory is 16 frames (PARITY §12)")
 
 	# --- §13 sword frame chains ------------------------------------------
 	var ready_cell := _parity_cell(md, "13", "ready", 1)
@@ -2071,11 +2071,11 @@ func _test_a43_duel() -> void:
 		"the +13 front offset matches PARITY §20 (seg006.c:2127-2129)")
 	check(_parity_int(md, "20", "hit range max") == PopGuard.HIT_MAX and PopGuard.HIT_MAX == 29,
 		"the hit range max 29 matches PARITY §20 (seg002.c:1021)")
-	check(_parity_int(md, "20", "min hurt range drawn") == PopGuard.HIT_MIN_DRAWN
+	check(_parity_int(md, "20", "reach minimum drawn") == PopGuard.HIT_MIN_DRAWN
 			and PopGuard.HIT_MIN_DRAWN == 12,
-		"min hurt range with the defender drawn is 12 (PARITY §20, seg002.c:1018)")
-	check(_parity_int(md, "20", "min hurt range undrawn") == PopGuard.HIT_MIN_UNSHEATHED,
-		"min hurt range with the defender undrawn is 8 (PARITY §20, seg002.c:1016)")
+		"reach minimum with the defender drawn is 12 (PARITY §20, seg002.c:1018)")
+	check(_parity_int(md, "20", "reach minimum undrawn") == PopGuard.HIT_MIN_UNSHEATHED,
+		"reach minimum with the defender undrawn is 8 (PARITY §20, seg002.c:1016)")
 	check(_parity_int(md, "20", "damage frame") == PopGuard.STRIKE_DAMAGE_FRAME,
 		"the damage frame f154 matches PARITY §20 (seg002.c:1014)")
 	check(_parity_int(md, "20", "engage gate") == PopGuard.ENGAGE_RANGE,
@@ -2091,8 +2091,8 @@ func _test_a43_duel() -> void:
 		"the parry-far retreat threshold 32 matches PARITY §20 (seg005.c:1063)")
 	check(_parity_int(md, "20", "kid strike timer") == PopGuard.STRIKE_TIMER_START,
 		"the kid strike timer 15 matches PARITY §20 (seg005.c:994)")
-	check(_parity_int(md, "20", "justblocked timer") == PopGuard.JUSTBLOCKED_START,
-		"the justblocked timer 4 matches PARITY §20 (seg002.c:1028)")
+	check(_parity_int(md, "20", "re-block timer") == PopGuard.REBLOCK_START,
+		"the re-block timer 4 matches PARITY §20 (seg002.c:1028)")
 	check(_ints(_parity_cell(md, "20", "advance dx")) == [2, 4, 6]
 			and PopGuard.CHAIN_DX["advance"] == [2, 4, 0],
 		"advance dx +2/+4 (total +6) matches PARITY §20 (seqtbl.c:316-318)")
@@ -2104,7 +2104,7 @@ func _test_a43_duel() -> void:
 		"retreat dx -3/-2 (total -5) matches PARITY §20 (seqtbl.c:327-328)")
 	check(s20.contains("7–14") and s20.contains("34–39") and s20.contains("43 and 26"),
 		"the spike harm windows match PARITY §20 (seg006.c:958-960)")
-	check(s20.contains("(mod & 0x7F) == 2") and s20.contains("1…15"),
+	check(s20.contains("stored cycle frame reads 2") and s20.contains("1…15"),
 		"the chomper kill state and cycle match PARITY §20 (seg004.c:444, seg007.c:284-289)")
 
 	# --- char_opp_dist (PARITY §20 distance rows) ---------------------------
@@ -2117,7 +2117,7 @@ func _test_a43_duel() -> void:
 	check(PopGuard.opp_dist(100, 0, 107, 0) == 7,
 		"same directions get no +13 (seg006.c:2127-2129)")
 
-	# --- a strike lands only inside [min_hurt, 29) --------------------------
+	# --- a strike lands only inside [reach min, 29) -------------------------
 	var g1 := PopGuard.initial(0)
 	var k1 := PopGuard.initial_kid()
 	g1["seq"] = "strike"
@@ -2180,8 +2180,8 @@ func _test_a43_duel() -> void:
 	check(int(k2["hp"]) == PopTables.KID_HP_START and String(g2["seq"]) == "blocked",
 		"a parry at f150 stops the hit and turns the strike aside (PARITY §13)")
 	check(t2 == ["k:parry"], "the parry is recorded in the transcript")
-	check(int(g2["justblocked"]) == PopGuard.JUSTBLOCKED_START,
-		"a parried guard attack sets justblocked = 4 (PARITY §20, seg002.c:1028)")
+	check(int(g2["reblock"]) == PopGuard.REBLOCK_START,
+		"a parried guard attack starts the re-block timer at 4 (PARITY §20, seg002.c:1028)")
 	var g5 := PopGuard.initial(0)
 	var k5 := PopGuard.initial_kid()
 	g5["seq"] = "strike"
@@ -2271,7 +2271,7 @@ func _test_a43_duel() -> void:
 	PopGuard._decide(gg, kg, rr, td, 20)
 	check(rr.state == probe.state,
 		"the armed band draws exactly once when only the strike can fire (seg002.c:857-899)")
-	if PopGuard.STRIKE_ODDS[0] > draw:
+	if PopGuard.odds(0, "strike") > draw:
 		check(String(gg["seq"]) == "strike" and td == ["g:strike"],
 			"a firing strike draw starts the strike chain (draw %d < 61)" % draw)
 	else:
@@ -2292,10 +2292,10 @@ func _test_a43_duel() -> void:
 		"block then strike draws twice per tick (seg002.c:875, seg002.c:897)")
 	var want: Array = []
 	var want_seq := "ready"
-	if PopGuard.BLOCK_ODDS[0] > d1:
+	if PopGuard.odds(0, "block") > d1:
 		want.append("g:block")
 		want_seq = "block"
-	if PopGuard.STRIKE_ODDS[0] > d2:
+	if PopGuard.odds(0, "strike") > d2:
 		want.append("g:strike")       # strike overrides block (seg005.c:993-997)
 		want_seq = "strike"
 	check(td == want and String(gg["seq"]) == want_seq,
@@ -2313,7 +2313,7 @@ func _test_a43_duel() -> void:
 	PopGuard._decide(gg, kg, rr, td, 20)
 	check(rr.state == probe.state,
 		"refracted: the block draws but the strike does not (seg002.c:853, seg002.c:875)")
-	if PopGuard.BLOCK_ODDS[0] > d1:
+	if PopGuard.odds(0, "block") > d1:
 		check(String(gg["seq"]) == "block" and td == ["g:block"],
 			"a firing block draw starts the block (draw %d < 150)" % d1)
 	else:
@@ -2346,7 +2346,7 @@ func _test_a43_duel() -> void:
 	PopGuard._decide(gg, kg, rr, td, 20)
 	check(rr.state == probe.state,
 		"the hold restrike draws exactly once (seg002.c:893-895)")
-	if PopGuard.RESTRIKE_ODDS[9] > d3:
+	if PopGuard.odds(9, "restrike") > d3:
 		check(String(gg["seq"]) == "block_strike" and td == ["g:strike"],
 			"skill 9 restrike odds 255: the hold re-strikes from f150 (draw %d)" % d3)
 	else:
@@ -2389,7 +2389,7 @@ func _test_a43_duel() -> void:
 	PopGuard._decide(gg, kg, rr, td, 32)         # [29, 35): the armed advance band
 	check(rr.state == probe.state,
 		"skill 0 always draws advprob, whatever the strike timer (seg002.c:865)")
-	if PopGuard.ADVANCE_ODDS[0] > d5:
+	if PopGuard.odds(0, "advance") > d5:
 		check(String(gg["seq"]) == "advance",
 			"a firing advance draw starts the advance (draw %d < 255)" % d5)
 	else:
@@ -2404,7 +2404,7 @@ func _test_a43_duel() -> void:
 	var th: Array = []
 	PopGuard._resolve(kh, gh, th)
 	check(int(gh["hp"]) == PopGuard.guard_hp(0) - 1
-			and int(gh["refractimer"]) == PopGuard.REFRACTIMER[0],
+			and int(gh["refractimer"]) == PopGuard.odds(0, "refractory"),
 		"a hit on the guard sets refractimer to 16 (PARITY §12, seg002.c:973)")
 
 	# --- the walk chains pay their dx beside each frame (PARITY §13/§20) ----
