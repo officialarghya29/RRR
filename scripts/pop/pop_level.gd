@@ -285,7 +285,7 @@ static func _animate_chomper(mods: Dictionary, key: String, anims: Dictionary,
 		anims.erase(key)
 
 
-## Crush rule (`check_loose_fall_on_kid`, `seg007.c:1591-1601`, PARITY §11):
+## Crush rule (`check_loose_fall_on_kid`, `seg007.c:1185-1195`, PARITY §11):
 ## a falling block hits the kid when they are in the same column, the block is
 ## *above* his feet, and it is within 30 y-units of them — i.e.
 ## `kid_y - 30 < block_y < kid_y` (y grows downward). Pure predicate, no state.
@@ -324,7 +324,7 @@ static func _step_blocks(s: Dictionary, kid_col: int) -> void:
 			speed = PopTables.FALL_SPEED_MAX
 		var y: int = int(b["y"]) + speed
 		if kid_dead == 0 and col == kid_col and crush_test(kid_y, y, kid_col, col):
-			_fell_on_your_head(s)   # check_loose_fall_on_kid (seg007.c:1591-1601)
+			_fell_on_your_head(s)   # check_loose_fall_on_kid (seg007.c:1185-1195)
 			kid_dead = int(s["dead"])
 			kid_y = int(s["y"])
 		var land := _block_land_y(s, row, col)
@@ -344,7 +344,7 @@ static func _block_land_y(s: Dictionary, row: int, col: int) -> int:
 	return -1
 
 
-## `fell_on_your_head` (`seg007.c:1605-1630`): the block pins the kid to his
+## `fell_on_your_head` (`seg007.c:1198-1221`): the block pins the kid to his
 ## row's floor and knocks 1 HP off; the last HP kills. The reference's
 ## level-13 exception for running frames 5–14 is not carried in PARITY, so
 ## the general frame rule is modeled (frame outside 5–14).

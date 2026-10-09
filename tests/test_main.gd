@@ -1610,11 +1610,11 @@ func _test_a41_entities() -> void:
 	var bundle := PopLevel.small_test_level()
 	var tiles: Array = bundle["tiles"]
 	check(tiles.size() == PopLevel.ROOM_H and (tiles[0] as Array).size() == 2 * PopLevel.ROOM_W,
-		"pop_level flattens two 10×3 rooms into a 3×20 tile grid")
+		"pop_level flattens two 10×3 rooms into a 3×20 tile grid (sim characterization: hand-built fixture, no external oracle)")
 	check(int(tiles[0][3]) == PopTables.Tile.BUTTON_RAISE
 			and int(tiles[0][7]) == PopTables.Tile.GATE
 			and int(tiles[0][15]) == PopTables.Tile.EXIT_DOOR_LEFT,
-		"the test level places the plate, gate and exit door")
+		"the test level places the plate, gate and exit door (sim characterization: hand-built fixture)")
 
 	# --- plate press + gate opening --------------------------------------
 	var gate_key := "0,7"
@@ -1677,7 +1677,7 @@ func _test_a41_entities() -> void:
 	check(int((st2["exit"] as Dictionary)["mod"]) == 0,
 		"the exit door closes to 0 (PARITY §9 level (exit) door row)")
 	check(door_ticks == 3,
-		"the exit door fast-closes in 3 ticks through the {0,5,17,99} ramp (PARITY §9; got %d)" % door_ticks)
+		"the exit door fast-closes in 3 ticks through the {0,5,17,99} ramp (PARITY §9 arithmetic on level-door rows; got %d)" % door_ticks)
 
 	# --- closer plate fires a fast close (PARITY §9 fast-close row) --------
 	var closer := {
@@ -1698,12 +1698,12 @@ func _test_a41_entities() -> void:
 		e1 = PopSim.step(e1, PopInput.neutral())
 		e2 = PopSim.step(e2, PopInput.neutral())
 	check(PopSim.hash_state(e1) == PopSim.hash_state(e2),
-		"two identical plate runs hash equal, gate/plate state included")
+		"two identical plate runs hash equal, gate/plate state included (sim characterization: determinism probe)")
 	var e3 := _a41_state(9999, 3)
 	for _i: int in 60:
 		e3 = PopSim.step(e3, PopInput.neutral())
 	check(PopSim.hash_state(e1) != PopSim.hash_state(e3),
-		"a different seed diverges with gate/plate state in the hash")
+		"a different seed diverges with gate/plate state in the hash (sim characterization: determinism probe)")
 
 
 # --- Plan B1 (thin slice): input-byte echo --------------------------------
@@ -1725,14 +1725,36 @@ func _test_b1_minimal_echo() -> void:
 	var echo: PopReplay = rec["replay"]
 	var recorded: Dictionary = rec["final"]
 	check(echo.size() == 40, "the echo recorded 40 input ticks (plan B1)")
+	check(echo.events.size() == echo.size(),
+		"every recorded tick carries an event vector (plan §8 gate 4)")
 
-	# A second sim participant replays the recorded bytes into its own run.
+	# The echo participant must run the SAME pop_sim.step as the player: a
+	# manual PopSim.step loop over the recorded bytes equals replay().
+	var manual: Dictionary = PopSim.initial_state(echo.seed,
+		bundle["tiles"], bundle["mods"], bundle["entities"])
+	for packed: Variant in echo.bytes:
+		manual = PopSim.step(manual, PopInput.from_byte(int(packed)))
 	var a: Dictionary = echo.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
+	check(PopSim.hash_state(manual) == PopSim.hash_state(a),
+		"the echo participant steps through the same pop_sim.step as the player")
+
+	# Two full runs: identical state hashes AND identical event vectors.
 	var b: Dictionary = echo.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
 	check(PopSim.hash_state(a) == PopSim.hash_state(recorded),
 		"the replay participant reproduces the recorded final state")
 	check(PopSim.hash_state(a) == PopSim.hash_state(b),
 		"two replays of the same recording hash identical (plan §8 gate 4)")
+	var ra: Dictionary = echo.replay_events(bundle["tiles"], bundle["mods"], bundle["entities"])
+	var rb: Dictionary = echo.replay_events(bundle["tiles"], bundle["mods"], bundle["entities"])
+	check((ra["events"] as Array) == echo.events,
+		"the replayed event vector matches the recorded one")
+	check((ra["events"] as Array) == (rb["events"] as Array),
+		"two runs produce identical event vectors (plan §8 gate 4)")
+	var vec_text: String = "|".join(ra["events"] as Array)
+	check(vec_text.contains("press:0,3"),
+		"the event vector records the plate press (plan §8 gate 4)")
+	check(vec_text.contains("opening:0,7"),
+		"the event vector records the linked gate opening (PARITY §9)")
 	var gate: Dictionary = (a["gates"] as Dictionary)["0,7"]
 	check(int(gate["mod"]) > PopTables.GATE_CLOSED,
 		"the replayed run triggers the plate, which moves the linked gate")
@@ -1742,6 +1764,21 @@ func _test_b1_minimal_echo() -> void:
 	var diverged: Dictionary = flipped.replay(bundle["tiles"], bundle["mods"], bundle["entities"])
 	check(PopSim.hash_state(diverged) != PopSim.hash_state(a),
 		"flipping one recorded bit makes the run diverge (plan §8 gate 4)")
+
+	# --- bounded ring: 8 s at 12 fps = 96 bytes (plan B1.1) ---------------
+	var long_script: Array = []
+	for i: int in 120:
+		long_script.append(PopInput.make(1 if i % 20 < 10 else 0, 0, 0).to_byte())
+	var ring_rec: Dictionary = PopReplay.record_run(7, long_script,
+		bundle["tiles"], bundle["mods"], bundle["entities"])
+	var ring: PopReplay = ring_rec["replay"]
+	check(ring.size() == PopReplay.RING_CAPACITY,
+		"the ring caps the buffer at 96 bytes (8 s at 12 fps; got %d)" % ring.size())
+	check(ring.at_capacity(), "the cap is actually engaged, not just short of it")
+	check(int(ring.bytes[0]) == int(long_script[120 - PopReplay.RING_CAPACITY]),
+		"the ring evicts the oldest byte first (bounded ring, plan B1.1)")
+	check(ring.events.size() == ring.size(),
+		"event vectors are evicted together with their bytes (ring-aligned)")
 
 
 # --- Plan A4.2: spikes, loose floors and chompers --------------------------
@@ -1944,11 +1981,11 @@ func _test_a42_traps() -> void:
 	# --- crush rule (PARITY §11 crush-test row) ---------------------------
 	var kid_y := int(PopTables.Y_LAND[1])
 	check(PopLevel.crush_test(kid_y, kid_y - 10, 3, 3),
-		"a block 10 units ABOVE the feet crushes (PARITY §11 crush-test row; seg007.c:1591-1601)")
+		"a block 10 units ABOVE the feet crushes (PARITY §11 crush-test row; seg007.c:1185-1195)")
 	check(not PopLevel.crush_test(kid_y, kid_y - PopTables.CRUSH_DEPTH - 1, 3, 3),
 		"a block 31 units above the feet does not (PARITY §11 crush-test row)")
 	check(not PopLevel.crush_test(kid_y, kid_y + 10, 3, 3),
-		"a block below the feet does not (seg007.c:1591 curmob.y < Char.y)")
+		"a block below the feet does not (seg007.c:1185 curmob.y < Char.y)")
 	check(not PopLevel.crush_test(kid_y, kid_y - 10, 3, 4),
 		"a different column is not a crush (PARITY §11 crush-test row)")
 
@@ -1962,7 +1999,7 @@ func _test_a42_traps() -> void:
 		cdt = PopSim.step(cdt, PopInput.neutral())
 		if int(cdt["hp"]) < PopTables.KID_HP_START:
 			hit = true
-	check(hit, "the falling block crushes a kid in the same column below it (PARITY §11 crush-test row; seg007.c:1591-1601; hp %d)" % int(cdt["hp"]))
+	check(hit, "the falling block crushes a kid in the same column below it (PARITY §11 crush-test row; seg007.c:1185-1195; fall rate is sim characterization, PARITY §7 placeholder; hp %d)" % int(cdt["hp"]))
 
 	# The same run twice must hash equal — the falling block is part of state.
 	var cdt2 := _a42_state(12, 5, PopTables.Tile.FLOOR_LOOSE, 5)
@@ -1972,7 +2009,7 @@ func _test_a42_traps() -> void:
 	for _i: int in 30:
 		cdt2 = PopSim.step(cdt2, PopInput.neutral())
 	check(PopSim.hash_state(cdt) == PopSim.hash_state(cdt2),
-		"the crush run is reproducible with the falling block in the hash")
+		"the crush run is reproducible with the falling block in the hash (sim characterization: determinism probe)")
 
 
 # --- Plan A4.3: the guard duel ---------------------------------------------
