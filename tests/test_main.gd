@@ -65,6 +65,9 @@ func _ready() -> void:
 	_section("B0 sim path (plan B0.1)")
 	_test_b0_sim_path()
 
+	_section("B0 echo on the sim path (plan B0.1 step 4)")
+	_test_b0_echo()
+
 	_section("Health component")
 	_test_health()
 
@@ -2954,3 +2957,150 @@ func _test_b0_sim_path() -> void:
 	GameManager.return_to_menu()
 	check(GameManager.state == GameManager.State.MENU,
 		"B0 return_to_menu tears the sim level down (state %s)" % str(GameManager.state))
+
+
+# --- Plan B0.1 step 4: the Echo on the new path -----------------------------
+#
+# TemporalManager records input bytes per sim tick into the PopReplay ring;
+# release spawns a second sim participant (SimEcho) that steps PopSim.step
+# from the recorded bytes; the legacy signal surface (echo_created /
+# echo_expired / echo_event_replayed) carries it unchanged. What this cannot
+# prove: that an echo makes a puzzle solvable — that is B1.3.
+
+func _test_b0_echo() -> void:
+	var data: Dictionary = LevelCatalog.get_sim_level(0)
+	var bundle := _b0_dup({"tiles": data["tiles"], "mods": data["mods"], "entities": data["entities"]})
+	var right_byte := PopInput.make(1, 0).to_byte()
+	var neutral_byte := PopInput.neutral().to_byte()
+
+	var container := Node2D.new()
+	_sandbox.add_child(container)
+
+	# Stock rules with the two-echo tier so two participants can stand side
+	# by side (the level-4 override key); stock config restored on the way out.
+	TemporalManager.configure_for_level({"max_active_echoes": 2})
+	TemporalManager.set_echo_container(container)
+	TemporalManager.clear_echoes()
+	TemporalManager.reset_energy()
+
+	var created: Array = []
+	var expired := [0]
+	var on_created := func(echo: Node, dur: float) -> void:
+		created.append({"echo": echo, "dur": dur})
+	var on_expired := func(_e: Node) -> void: expired[0] = int(expired[0]) + 1
+	EventBus.echo_created.connect(on_created)
+	EventBus.echo_expired.connect(on_expired)
+
+	# (1) A take records through the live world: one byte per logic tick into
+	# the bounded ring; release spawns the echo participant and charges energy.
+	var w := SimWorld.new()
+	w.setup(_b0_dup(bundle), int(data["seed"]), Vector2(840.0, 165.0), [])
+	TemporalManager.register_sim_world(w)
+	var energy_before := TemporalManager.energy
+	check(TemporalManager.start_recording(), "sim take starts when a sim world is registered")
+	check(TemporalManager.is_sim_recording(), "the recorder reports the sim take")
+	w.step_ticks(8, [right_byte])     # cross the plate at col 16 (spawn x 280)
+	w.step_ticks(60, [neutral_byte])  # stand still while the gate runs §9
+	check(TemporalManager.sim_take_size() == 68,
+		"one byte per sim tick is recorded (68 ticks -> %d bytes)" % TemporalManager.sim_take_size())
+	TemporalManager.stop_recording()
+	check(not TemporalManager.is_sim_recording(), "release ends the sim take")
+	check(created.size() == 1 and (created[0]["echo"] is SimEcho),
+		"release spawns a SimEcho through the bytes variant (got %d echo_created)" % created.size())
+	check(absf(TemporalManager.energy
+			- (energy_before - TemporalManager.config.energy_cost_per_echo)) < 0.001,
+		"spawning the sim echo charges the unchanged energy cost (%.2f)" % TemporalManager.energy)
+	if created.is_empty():
+		EventBus.echo_created.disconnect(on_created)
+		EventBus.echo_expired.disconnect(on_expired)
+		TemporalManager.register_sim_world(null)
+		TemporalManager.configure_for_level({})
+		TemporalManager.reset_energy()
+		container.queue_free()
+		w.free()
+		return
+	var echo := created[0]["echo"] as SimEcho
+
+	# (2) Two echoes from the same input buffer, live at once — plan B1.2's
+	# new test: identical plate-timing events, both through the signal
+	# surface the levels consume (EventBus.echo_event_replayed).
+	var second := TemporalManager.spawn_sim_echo(echo.take, echo.start_state)
+	check(second != null and TemporalManager.echo_count() == 2,
+		"a second echo replays the same take side by side (count %d)" % TemporalManager.echo_count())
+	var seen1: Array = []
+	var seen2: Array = []
+	var on_ev1 := func(e: Node, id: StringName) -> void:
+		if e == echo:
+			seen1.append(String(id))
+	var on_ev2 := func(e: Node, id: StringName) -> void:
+		if e == second:
+			seen2.append(String(id))
+	EventBus.echo_event_replayed.connect(on_ev1)
+	EventBus.echo_event_replayed.connect(on_ev2)
+	w.step_ticks(68, [])  # world idles (neutral); each echo consumes its take
+	EventBus.echo_event_replayed.disconnect(on_ev1)
+	EventBus.echo_event_replayed.disconnect(on_ev2)
+	check(seen1.has("press:0,16") and seen1.has("open:0,19"),
+		"the echo's replay crosses the plate and parks the gate (events %s)" % str(seen1))
+	check(seen1 == seen2,
+		"two echoes from the same input buffer produce identical plate-timing events (%d vs %d)" % [
+			seen1.size(), seen2.size()])
+
+	# (3) The echo's state IS the live-sim replay of its take: hash-equal to a
+	# manual PopSim.step loop from the recorded start state (plan B1.1's
+	# "replays through a live sim"), and two participants hash-equal.
+	var manual := _b0_state_at(data, 0, 280, 55)  # the take's start: spawn (840,165)
+	for b: Variant in echo.take.bytes:
+		manual = PopSim.step(manual, PopInput.from_byte(int(b)))
+	check(PopSim.hash_state(echo.state) == PopSim.hash_state(manual),
+		"the echo's state is the live-sim replay of its take (hash %08x)" % PopSim.hash_state(echo.state))
+	check(PopSim.hash_state(echo.state) == PopSim.hash_state(second.state),
+		"two echoes from the same take step to identical states")
+
+	# (4) Final-pose hold (non-loop default): the take ran out, so more world
+	# ticks leave the participants exactly where they stopped.
+	var held_x := int(echo.state["x"])
+	var held_tick := int(echo.state["tick"])
+	w.step_ticks(30, [neutral_byte])
+	check(int(echo.state["x"]) == held_x and int(echo.state["tick"]) == held_tick
+			and is_instance_valid(echo),
+		"the echo holds its final pose when the take runs out (x %d, tick %d)" % [
+			held_x, int(echo.state["tick"])])
+
+	# (5) The buffer cap is enforced, not advisory (plan B1.1): a long take
+	# hard-stops at RING_CAPACITY and still produces an echo.
+	var w2 := SimWorld.new()
+	w2.setup(_b0_dup(bundle), int(data["seed"]), Vector2(840.0, 165.0), [])
+	TemporalManager.register_sim_world(w2)
+	check(TemporalManager.start_recording(), "a second take begins")
+	w2.step_ticks(40, [right_byte])
+	check(TemporalManager.sim_take_size() == 40,
+		"mid-take the ring holds every tick (40 -> %d)" % TemporalManager.sim_take_size())
+	w2.step_ticks(80, [right_byte])  # 120 total: the ring keeps the newest 96
+	check(not TemporalManager.is_sim_recording(), "the take hard-stops at the ring cap")
+	check(created.size() == 3, "the capped take still produced an echo (created %d)" % created.size())
+	check(TemporalManager.echo_count() <= 2,
+		"the active-echo cap is enforced (%d <= 2)" % TemporalManager.echo_count())
+	if created.size() == 3:
+		var capped := created[2]["echo"] as SimEcho
+		check(capped != null and capped.take.size() == PopReplay.RING_CAPACITY,
+			"the buffer is bounded at RING_CAPACITY bytes (%d)" % (
+				capped.take.size() if capped != null else -1))
+
+	# (6) The signal surface is unchanged: the retired echo surfaced
+	# echo_expired, and clear_echoes removes every sim echo (its free-only
+	# teardown behaviour is the pre-existing one, untouched).
+	check(expired[0] >= 1, "retiring the oldest echo surfaced echo_expired (%d)" % int(expired[0]))
+	TemporalManager.clear_echoes()
+	check(TemporalManager.echo_count() == 0, "clear_echoes removes every sim echo")
+	EventBus.echo_created.disconnect(on_created)
+	EventBus.echo_expired.disconnect(on_expired)
+
+	# Restore the stock state for the sections that follow.
+	TemporalManager.cancel_recording("test_cleanup")
+	TemporalManager.register_sim_world(null)
+	TemporalManager.configure_for_level({})
+	TemporalManager.reset_energy()
+	container.queue_free()
+	w.free()
+	w2.free()

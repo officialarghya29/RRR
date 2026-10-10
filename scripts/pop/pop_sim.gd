@@ -105,6 +105,28 @@ static func _dup_tiles(src: Array) -> Array:
 	return out
 
 
+## Full independent copy of a live state (plan B0 step 4): what the echo
+## recorder snapshots when a take starts, so the replay participant steps
+## from the exact mid-level pose the recording began at — not from the level
+## spawn. Mirrors initial_state's copy discipline (step() mutates nested
+## dicts in place), so the echo and the world can never share one object.
+static func dup_state(s: Dictionary) -> Dictionary:
+	var out: Dictionary = s.duplicate()
+	out["tiles"] = _dup_tiles(s.get("tiles", []))
+	out["mods"] = (s.get("mods", {}) as Dictionary).duplicate()
+	out["gates"] = _dup_entities(s.get("gates", {}))
+	out["plates"] = _dup_entities(s.get("plates", {}))
+	out["exit"] = (s.get("exit", {}) as Dictionary).duplicate()
+	out["links"] = (s.get("links", []) as Array).duplicate()
+	out["anims"] = (s.get("anims", {}) as Dictionary).duplicate()
+	var blocks: Array = []
+	for b: Variant in (s.get("blocks", []) as Array):
+		blocks.append((b as Dictionary).duplicate() if b is Dictionary else b)
+	out["blocks"] = blocks
+	out.erase("input_shift")
+	return out
+
+
 ## One-level deep copy of an entity dictionary (gates hold a nested dict; a
 ## plate is a bare int timer), so two states never share entity objects.
 static func _dup_entities(src: Dictionary) -> Dictionary:

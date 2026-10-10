@@ -55,6 +55,9 @@ func setup(p_bundle: Dictionary, seed_n: int, p_spawn_px: Vector2, p_checkpoints
 	state = _fresh_state()
 	clock = SimClock.new(state)
 	running = true
+	# Plan B0 step 4: register with the echo authority so a take can snapshot
+	# this world's state (it only ever *reads* — condition (a) holds).
+	TemporalManager.register_sim_world(self)
 
 
 func _fresh_state() -> Dictionary:
@@ -68,6 +71,13 @@ func _fresh_state() -> Dictionary:
 func _process(delta: float) -> void:
 	if not running:
 		return
+	# Plan B0 step 4: the record toggle lives with the input latch on the sim
+	# path (the physics Player's _toggle_recording has no node here).
+	if Input.is_action_just_pressed(&"temporal_record"):
+		if TemporalManager.recorder.is_recording:
+			TemporalManager.stop_recording()
+		else:
+			TemporalManager.start_recording()
 	var due := clock.advance(delta)
 	for _i: int in range(due):
 		_tick()
@@ -89,6 +99,16 @@ func step_with(input: PopInput) -> void:
 	state = PopSim.step(state, input)
 	clock.push(state)
 	_publish(prev_view)
+	# Plan B0 step 4: while a take is recording, stamp this tick's byte and
+	# its event vector into the echo recorder (the PopReplay ring) — one
+	# branch per tick, and only the recording path pays for the string diff.
+	if TemporalManager.is_sim_recording():
+		TemporalManager.record_sim_tick(
+			input.to_byte(),
+			PopReplay.entity_events(prev_view, state),
+			PopReplay.milestones_for(prev_view, state))
+	# Echo participants step in lockstep with this world, one tick per tick.
+	TemporalManager.step_sim_echoes()
 
 
 ## Synchronous helper for headless tests and the scripted smoke run: step
@@ -130,6 +150,18 @@ func force_death() -> void:
 ## World-pixel position of the sim state (post-tick, un-interpolated).
 func pos_px() -> Vector2:
 	return Vector2(float(state.get("x", 0)) * PX_PER_UNIT, float(state.get("y", 0)) * PX_PER_UNIT)
+
+
+## Seed this world runs under — stamped into the echo recorder's take so a
+## recording carries everything needed to reproduce its run (plan B0 step 4).
+func take_seed() -> int:
+	return _seed
+
+
+## Sim units -> world pixels for an arbitrary state: the echo renders its own
+## participant state through this (read-only helper, plan B0 step 4).
+func sim_to_px(s: Dictionary) -> Vector2:
+	return Vector2(float(s.get("x", 0)) * PX_PER_UNIT, float(s.get("y", 0)) * PX_PER_UNIT)
 
 
 # --- Event publication (diffs, never guesses) -------------------------------

@@ -29,6 +29,10 @@ var seed: int = 0
 var bytes: Array = []
 ## Per-tick event vectors, ring-aligned with `bytes` (same eviction).
 var events: Array = []
+## Per-tick structured milestones ([{kind, key}] — plan B0 step 4),
+## ring-aligned with `bytes` (same eviction): the sim-path echo replays
+## these as `event_replayed` instead of parsing the `ev:` string tail.
+var milestones: Array = []
 
 
 ## Record a run's input: step a fresh participant and capture each tick's
@@ -44,17 +48,22 @@ static func record_run(seed_n: int, script: Array, tiles: Array,
 		var input: PopInput = PopInput.from_byte(int(packed))
 		var prev: Dictionary = _entity_view(state)
 		state = PopSim.step(state, input)
-		r._push(input.to_byte(), entity_events(prev, state))
+		r.push_tick(input.to_byte(), entity_events(prev, state), milestones_for(prev, state))
 	return {"replay": r, "final": state}
 
 
-## Append one recorded tick, evicting the oldest byte + event at ring capacity.
-func _push(byte_val: int, event_vec: String) -> void:
+## Append one recorded tick, evicting the oldest byte + its event vector and
+## milestone list at ring capacity. The single append path for every recorder
+## (record_run and TemporalManager's sim-path take), so the three ring arrays
+## can never drift out of alignment.
+func push_tick(byte_val: int, event_vec: String, ms: Array = []) -> void:
 	bytes.append(int(byte_val))
 	events.append(event_vec)
+	milestones.append(ms)
 	while bytes.size() > RING_CAPACITY:
 		bytes.pop_front()
 		events.pop_front()
+		milestones.pop_front()
 
 
 ## Replay the recorded bytes into a fresh sim participant with `tiles` / `mods`
