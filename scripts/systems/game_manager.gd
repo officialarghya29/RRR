@@ -181,6 +181,7 @@ func _build_sim_level(data: Dictionary) -> void:
 	}
 	world.setup(bundle, int(data.get("seed", 4242)), spawn_px, data.get("checkpoints", []))
 	world.checkpoint_hit.connect(_on_sim_checkpoint)
+	world.exit_reached.connect(_on_sim_exit)
 
 	_level_spawn = spawn_px
 	_checkpoint_position = _level_spawn
@@ -209,6 +210,12 @@ func _build_sim_level(data: Dictionary) -> void:
 
 func _on_sim_checkpoint(id: StringName, pos_px: Vector2) -> void:
 	register_checkpoint(String(id), pos_px)
+
+
+## Plan B0.1 step 5: walking into the open level-exit door completes the
+## level (SimWorld reads that from its own state; the flow below is unchanged).
+func _on_sim_exit() -> void:
+	complete_level()
 
 
 func restart_level() -> void:
@@ -248,7 +255,10 @@ func complete_level() -> void:
 	_set_state(State.LEVEL_COMPLETE)
 	EventBus.level_completed.emit(_current_level_id)
 
-	if current_level_index + 1 < LevelCatalog.count():
+	# "Next scene" means the next level of the *active* path: the sim list on
+	# the new core, the rect list behind --legacy-physics.
+	var total := LevelCatalog.count() if use_legacy_physics else LevelCatalog.sim_count()
+	if current_level_index + 1 < total:
 		_menu.show_level_complete(LevelCatalog.get_level(current_level_index + 1).get("title", ""))
 	else:
 		_menu.show_victory()

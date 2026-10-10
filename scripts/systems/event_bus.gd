@@ -16,6 +16,13 @@ signal player_spawned(player: Node)
 ## facing. Producers changed from physics nodes to sim diffs; consumers
 ## (checkpoints, future enemies) read it the same way.
 signal player_moved(x: float, y: float, row: int, dir: int)
+## Sim path (plan B0.1 step 3): one entity milestone per logic tick — plate
+## press, gate opening / open (parked) / closed / fast-close — parsed from the
+## same per-tick diff the echo recorder stamps (PopReplay.entity_events), so
+## the puzzle framework's event stream and the echo's event vectors can never
+## disagree. [param milestone] is the kind ("press"/"opening"/"open"/
+## "closed"/"fastclose"), [param key] the entity key ("row,col").
+signal sim_entity_event(milestone: StringName, key: String)
 
 # --- Temporal Echo ----------------------------------------------------------
 signal temporal_energy_changed(current: float, maximum: float)

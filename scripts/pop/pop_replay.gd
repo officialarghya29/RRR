@@ -111,20 +111,47 @@ static func _entity_view(s: Dictionary) -> Dictionary:
 ## inequality at the tick it happens.
 static func entity_events(prev: Dictionary, cur: Dictionary) -> String:
 	var snap: Array = []
-	var milestones: Array = []
+	var milestones := milestones_for(prev, cur)
+	var cp: Dictionary = cur.get("plates", {})
+	for key: String in cp.keys():
+		snap.append("p:%s=%d" % [key, int(cp[key])])
 
-	# Plates: a press is a timer jump from below the re-press threshold to the
-	# post-decrement hold value (PARITY §10: press sets 5, same tick decrements).
+	# Gates: snapshot mod/type (milestones come from milestones_for below).
+	var cg: Dictionary = cur.get("gates", {})
+	for key: String in cg.keys():
+		var g1: Dictionary = cg[key] as Dictionary
+		snap.append("g:%s=%d,%d" % [key, int(g1.get("mod", PopTables.GATE_CLOSED)), int(g1.get("type", -1))])
+
+	# Level-exit door + kid condition.
+	var e1: Dictionary = cur.get("exit", {}) as Dictionary
+	if not e1.is_empty():
+		snap.append("e=%d" % int(e1.get("mod", 0)))
+		snap.append("hp=%d" % int(cur.get("hp", 0)))
+		snap.append("d=%d" % int(cur.get("dead", 0)))
+
+	var out := String("|".join(snap))
+	if not milestones.is_empty():
+		var texts: Array = []
+		for m: Dictionary in milestones:
+			texts.append("%s:%s" % [m["kind"], m["key"]])
+		out += "|ev:" + ",".join(texts)
+	return out
+
+
+## The structured milestones for one tick: [{kind, key}] — plate press
+## (PARITY §10), gate opening / fast-close / open (parked) / closed (PARITY
+## §9), and the kid's death. This is the list entity_events stringifies into
+## its `ev:` tail; consumers that need the entity keys (which contain commas)
+## should read this instead of parsing that string.
+static func milestones_for(prev: Dictionary, cur: Dictionary) -> Array:
+	var out: Array = []
 	var pp: Dictionary = prev.get("plates", {})
 	var cp: Dictionary = cur.get("plates", {})
 	for key: String in cp.keys():
 		var was: int = int(pp.get(key, 0))
 		var now: int = int(cp[key])
-		snap.append("p:%s=%d" % [key, now])
 		if was < PopTables.PLATE_REPRESS_BELOW and now == PopTables.PLATE_HOLD_TIMER - 1:
-			milestones.append("press:%s" % key)
-
-	# Gates: snapshot mod/type, milestone on the §9 transitions.
+			out.append({"kind": "press", "key": key})
 	var pg: Dictionary = prev.get("gates", {})
 	var cg: Dictionary = cur.get("gates", {})
 	for key: String in cg.keys():
@@ -134,28 +161,16 @@ static func entity_events(prev: Dictionary, cur: Dictionary) -> String:
 		var m1: int = int(g1.get("mod", PopTables.GATE_CLOSED))
 		var t0: int = int(g0.get("type", -1))
 		var t1: int = int(g1.get("type", -1))
-		snap.append("g:%s=%d,%d" % [key, m1, t1])
 		if t1 == 1 and t0 != 1:
-			milestones.append("opening:%s" % key)
+			out.append({"kind": "opening", "key": key})
 		if t1 >= 3 and t0 < 3:
-			milestones.append("fastclose:%s" % key)
+			out.append({"kind": "fastclose", "key": key})
 		if m1 >= PopTables.GATE_PARKED and m0 < PopTables.GATE_PARKED:
-			milestones.append("open:%s" % key)
+			out.append({"kind": "open", "key": key})
 		if m1 == 0 and m0 > 0:
-			milestones.append("closed:%s" % key)
-
-	# Level-exit door + kid condition.
-	var e1: Dictionary = cur.get("exit", {}) as Dictionary
-	if not e1.is_empty():
-		snap.append("e=%d" % int(e1.get("mod", 0)))
-	snap.append("hp=%d" % int(cur.get("hp", 0)))
-	snap.append("d=%d" % int(cur.get("dead", 0)))
+			out.append({"kind": "closed", "key": key})
 	if int(cur.get("dead", 0)) != 0 and int(prev.get("dead", 0)) == 0:
-		milestones.append("dead")
-
-	var out := String("|".join(snap))
-	if not milestones.is_empty():
-		out += "|ev:" + ",".join(milestones)
+		out.append({"kind": "dead", "key": "kid"})
 	return out
 
 

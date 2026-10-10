@@ -2915,3 +2915,42 @@ func _test_b0_sim_path() -> void:
 		"B0 respawn resets x/hp/tick at the position (was x %d, now %d)" % [
 			away, int(w4.state["x"])])
 	w4.free()
+
+	# (5) Plan B0.1 step 3: the puzzle is driven by sim events. Crossing the
+	# plate presses it (PARITY §10), the linked gate opens on the §9 schedule
+	# (park at ~47 ticks) and every milestone reaches the framework.
+	var w5 := SimWorld.new()
+	var events: Array = []
+	var park_mod := [-1]
+	var on_ent := func(kind: StringName, key: String) -> void:
+		events.append("%s:%s" % [String(kind), key])
+		if String(kind) == "open":
+			park_mod[0] = int(((w5.state["gates"] as Dictionary)[key] as Dictionary)["mod"])
+	EventBus.sim_entity_event.connect(on_ent)
+	w5.setup(_b0_dup(bundle), int(data["seed"]), Vector2(840.0, 165.0), [])
+	w5.step_ticks(8, [right_byte])    # cross the plate at col 16 (x 282..295)
+	w5.step_ticks(60, [neutral_byte]) # stand still while the gate runs §9
+	EventBus.sim_entity_event.disconnect(on_ent)
+	check(events.has("press:0,16"),
+		"B0 stepping on the plate emits a press milestone (got %s)" % str(events))
+	check(events.has("opening:0,19") and events.has("open:0,19"),
+		"B0 the linked gate emits opening then open (parked) milestones (got %s)" % str(events))
+	# §9 open-reached: the modifier snaps to 238 and reverses immediately, so
+	# the park value is read AT the milestone tick, not afterwards.
+	check(int(park_mod[0]) == PopTables.GATE_PARKED,
+		"B0 the gate reaches the PARITY §9 park value at the open milestone (mod %d == %d)" % [
+			int(park_mod[0]), PopTables.GATE_PARKED])
+	w5.free()
+
+	# (6) Plan B0.1 step 5: the level-complete flow runs end to end on the sim
+	# path — load -> play -> complete -> menu teardown.
+	GameManager.load_level(0)
+	check(GameManager.state == GameManager.State.PLAYING and GameManager.player is SimPlayer,
+		"B0 load_level(0) builds the sim path (state %s, player %s)" % [
+			str(GameManager.state), str(GameManager.player)])
+	GameManager.complete_level()
+	check(GameManager.state == GameManager.State.LEVEL_COMPLETE,
+		"B0 complete_level ends the level on the sim path (state %s)" % str(GameManager.state))
+	GameManager.return_to_menu()
+	check(GameManager.state == GameManager.State.MENU,
+		"B0 return_to_menu tears the sim level down (state %s)" % str(GameManager.state))

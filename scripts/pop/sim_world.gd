@@ -85,9 +85,10 @@ func _tick() -> void:
 ## Step one tick with an explicit input (live path passes the latch's byte;
 ## tests and the completability smoke pass scripted bytes — same function).
 func step_with(input: PopInput) -> void:
+	var prev_view: Dictionary = PopReplay._entity_view(state)
 	state = PopSim.step(state, input)
 	clock.push(state)
-	_publish()
+	_publish(prev_view)
 
 
 ## Synchronous helper for headless tests and the scripted smoke run: step
@@ -133,7 +134,7 @@ func pos_px() -> Vector2:
 
 # --- Event publication (diffs, never guesses) -------------------------------
 
-func _publish() -> void:
+func _publish(prev_view: Dictionary) -> void:
 	# Death first, then health on change only — the same event discipline the
 	# physics Player's Health component follows, so the HUD sees neither a
 	# per-tick stream nor a zeroed hp before the death event.
@@ -147,7 +148,18 @@ func _publish() -> void:
 		EventBus.health_changed.emit(hp, PopTables.KID_HP_START)
 	EventBus.player_moved.emit(
 		float(state["x"]), float(state["y"]), int(state["row"]), int(state["dir"]))
+	_publish_entity_events(prev_view)
 	_check_triggers()
+
+
+## Plan B0.1 step 3: plate presses and gate transitions leave the sim as
+## events for the puzzle framework's consumers. The milestones come from
+## PopReplay.milestones_for — the same rules the echo recorder stamps into
+## its event vectors — so a level's puzzle timeline and its recorded vectors
+## cannot diverge.
+func _publish_entity_events(prev_view: Dictionary) -> void:
+	for milestone: Dictionary in PopReplay.milestones_for(prev_view, state):
+		EventBus.sim_entity_event.emit(StringName(String(milestone["kind"])), String(milestone["key"]))
 
 
 ## Position triggers read the sim x/y (design note: checkpoints stay
