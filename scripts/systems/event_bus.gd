@@ -12,6 +12,10 @@ signal health_changed(current: int, maximum: int)
 signal player_damaged(amount: int, source: Node)
 signal player_died
 signal player_spawned(player: Node)
+## Sim path (plan B0.1): per-tick player position in sim units (x/y), row and
+## facing. Producers changed from physics nodes to sim diffs; consumers
+## (checkpoints, future enemies) read it the same way.
+signal player_moved(x: float, y: float, row: int, dir: int)
 
 # --- Temporal Echo ----------------------------------------------------------
 signal temporal_energy_changed(current: float, maximum: float)

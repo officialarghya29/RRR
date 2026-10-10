@@ -11,7 +11,14 @@ signal state_changed(state: State)
 
 var state: State = State.BOOT
 var current_level_index: int = 0
-var player: Player = null
+## Duck-typed on purpose (plan B0.1): both the physics [Player] and the sim
+## path's [SimPlayer] implement kill / respawn / set_camera_limits; which one
+## exists depends on the boot path below.
+var player = null
+## Plan B0.1: the default boot path runs the game on PopSim through
+## [SimWorld]; [code]--legacy-physics[/code] (parsed in scripts/main/main.gd)
+## selects the original physics stack, kept runnable as the video fallback.
+var use_legacy_physics: bool = false
 
 var _world: Node2D = null
 var _effects_layer: Node2D = null
@@ -104,8 +111,10 @@ func start_new_game() -> void:
 ## Loads a level by catalog index. Tears the previous level down first so no
 ## echo, timer or node can leak across a transition.
 func load_level(index: int) -> void:
-	if index < 0 or index >= LevelCatalog.count():
-		push_error("GameManager.load_level: index %d is out of range (0..%d)." % [index, LevelCatalog.count() - 1])
+	var sim := not use_legacy_physics
+	var total := LevelCatalog.sim_count() if sim else LevelCatalog.count()
+	if index < 0 or index >= total:
+		push_error("GameManager.load_level: index %d is out of range (0..%d)." % [index, total - 1])
 		_menu.show_victory()
 		_set_state(State.LEVEL_COMPLETE)
 		return
@@ -114,9 +123,13 @@ func load_level(index: int) -> void:
 	get_tree().paused = false
 	current_level_index = index
 
-	var data: Dictionary = LevelCatalog.get_level(index)
+	var data: Dictionary = LevelCatalog.get_sim_level(index) if sim else LevelCatalog.get_level(index)
 	_current_level_id = StringName(data.get("id", "level_%d" % index))
 	_level_bounds = data.get("bounds", _level_bounds)
+
+	if sim:
+		_build_sim_level(data)
+		return
 
 	var builder := LevelBuilder.new()
 	builder.name = "Level"
@@ -146,6 +159,56 @@ func load_level(index: int) -> void:
 	_set_state(State.PLAYING)
 	EventBus.level_started.emit(_current_level_id, String(data.get("title", "")))
 	EventBus.objective_changed.emit(String(data.get("objective", "")))
+
+
+## Plan B0.1 sim path: the world root is a [SimWorld] (the only writer of sim
+## state — approval condition a); the level and the player are views of its
+## snapshots. Checkpoints stay Godot-side triggers fed by sim x (design note).
+func _build_sim_level(data: Dictionary) -> void:
+	var world := SimWorld.new()
+	world.name = "SimWorld"
+	_world.add_child(world)
+
+	var view := SimLevelView.new(world)
+	view.name = "SimLevelView"
+	_world.add_child(view)
+
+	var spawn_px: Vector2 = data.get("spawn", Vector2(195.0, 165.0))
+	var bundle := {
+		"tiles": data.get("tiles", []),
+		"mods": data.get("mods", {}),
+		"entities": data.get("entities", {}),
+	}
+	world.setup(bundle, int(data.get("seed", 4242)), spawn_px, data.get("checkpoints", []))
+	world.checkpoint_hit.connect(_on_sim_checkpoint)
+
+	_level_spawn = spawn_px
+	_checkpoint_position = _level_spawn
+	_checkpoint_id = ""
+
+	# The echo economy is untouched on the sim path; its byte-driven variant
+	# lands in B0 step 4. Configuring before the player exists keeps the first
+	# capture on the right rules.
+	TemporalManager.configure_for_level(data.get("temporal", {}))
+	TemporalManager.clear_echoes()
+	TemporalManager.set_echo_container(_world)
+
+	player = SimPlayer.new(world)
+	player.name = "SimPlayer"
+	_world.add_child(player)
+	player.set_camera_limits(_level_bounds)
+
+	_hud.bind_player(player)
+	_hud.show()
+
+	_menu.hide_all()
+	_set_state(State.PLAYING)
+	EventBus.level_started.emit(_current_level_id, String(data.get("title", "")))
+	EventBus.objective_changed.emit(String(data.get("objective", "")))
+
+
+func _on_sim_checkpoint(id: StringName, pos_px: Vector2) -> void:
+	register_checkpoint(String(id), pos_px)
 
 
 func restart_level() -> void:

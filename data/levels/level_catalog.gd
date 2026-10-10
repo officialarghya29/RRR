@@ -30,6 +30,75 @@ static func count() -> int:
 	return 5
 
 
+# -----------------------------------------------------------------------------
+# Sim-path levels (plan B0.1). The new core runs its own level list built from
+# room-grid data (tile ids + entity bundle, PopSim shape); the five rect-based
+# levels above stay on the legacy path behind --legacy-physics.
+# -----------------------------------------------------------------------------
+
+static func sim_count() -> int:
+	return 1
+
+
+static func get_sim_level(index: int) -> Dictionary:
+	match index:
+		0:
+			return sim_level_one()
+		_:
+			push_error("LevelCatalog.get_sim_level: no sim level at index %d." % index)
+			return {}
+
+
+# SIM LEVEL 1 — the vertical-slice room (plan B0.1 step 2; layout is our own,
+# informed by B2.1 "The Collapsing Gate"): run and drop off the start floor,
+# jump the spike pit, hang-climb the ledge, press the plate, wait out the gate,
+# walk into the open level-exit door. Grid rows are PopTables.Tile ids;
+# entities are the PopSim bundle (gates/plates/links/exit), mods are spike
+# harm classes (PARITY §8).
+static func sim_level_one() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# 0-6 start floor | 7-13 gap | 14-25 ledge (plate 16, gate 19, exit 21-22)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR, T.GATE, T.FLOOR,
+		 T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT, T.FLOOR, T.FLOOR, T.FLOOR],
+		# ground floor with the one-column spike pit at 9
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR],
+		# spike floor under the pit, one column of drift margin each side
+		[T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY],
+	]
+	return {
+		"id": &"sim_gate",
+		"title": "The Sim Gate",
+		"objective": "Cross the gate room and reach the exit door.",
+		"seed": 4242,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {"2,8": 3, "2,9": 3, "2,10": 3},
+		"entities": {
+			"gates": {"0,19": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,16": 0},
+			"links": [{"plate": "0,16", "gate": "0,19"}],
+			# static open (type -1): the slice level ends by walking in
+			"exit": {"row": 0, "col": 21, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# Position triggers that read the sim x each tick (design note:
+		# checkpoints stay Godot-side, fed by sim coordinates).
+		"checkpoints": [
+			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
+			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
+		],
+	}
+
+
 static func get_level(index: int) -> Dictionary:
 	match index:
 		0:

@@ -62,6 +62,9 @@ func _ready() -> void:
 	_section("A5.1 parity harness (plan A5.1)")
 	_test_a51_harness("")
 
+	_section("B0 sim path (plan B0.1)")
+	_test_b0_sim_path()
+
 	_section("Health component")
 	_test_health()
 
@@ -2796,3 +2799,119 @@ func _test_a51_harness(md: String) -> void:
 	print("  GAP: A5.1 column probes use the plain left-edge column outside the hang/climb frames (pop_sim simplification list; the m7 migration is gate-2 work).")
 	print("  GAP: pop_sim._m7_x subtracts 7 against the facing direction; get_tile_div_mod_m7 subtracts 7 unconditionally (`seg006.c:0690-0692`) — left-facing hangs still diverge (gate-2).")
 	print("  GAP: A5.1 room layout is ours (grammar only); the spike floor pads the one-column fall drift that the reference m7 landing probe would absorb.")
+
+
+# --- Plan B0.1: the sim path in the real game --------------------------------
+#
+# The default boot path runs the game on PopSim through SimWorld; the physics
+# stack stays runnable behind --legacy-physics (verify.sh boots both). These
+# checks hold the sim path's contract headlessly: the catalog level loads, the
+# world steps the same deterministic PopSim, closed gates stop the kid, sim
+# events reach EventBus, and respawn is a hard reset. What they cannot prove —
+# feel, fairness, human completability — is the playtest's job.
+
+func _b0_dup(bundle: Dictionary) -> Dictionary:
+	return {"tiles": bundle["tiles"], "mods": bundle["mods"], "entities": bundle["entities"]}
+
+
+func _b0_state_at(data: Dictionary, row: int, x: int, y: int) -> Dictionary:
+	var s: Dictionary = PopSim.initial_state(
+		int(data["seed"]), data["tiles"], data["mods"], data["entities"])
+	s["row"] = row
+	s["x"] = x
+	s["y"] = y
+	return s
+
+
+func _test_b0_sim_path() -> void:
+	check(GameManager.use_legacy_physics == false,
+		"B0 the default boot path is the sim path (use_legacy_physics = false)")
+	var data: Dictionary = LevelCatalog.get_sim_level(0)
+	check(data.size() > 0 and String(data.get("id", "")) == "sim_gate",
+		"B0 sim level 1 loads from the catalog")
+	check(LevelCatalog.sim_count() == 1, "B0 the sim level list carries 1 level")
+	var bundle := _b0_dup({"tiles": data["tiles"], "mods": data["mods"], "entities": data["entities"]})
+	var spawn_px: Vector2 = data["spawn"]
+	var spawn_sim_x := int(spawn_px.x / SimWorld.PX_PER_UNIT)
+	var right_byte := PopInput.make(1, 0).to_byte()
+	var neutral_byte := PopInput.neutral().to_byte()
+
+	# (1) The world runs the sim: the kid moves under scripted input, and two
+	# identical runs hash equal — the determinism gate on the new path.
+	var w1 := SimWorld.new()
+	w1.setup(_b0_dup(bundle), int(data["seed"]), spawn_px, [])
+	var w2 := SimWorld.new()
+	w2.setup(_b0_dup(bundle), int(data["seed"]), spawn_px, [])
+	w1.step_ticks(35, [right_byte])
+	w2.step_ticks(35, [right_byte])
+	check(int(w1.state["x"]) > spawn_sim_x + 40 and int(w1.state["dead"]) == 0,
+		"B0 the kid runs right under the sim path (x %d -> %d, dead %d)" % [
+			spawn_sim_x, int(w1.state["x"]), int(w1.state["dead"])])
+	check(PopSim.hash_state(w1.state) == PopSim.hash_state(w2.state),
+		"B0 two identical sim-path runs hash equal (determinism gate 1 holds on the new path)")
+	w1.free()
+	w2.free()
+
+	# (1b) The 1-row drop off the start floor lands him on the ground floor,
+	# alive and unharmed (PARITY §7 soft land), then he stands still.
+	var w_drop := SimWorld.new()
+	w_drop.setup(_b0_dup(bundle), int(data["seed"]), Vector2(420.0, 165.0), [])
+	var stop_script: Array = []
+	for _i: int in 20:
+		stop_script.append(right_byte)
+	for _i: int in 40:
+		stop_script.append(neutral_byte)
+	w_drop.step_ticks(60, stop_script)
+	check(int(w_drop.state["row"]) == 1 and int(w_drop.state["dead"]) == 0
+			and int(w_drop.state["hp"]) == PopTables.KID_HP_START,
+		"B0 the drop off the start floor lands the kid on the ground floor, alive (row %d hp %d)" % [
+			int(w_drop.state["row"]), int(w_drop.state["hp"])])
+	w_drop.free()
+
+	# (2) Closed gates stop the kid at the tile edge; a parked (open) gate is
+	# passable — the reduced in_wall rule added with B0 (PARITY §9 threshold).
+	var gate_left := 58 + PopTables.TILE_W * 19
+	var g0 := _b0_state_at(data, 0, 300, int(PopTables.Y_LAND[1]))
+	for _i: int in 60:
+		g0 = PopSim.step(g0, PopInput.make(1, 0))
+	check(int(g0["x"]) > 305 and int(g0["x"]) <= gate_left + 1,
+		"B0 a closed gate stops the kid at the tile edge (x %d in (305, %d])" % [
+			int(g0["x"]), gate_left + 1])
+	var g1 := _b0_state_at(data, 0, 300, int(PopTables.Y_LAND[1]))
+	(g1["gates"] as Dictionary)["0,19"]["mod"] = PopTables.GATE_PARKED
+	for _i: int in 20:
+		g1 = PopSim.step(g1, PopInput.make(1, 0))
+	check(int(g1["x"]) > gate_left + PopTables.TILE_W,
+		"B0 an open gate (parked, PARITY §9) is passable (x %d)" % int(g1["x"]))
+
+	# (3) Sim events reach the console: every tick publishes player_moved, and
+	# a spike death publishes player_died (spawn before the pit, run in).
+	var w3 := SimWorld.new()
+	w3.setup(_b0_dup(bundle), int(data["seed"]), Vector2(480.0, 354.0), [])
+	var died := [false]
+	var moved := [0]
+	var on_died := func() -> void: died[0] = true
+	var on_moved := func(_x: float, _y: float, _row: int, _dir: int) -> void:
+		moved[0] = int(moved[0]) + 1
+	EventBus.player_died.connect(on_died)
+	EventBus.player_moved.connect(on_moved)
+	w3.step_ticks(90, [right_byte])
+	EventBus.player_died.disconnect(on_died)
+	EventBus.player_moved.disconnect(on_moved)
+	check(int(w3.state["dead"]) == 1 and died[0] == true,
+		"B0 the spike death reaches EventBus.player_died (dead %d, signal %s)" % [
+			int(w3.state["dead"]), str(died[0])])
+	check(int(moved[0]) == 90, "B0 every sim tick publishes player_moved (%d/90)" % int(moved[0]))
+	w3.free()
+
+	# (4) Respawn is a hard reset at the checkpoint position.
+	var w4 := SimWorld.new()
+	w4.setup(_b0_dup(bundle), int(data["seed"]), spawn_px, [])
+	w4.step_ticks(30, [right_byte])
+	var away := int(w4.state["x"])
+	w4.respawn_at(spawn_px)
+	check(int(w4.state["x"]) == spawn_sim_x and int(w4.state["hp"]) == PopTables.KID_HP_START
+			and int(w4.state["tick"]) == 0 and away != spawn_sim_x,
+		"B0 respawn resets x/hp/tick at the position (was x %d, now %d)" % [
+			away, int(w4.state["x"])])
+	w4.free()

@@ -43,7 +43,7 @@ var _boss_fill: ColorRect
 var _notice: Label
 var _notice_left: float = 0.0
 var _echo_count: int = 0
-var _player: Player = null
+var _player: Node2D = null
 
 
 func _ready() -> void:
@@ -73,7 +73,7 @@ func _process(delta: float) -> void:
 		_notice.modulate.a = clampf(_notice_left / NOTICE_DURATION, 0.0, 1.0)
 
 
-func bind_player(player: Player) -> void:
+func bind_player(player: Node2D) -> void:
 	_player = player
 
 

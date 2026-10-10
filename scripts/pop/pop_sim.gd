@@ -133,6 +133,7 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 	_fall_physics(s)     # reference: fall_accel + fall_speed (seg006.c:870-894)
 	if int(s["dead"]) == 0:
 		_floor_checks(s)  # reference: check_action → do_fall/check_on_floor/start_fall/land
+		_clamp_walls(s)   # reduced in_wall/check_bumped: walls + closed gates stop the kid
 		_spike_check(s)   # reference: check_spiked (seg006.c:950-964)
 		# reference: check_press (seg006.c:1676-1698) + process_trobs (seg007.c:21-40)
 		PopLevel.step_entities(s, int(s["row"]), _col_of(_foot_x(s)),
@@ -140,6 +141,34 @@ static func step(state: Dictionary, input: PopInput) -> Dictionary:
 		PopLevel.step_traps(s, int(s["row"]), _col_of(_foot_x(s)), int(s["dead"]))
 	s.erase("input_shift")  # helpers consumed it; never leaks into the returned state
 	return s
+
+
+## Reduced wall rule (plan B0.1, cited): walls and *closed* gates stop the kid
+## at the tile edge. The reference does this through in_wall()/check_bumped(),
+## which test the char's *body* tile (curr_col), not the foot probe; we model
+## only the stop — no turn-around, no wall-ejection, no bump animation — and
+## report it as a simplification. An open gate (modifier ≥ 188, PARITY §9
+## `seg007.c:378-386`) is passable; a gate stays floor from above
+## (`_is_floor`), which is how the kid stands on one.
+static func _clamp_walls(s: Dictionary) -> void:
+	var action := int(s["action"])
+	if action == PopTables.Action.IN_MIDAIR or action == PopTables.Action.IN_FREEFALL \
+			or action == PopTables.Action.HANG_CLIMB:
+		return
+	var col := _col_of(int(s["x"]))
+	var tile := _tile(s, int(s["row"]), col)
+	var blocks := tile == PopTables.Tile.WALL
+	if tile == PopTables.Tile.GATE:
+		var g: Variant = (s.get("gates", {}) as Dictionary).get("%d,%d" % [int(s["row"]), col])
+		blocks = (g is Dictionary) and int((g as Dictionary).get("mod", PopTables.GATE_CLOSED)) \
+			< PopTables.GATE_OPEN_THRESHOLD
+	if not blocks:
+		return
+	var left := 58 + PopTables.TILE_W * col
+	if int(s["dir"]) == 1:
+		s["x"] = left - 2                     # foot stays in the previous column
+	else:
+		s["x"] = left + PopTables.TILE_W + 2
 
 
 ## Run a whole input script (array of packed bytes) from an initial seed.
