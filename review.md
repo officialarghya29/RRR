@@ -22,15 +22,15 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-09 (Session 006) |
+| Last updated | 2026-10-09 (Session 007) |
 | Days to deadline | 22 (as of 2026-10-09) |
-| Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** (A4.3 ticked S006: reach-gated duel + spike/chomper deaths for both parties) · **B1 ring done** (96-byte bounded recorder + per-tick event vectors; B1.1/B1.2 unticked, Stage-B bridge still ahead) |
-| Sessions logged | 6 entries (000, 002, 003, 004, 005, 006). Session 001 has no entry — see Time Ledger |
-| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004, S005 and S006 hours pending the user's confirmed figures (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 413 passed / 0 failed** (341 at S005 close + 10 B1 ring/event vectors + 62 A4.3 reach/traps); harness also green in a clean clone with no study//reference folders and no .godot/ (import first). A3 feel unverified. |
-| Parity checks passing | 4 / 8 — P1, P2, P3, P8 ✅ matching (A2.2 acceptance tests + first [O] observation); P7 gate 3 green this session but **source-matched only** (§12–§14/§20 asserted, no SDLPoP transcript observed); P4 and P6 ◐ partial; P5 pending its gate |
-| Open blockers | No hard blockers. Observation **partial**: run-jump and fall-threshold numbers still unobserved (harness ready). A3 feel is **not verified headlessly** — human playtest of `pop_lab.tscn` pending (checklist in the Session 004 entry). Outstanding decisions: push (never without approval), S002/S004/S005/S006 hours figures [N]. |
-| Cut line status | Nothing cut yet; W1 exit criteria 3/4 met (refs removed ✅, PARITY.md v1 ✅, sandbox exists & boots ✅ — feel needs playtest; CI workflow landed but not pushed → not "online" yet). No cut-list trigger raised. |
+| Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** · **A5.1 Done** (S007: parity harness 441/0, reference-accurate grab/climb lanes, PARITY ours-vs-SDLPoP columns) · **B1 ring done** · **B0 blocked on the design-note approval** |
+| Sessions logged | 7 entries (000, 002, 003, 004, 005, 006, 007). Session 001 has no entry — see Time Ledger |
+| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004, S005, S006 and S007 hours pending the user's confirmed figures (not estimated here). |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 441 passed / 0 failed** (413 at S006 close + 28 A5.1 harness checks); A3 feel unverified. |
+| Parity checks passing | 6 / 8 — P1, P2, P3, P4, P6, P8 ✅ matching (source-matched; P1/P8 additionally [O]-observed); P5 ◐ (spike floor armed + 0xFF-on-kill asserted in S007, cycle length not); P7 ◐ source-matched only (no SDLPoP transcript observed) |
+| Open blockers | **B0 design note awaiting approval** (no B0 code until approved). A3 feel **not verified headlessly** — human playtest + A5.2 OBS clip pending (numbered checklist in the Session 007 entry). Outstanding decisions: push (never without approval), S004–S007 hours figures [N]. Observation still partial (I3). |
+| Cut line status | Nothing cut yet. Stage A exit now **4/5**: determinism ✅, PARITY populated ✅ (with ours-vs-SDLPoP columns), A5.1 ✅ — **A5.2 + the human playtest remain**. No cut-list trigger raised. |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
 ### Weekly checkpoints (from plan §9)
@@ -54,8 +54,8 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | A2 | Sim core | 8 | **Done** — A2.1 + A2.2 + A2.3 all ticked; gate 2 partially covered | 002, 003, 004, 005 |
 | A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
 | A4 | Traps, tiles, duels | 12 | In progress — **A4.1, A4.2 and A4.3 done (A4.3 ticked S006: reach-gated duel, reference decision bands, spike/chomper deaths for both parties)**; A4.4–A4.5 pending | 005, 006 |
-| A5 | Parity verification | 7 | Not started | |
-| B0 | Bridge decision (rebase on sim) | 2 | Not started | |
+| A5 | Parity verification | 7 | In progress — **A5.1 done (S007)**: fixed-input harness P1–P8 + 2 controls vs PARITY rows (441/0), grab/climb lanes rebuilt on the reference, PARITY ours-vs-SDLPoP columns; A5.2 pending (user-manual, checklist in S007) | 007 |
+| B0 | Bridge decision (rebase on sim) | 2 | Blocked — design note awaiting user approval (S007); no code until approved | 007 |
 | B1 | Temporal Echo, input-level | 6 | In progress — thin **input-byte echo on the sim** done (record/replay, one-bit divergence) + **bounded 96-byte ring with per-tick event vectors** (S006); B1.1/B1.2 unticked, Stage-B bridge pending | 005, 006 |
 | B2 | Three re-themed levels | 10 | Not started | |
 | B3 | Combat and boss | 4 | Not started | |
@@ -91,6 +91,7 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | 004 | 2026-10-08 | [N] | 10.3 (S004–005 pending) | — | A2.3 acceptance rebuilt under audit; working-tree corruption repaired; A3.1 SimClock + A3.3 latch + A3.2 pop_lab sandbox; 243/0. Hours pending the user's confirmed figure. |
 | 005 | 2026-10-08 | [N] | 10.3 (S004–005 pending) | — | A2.3 ticked; pre-push audit clean (no push); A4.1 gates/plates/exit door + `pop_level.gd` room-grid loader; thin B1 input-byte echo; 272/0. Hours pending the user's confirmed figure. |
 | 006 | 2026-10-09 | [N] | 10.3 (S004–006 pending) | — | Step 0 audit answers (integrity outputs, B1 status, A4.1/A4.2 provenance tables + correction legitimacy, sim-calibrated relabels); B1 bounded ring 96 B + event vectors (`85af8a2`, 351/0); A4.3 reach + decision bands + trap deaths + PARITY §20 (`e98f0fd`, 413/0); A4.3 ticked; Stage A exit position reported. Hours pending the user's confirmed figure. |
+| 007 | 2026-10-09 | [N] | 10.3 (S004–007 pending) | — | Step 0 legal rework (§20 + guard tables → own schema, `b3d7a60`/`f5caf79`/`1c32db2`); B1 gap list + B0 design note (awaiting approval); **A5.1 parity harness** P1–P8 + C1/C2 with the stand-Up grab lanes rebuilt on `check_jump_up` (`b6b0c70`, 441/0); PARITY measured-in-ours vs measured-in-SDLPoP columns; A5.1 ticked. Hours pending the user's confirmed figure. |
 
 ---
 
@@ -188,6 +189,58 @@ Missing to tick: swap the echo's payload from snapshots to input bytes while kee
 - **Hours estimate:** B0 wiring + flag + both-path verify ≈ **3–4 h** (plan says ~2 h — flagged, unconfirmed); remaining B1.1+B1.2+B1.3 ≈ **5–6 h** (plan's 6 h for all of B1). Not confirmed figures.
 
 → **No B0 code until this note is approved.** Step 2 (A5.1) proceeds meanwhile.
+
+**Step 2 — A5.1 parity harness (complete; commit `b6b0c70`)**
+
+- **Built:** `_test_a51_harness` + `_a51_room` in `tests/test_main.gd` — a hand-built room *grammar* (4 rows × 24 cols: start floor → 1-row drop → ground floor with a one-column spike pit (row 1 col 9) over a row-2 spike floor → ledge at row 0 cols 13–18 with a plate and a gate; grammar only, not any original layout, per plan). Fixed input script P1–P8 plus two controls (C1 run-into-pit, C2 hang-and-wait); **every expected value is read from PARITY rows at test runtime** (`_parity_int/_parity_cell/_expand_cells`) — no number comes from sim output.
+- **What the harness caught (the real find):** our stand-Up grab lane was invented — Shift-gated, a home-grown "≤8 units from the lip" threshold, and a `jump_grab_up` sequence that approached via the run-jump frames. The reference `check_jump_up` (`seg005.c:679-693`) is **not** Shift-gated (both the Shift and the plain-Up chains end in `up_pressed`, `seg005.c:379-382/428-431`; Shift only decides whether the hang holds), probes with `determine_col`'s m7 column (`seg006.c:0122-0124`, `:0690-0692`), and branches through `grab_up_with_floor_behind` (`seg005.c:858-881` — commit `Char.x` by `distance_to_edge_weight`, then seq_8 straight vs seq_24 forward whose dx +1/+2/+1 completes the `distance − 4` shortfall) or `jump_up_or_grab` (`seg005.c:713-738` — <6 → straight jump; no floor behind → `x += distance − 10` seq_16; floor behind → step back `distance − TILE`, re-probe, shared commit). Rebuilt on the source: new sequences `jump_grab_straight` (seq_8 jumphangMed) and `jump_grab_forward` (seq_24 jumphangLong), new helpers `_can_grab`/`_det_col`/`_dist_to_edge_weight`/`_edge_distance`/`_grab_up_with_floor_behind`/`_jump_up_or_grab`, `_tile_above_is_floor` deleted. The old lane hung the kid at x 233 → the climb-out's f141 foot probe read col 12 (no floor) → he fell into the pit. With the reference lanes the grab hangs at x 248 whatever the stand x in the window, and the climb-out stands on col 13.
+- **Also fixed:** `soft_land_crouch` stands up when Up isn't held (`seg005.c:285-287`, `:331-332` control_crouched fires on f109 whatever the sequence) — previously the kid froze forever at f109 after any soft land.
+- **Results (all green; every number read from PARITY at runtime):**
+
+| Check | PARITY row | Measured in ours |
+|---|---|---|
+| P1 standing jump | §4 cum x | 36 @f27, 39 total (exact) |
+| P2 1-row drop | §7 soft land | hp 3, no damage |
+| P3b run jump over the pit | §5 cum x | 62 @f44, 67 total (exact); pit spikes stay armed |
+| P4 stop + walk to the grab window | grammar | stand at x ≈ 236–237 |
+| P5 Shift+Up grab | §6 hang | hang on f91 |
+| P6 climb out | §6 climb up | f141 dx +5 / dy −63 / row −1; stand f15 on climb-tick 18; lands col 13, y 55 |
+| P7 plate press | §10 press timer | 5 → 4 next tick |
+| P8 gate open/close | §9 opening / open-reached / closing | press→park 46 ticks (188/4 = 47 ±1); park→0 = 238 exact |
+| C1 run into the pit | §8 disabled | impale, mod → 0xFF |
+| C2 hang auto-drop | §6 hang sway | drop − hang = 43 ticks; lands on feet, hp 3 |
+
+- **Measured streams:** the §4/§5 `ours cum x [A5.1]` rows are our sim's frame-by-frame measurements — **identical to the source rows at every frame**.
+- **PARITY.md (Accept item 2):** house-rule bullet updated + `measured-in-ours (A5.1)` / `measured-in-SDLPoP` columns appended to §6/§8/§9/§10 and ours-rows in the §4/§5 streams, tagged `[A5.1]` / `[source-matched]` / `[observed]` / `—`. The SDLPoP column is honestly `[source-matched]` everywhere except the two Session-003 observations; the run-jump stream stays unobserved (I3).
+- **GAPs the harness prints (honest):** (1) column probes use the plain left-edge column outside the hang/climb frames — the m7 migration is gate-2 work; (2) `_m7_x` subtracts 7 against the facing direction while `get_tile_div_mod_m7` subtracts unconditionally — left-facing hangs still diverge (gate 2); (3) the room layout is ours (grammar); the row-2 spike floor pads the one-column fall drift the reference m7 landing probe would absorb.
+- **Evidence:** `./verify.sh` → **441 passed / 0 failed, ALL CHECKS PASSED, exit=0** (`verify_s007_a51.log`). Verification ladder: 413/0 (baseline) → 426+14 (first harness run: climb-out fell into the pit) → 440/1 (climb tick count — §6 counts inclusively, f135 = climb-tick 1 … f15 = 18; the sim was right, my formula wasn't; no assertion weakened) → **441/0**.
+- **plan.md A5.1 ticked** (checkbox-only rule).
+
+**Step 3 — Stage A exit status + 60-minute user checklist**
+
+| Criterion | Status |
+|---|---|
+| sandbox playable with sword-duel and traps | ◐ sim-level green (duel, traps, hang/climb, plate/gate all asserted headless); `pop_lab.tscn` boots but keyboard play / feel **needs the human playtest below** |
+| determinism test green | ✅ gate 1 green; duel same-seed identical / different-seed different |
+| PARITY.md populated for all §4.3 items | ✅ now with the plan-A5.1 measured-in-ours vs measured-in-SDLPoP columns on §4–§6/§8–§10 |
+| A5.1 parity harness v1 | ✅ done this session (`b6b0c70`, 441/0) |
+| A5.2 side-by-side video | ⬜ user-manual — checklist below, deliberately not started by me |
+
+→ **Stage A exit NOT met yet: A5.2 + the human playtest remain.** Everything else in A4/A5 is still the cut line. **Nothing on the cut list triggered.**
+
+**Your 60-minute checklist (~55 min, at your convenience):**
+
+1. **(10 min) Sandbox feel** — `./.tools/godot --path . res://scenes/pop/pop_lab.tscn`. Controls: **A/D run, W jump-up, S crouch, Shift grab/climb, P pause, `.` frame-step**. Run the pit (col 4) both directions; hang and climb the raised ledge (cols 8–11). Notes wanted on anything that reads wrong vs the DOS original — input latency at 12 Hz, turning, landing weight.
+2. **(5 min) Tick cadence** — press P, then `.` a few times: do the sim ticks read as the 12 fps cadence?
+3. **(15 min) A5.2 clip 1 (jumps)** — record SDLPoP (the Session-002 local build) and pop_lab playing the same standing jump and the same run jump; save under `study/` (e.g. `study/a52_jumps.mp4`).
+4. **(20 min) A5.2 clip 2 (hang and climb)** — same side-by-side for the hang + climb-out; `study/a52_hang_climb.mp4`.
+5. **(5 min) Reply** — feel notes, the clip paths, and your confirmed hours for **S004–S007** (the ledger still shows `[N]`).
+
+**Close**
+
+- plan.md: A5.1 ticked (checkbox-only). review.md: this entry + dashboard, phase tracker, time ledger, parity tracker, change index.
+- **Hours:** not stated in the brief → `[N]`; no estimate substituted. Cumulative stays **10.3 / 34 h** (S004–S007 pending). **Playtest:** not done yet (checklist above). **Push:** NOT YET (nothing pushed). **Arghya:** not counted. **B0:** still awaiting approval before any code.
+- `.backup/s007_close/` taken; final `./verify.sh` re-run after the doc edits (`verify_s007_close.log`).
 
 ### Session 006: 2026-10-09 — Step 0 audit answers; Echo bounded ring (96 B + event vectors); A4.3 reach + trap deaths (PARITY §20); A4.3 ticked
 _(entry completed at close)_
@@ -771,9 +824,9 @@ _(entry in progress — completed as work lands)_
 | P1 | Standing jump horizontal distance | ≈36 u ≈2.57 tiles at landing frame f27 (stream: PARITY.md §4; source-derived, [S]) **[O]-corroborated ≈38 u** (observed bbox 175 px) | landing 36 u / total 39 u (`_test_a22_acceptance`) | ✅ | 002, 003 |
 | P2 | Running jump horizontal distance | ≈67 u ≈4.79 tiles total f34→f7 (PARITY.md §5; [S]) | landing 62 u (f44) / total 67 u; f43 = 58 u — source-matched, not observed | ✅ | 002, 003 |
 | P3 | Fall thresholds (soft / medium / death) | impact speed <22 / 22–32 / ≥33 (PARITY.md §7; [S]) | impacts 21 soft / 30 → −1 HP / 33 → death (y=242 hard-land asserted) — source-matched, not observed | ✅ | 002, 003 |
-| P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | A2.3 scope A asserts the §6 frame counts (climb_down 10, climb_fail 11, hang_drop 5, grab_timer 12); the **43-frame sway auto-drop is not yet asserted** | ◐ partial | 002, 004 |
-| P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | | ⬜ | 002 |
-| P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | gate open 47 / close 238 / exit door 3 ticks; plate timer 5→1 — within ±1 of PARITY §9–§10 (`_test_a41_entities`); source-matched, not observed | ◐ partial | 005 |
+| P4 | Hang / grab frame counts | 43-frame sway auto-drop; grab_timer 12 frames (PARITY.md §6; [S]) | A2.3 scope A asserts the §6 family counts (climb_down 10, climb_fail 11, hang_drop 5, grab_timer 12); **A5.1 C2 asserts the 43-tick sway auto-drop** and P6 the climb's stand on climb-tick 18 | ✅ | 002, 004, 007 |
+| P5 | Spike cycle length | ≈23 logic frames (PARITY.md §8; [S]) | A5.1 asserts the pit floor stays armed (mod 3) through the run jump and flips to 0xFF on the C1 impale; the ≈23-frame cycle itself is **not** asserted | ◐ partial | 002, 007 |
+| P6 | Gate open/close speeds, plate timing (±1 tick) | −1/+4 units/frame, fast 20…120; plate timer 5→<2 (PARITY.md §9–10; [S]) | A4.1: gate open 47 / close 238 / exit door 3 ticks; plate 5→1. **A5.1 P7/P8 on the room grammar: press→park 46 ticks (47 ±1), park→0 = 238 exact, plate 5→4** — within ±1 of §9–§10; source-matched, not observed | ✅ | 005, 007 |
 | P7 | Guard duel transcript, seeded, skill 0 | tables: PARITY.md §12–§14 (strikeprob 61/blockprob 0/advprob 255 for skill 0; [S]) | skill-0 duel reaches a win (kid wins in 15 ticks, guard hp 0) and the transcript is identical for the same seed, different for a different seed (`_test_a43_duel`); source-matched, not observed | ◐ partial | 005 |
 | P8 | Tick model: 12 fps traverse / 10 fps fight | confirmed: base_speed 5 / fight_speed 6 ticks of 60 Hz (PARITY.md §1; [S]) — **[O] observed: 12.00 Hz** (two captures) | 12 Hz sim clock; double-run hash equality over 400 ticks — source-matched; [O]-observed 12.00 Hz | ✅ | 002, 003 |
 
@@ -832,6 +885,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 007 | 2026-10-09 | Step 0 legal rework; A5.1 built and ticked | [N] | §20 + guard tables re-expressed in our own schema (`b3d7a60`, `f5caf79`, `1c32db2`); B1 gap list + B0 design note (awaiting approval); A5.1 parity harness — P1–P8 + C1/C2 vs PARITY rows read at runtime — with the stand-Up grab lanes rebuilt on `check_jump_up`/`grab_up_with_floor_behind`/`jump_up_or_grab` and seq_8/seq_24 added (`b6b0c70`); PARITY measured-in-ours vs measured-in-SDLPoP columns; streams identical to source at every frame. Hours pending user figure. | 28 added (441 total) |
 | 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 + A4.3 built | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper / falling-block crush (PARITY §8/§11); A4.3 guard duel with seeded transcripts (PARITY §12–§14). Two of my own test probes corrected (crush direction, §13 substrings). Hours pending user figure. | 98 added (341 total) |
 | 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
 | 003 | 2026-10-06/07 | A2.1 + A2.2 done, observation started | 3.0 | Pre-commit audit + 4 user-approved commits (not pushed) + plan.md:432 fix (approved); Q2 re-verified live; `pop_tables.gd` + drift test w/ negative control; A2.2 step function + acceptance — all PARITY numbers matched exactly, turn/run-stop tick clarification cited; first gameplay observation: 12.00 Hz + standing jump ≈38 u [O] (run-jump/fall not observed). | 68 added (189 total) |

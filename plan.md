@@ -527,7 +527,7 @@ Cutscenes, mouse, princess, skeleton, mirror and Jaffar sequences are **not** po
 
 ### A5 — Parity verification · ~7 h · [M for the core, N beyond]
 
-- [ ] **A5.1 [M]** Parity harness v1 (headless): run your sim under a fixed input
+- [x] **A5.1 [M]** Parity harness v1 (headless): run your sim under a fixed input
       script on a hand-built replica of *one* original room's **grammar** (not layout):
       assert jump-distance, hang-frame-count, spike-survival, gate-timing invariants.
       **Accept:** all assertions green in `./verify.sh`; PARITY.md tables updated with
