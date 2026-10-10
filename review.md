@@ -22,14 +22,14 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-09 (Session 007) |
+| Last updated | 2026-10-10 (Session 008) |
 | Days to deadline | 22 (as of 2026-10-09) |
 | Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** · **A5.1 Done** (S007: parity harness 441/0, reference-accurate grab/climb lanes, PARITY ours-vs-SDLPoP columns) · **B1 ring done** · **B0 blocked on the design-note approval** |
 | Sessions logged | 7 entries (000, 002, 003, 004, 005, 006, 007). Session 001 has no entry — see Time Ledger |
 | Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004, S005, S006 and S007 hours pending the user's confirmed figures (not estimated here). |
 | Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 441 passed / 0 failed** (413 at S006 close + 28 A5.1 harness checks); A3 feel unverified. |
 | Parity checks passing | 6 / 8 — P1, P2, P3, P4, P6, P8 ✅ matching (source-matched; P1/P8 additionally [O]-observed); P5 ◐ (spike floor armed + 0xFF-on-kill asserted in S007, cycle length not); P7 ◐ source-matched only (no SDLPoP transcript observed) |
-| Open blockers | **B0 design note awaiting approval** (no B0 code until approved). A3 feel **not verified headlessly** — human playtest + A5.2 OBS clip pending (numbered checklist in the Session 007 entry). Outstanding decisions: push (never without approval), S004–S007 hours figures [N]. Observation still partial (I3). |
+| Open blockers | **B0 design note awaiting approval** — the S008 brief's approval field was blank, so Step 2/3 did not start; this is the one blocker between the plan and the vertical slice. **D14 checkpoint: Oct 17 EOD** — one level human-completable on the new sim path or fall back to the legacy path for the video. A3 feel not verified headlessly (playtest pending). Hours S004–S008 [N] — the 23.7 h remaining is an upper bound. Push NOT YET. Observation still partial (I3). |
 | Cut line status | Nothing cut yet. Stage A exit now **4/5**: determinism ✅, PARITY populated ✅ (with ours-vs-SDLPoP columns), A5.1 ✅ — **A5.2 + the human playtest remain**. No cut-list trigger raised. |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
@@ -38,7 +38,7 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 | Week | Dates | Exit checkpoint | Met? |
 |---|---|---|---|
 | W1 | Oct 6–12 | Sandbox playable; PARITY.md v1; refs removed from repo; CI online | ◐ 3/4 — sandbox boots (playtest pending), PARITY.md v1 ✅, refs removed ✅; CI workflow landed, not pushed |
-| W2 | Oct 13–19 | Stage A exit criteria met; one level on new core; Echo v2 | ⬜ |
+| W2 | Oct 13–19 | Stage A exit criteria met; one level on new core; Echo v2 | ⬜ — **hard checkpoint Oct 17 (D14)**: one level human-completable on the new sim path, else fall back to the legacy path for the video |
 | W3 | Oct 20–26 | 3 levels completable; SFX in; Linux + Windows builds validated | ⬜ |
 | W4 | Oct 27–30 | Video cut; GDD/slides updated; exports boot-tested; suite green | ⬜ |
 | Buffer | Oct 31 | Submitted | ⬜ |
@@ -92,12 +92,50 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | 005 | 2026-10-08 | [N] | 10.3 (S004–005 pending) | — | A2.3 ticked; pre-push audit clean (no push); A4.1 gates/plates/exit door + `pop_level.gd` room-grid loader; thin B1 input-byte echo; 272/0. Hours pending the user's confirmed figure. |
 | 006 | 2026-10-09 | [N] | 10.3 (S004–006 pending) | — | Step 0 audit answers (integrity outputs, B1 status, A4.1/A4.2 provenance tables + correction legitimacy, sim-calibrated relabels); B1 bounded ring 96 B + event vectors (`85af8a2`, 351/0); A4.3 reach + decision bands + trap deaths + PARITY §20 (`e98f0fd`, 413/0); A4.3 ticked; Stage A exit position reported. Hours pending the user's confirmed figure. |
 | 007 | 2026-10-09 | [N] | 10.3 (S004–007 pending) | — | Step 0 legal rework (§20 + guard tables → own schema, `b3d7a60`/`f5caf79`/`1c32db2`); B1 gap list + B0 design note (awaiting approval); **A5.1 parity harness** P1–P8 + C1/C2 with the stand-Up grab lanes rebuilt on `check_jump_up` (`b6b0c70`, 441/0); PARITY measured-in-ours vs measured-in-SDLPoP columns; A5.1 ticked. Hours pending the user's confirmed figure. |
+| 008 | 2026-10-10 | [N] | 10.3 (S004–008 pending) | — | Session 008: Step 0 integrity green (441/0, both legal greps empty); **D14 Oct-17 fallback checkpoint** recorded; B0 Step 2/3 NOT started (approval input blank in the brief); hand-off checklist written (playtest, A5.2 OBS clip, push+CI). plan.md untouched. Hours pending the user's confirmed figure. |
 
 ---
 
 ## Session Log
 
 <!-- Newest first. Copy the template below for each new session. -->
+
+### Session 008: 2026-10-10 — Step 0 integrity ✅ (441/0); D14 Oct-17 fallback checkpoint; B0 Step 2/3 NOT started (approval input blank); hand-off checklist
+_(entry opened and completed in one pass — no code was written this session)_
+
+**Baseline at session start**
+- Branch `dev/pop-rebuild`, HEAD `fc53ad1` (S007 close); tracked tree clean; untracked scratch (never committed): `tools/frame_decode_check.py`, `tools/smoke_pop.gd`, `tools/smoke_pop.gd.uid`.
+- Last green: `verify_s008_step0.log` — **441 passed / 0 failed, ALL CHECKS PASSED, exit=0**.
+
+**Inputs as pasted:** all four input fields in the brief were unfilled placeholders → per the brief's own defaults: **B0 design note NOT approved** (the "only if approved" gate on Step 2 stands), playtest "not done yet", hours keep `[N]`, push **NOT YET**, Arghya "not yet known".
+
+**Step 0 — integrity (green)**
+- `./verify.sh` → **441/0, exit=0** (`verify_s008_step0.log`) — matches the expected count.
+- `git status --short` → only the 3 untracked scratch files; HEAD `fc53ad1`.
+- `git ls-files | grep -E "\.tools|\.log|\.patch|Original|study|SDLPoP|4dprinceprsia"` → **empty** (grep exit 1) ✅.
+- `git log --all --oneline -- 4dprinceprsia SDLPoP-1.23 study` → **no commits** ✅.
+- **Time position:** 21 days to deadline (Fri Oct 31); hours **10.3 / 34 confirmed** (S000–S003); S004–S008 `[N]` → the 23.7 h "remaining" is an upper bound, possibly a large overstatement.
+- **Remaining [M] work (my estimates, unconfirmed):** B0 vertical slice **6–8 h** (plan says 2; wiring alone was 3–4 h in S007, plus the hand-built level, respawn/checkpoint, completion flow and smoke test); B1 remainder **5–6 h**; B2 remaining two levels **4–5 h**; B3 **3–4 h**; B4 **5–6 h**; B5 **4–5 h**; A5.2 + playtest **1–2 h** → **24–31 h vs ≤23.7 h available**. **Plainly: all [M] items do NOT fit.** First cut-list trigger: **A4.4** loose-floor mob (cut-list #1, already unstarted — formalizing the cut is free), then A4.5; the big lever is D14.
+
+**Step 1 — decision date and fallback: recorded as D14** (Decision Log below; W2 checkpoint row annotated). Contingent on the B0 approval.
+
+**Step 2 — B0 implementation: NOT STARTED (blocked on authorization, not on an obstacle)**
+- The brief gates Step 2 on "the design note is approved above"; that field was blank. Per the S007 rule ("no B0 code until this note is approved") and this brief's own gate, **no B0 code was written**. The player-on-sim scene, the level, the entity wiring, the Echo-on-new-path and the level flow all remain untouched.
+
+**Step 3 — level-completability smoke test: NOT STARTED (blocked on Step 2)**
+- Gate 5's scripted run completes *the new level*; the new level is Step 2.2. Nothing to smoke-test yet. Existing coverage unchanged (gate 5 still ⬜ for the 3-level smoke).
+
+**Step 4 — hand-off checklist for the user (~60 min)**
+
+1. **(25 min) Playtest** — game: `./.tools/godot --path .` (or `-- --level=2` to boot straight into a level); lab: `./.tools/godot --path . res://scenes/pop/pop_lab.tscn` (A/D run, W jump-up, S crouch, Shift grab/climb, P pause, `.` frame-step). Note feel (12 Hz latency, turning, landing weight) and any bugs.
+2. **(20 min) A5.2 OBS clip** — record SDLPoP (the Session-002 local build) and our build doing the same maneuvers (standing jump, run jump, hang + climb); file in `study/` (`study/a52_jumps.mp4`, `study/a52_hang_climb.mp4`). Suggested OBS: Window/Screen Capture (PipeWire), 1920×1080 @ 60 fps, CQ 20 or CRF 20, both windows side by side, one short take per maneuver, audio off.
+3. **(5 min) Decide B0** — reply on the S007 design note: "approved as written" / changes / rejected. This is the session's only blocker.
+4. **(5 min) Hours** — confirmed figures for S004–S008 (ledger `[N]`).
+5. **(5 min) Push + CI** — when ready: `git push -u origin dev/pop-rebuild`; `.github/workflows/verify.yml` fires on push + PR with the `verify.sh` gate (Godot 4.7.2 pin in `verify.sh:14`) — confirm green. (I never push.)
+
+**Close**
+- plan.md **untouched** (no [M] item completed — checkbox-only rule); review.md: this entry, D14, dashboard/weekly-checkpoint/ledger/change-index; `.backup/s008_close/` taken; `./verify.sh` re-run after the doc edits.
+- **Hours:** `[N]` (not stated in the brief; no estimate substituted). **Playtest:** not done yet. **Push:** NOT YET. **Arghya:** not yet known. **B0:** awaiting approval — the single thing standing between the plan and ~6–8 h of vertical-slice work; per D14 the clock starts when it lands.
 
 ### Session 007: 2026-10-09 — Step 0 integrity/legal rework (§20 + guard tables → own schema); B1 gap list; B0 design note (AWAITING APPROVAL); A5.1 parity harness
 _(entry opened mid-session; completed at close)_
@@ -789,6 +827,7 @@ _(entry in progress — completed as work lands)_
 | D11 | 2026-10-06 | 003 | Copy the 37 DOS DATs (`cp -n`) into `SDLPoP-1.23/data/` for observation. | DAT load chain takes precedence (`seg009.c`) → gameplay sprites without PNG fallback; non-destructive, inside the untracked reference folder, reversible. | Deleting/moving originals (destructive — rejected); staging DATs (never allowed). | Yes — delete the copies to revert. |
 | D12 | 2026-10-06 | 003 | Session 003's A2.1/A2.2 code + docs left uncommitted pending user decision. | The 4-commit approval covered the S002 groups only; no implicit approval for new work. | Committing anyway (would exceed the approval); amending old commits (rewrites approved history — rejected). | Yes — commit whenever the user says. |
 | D13 | 2026-10-07/08 | 004 | (a) The A2.2 standing-jump failures were caused by the A2.3 control rewrite, not "pre-existing": the reference binds standing jump to up+forward (`seg005.c:385-395`, `seg005.c:453-458`; PARITY §4) with plain Up routing to the jump-up/hang family, and the test input was aligned to that. (b) PARITY §6's "stand at frame 18" conflated the **tick index (18)** with the **frame id**: the reference `stand` sequence opens on frame **15** (`seqtbl.c:261-263`: `act(actions_0_stand), frame_15_stand, jmp(stand)`), so climb/turn/land reach f15 after 18 climb ticks. §6 was reworded, a machine-readable `stand frame = f15` row added, and A2.1 now binds `PopTables.SEQUENCES["stand"]` to it and asserts `pop_sim` binds `TURN_TICKS` to `PopTables.TURN_TICKS` in source. | Both were wording/decoupling errors, not sim bugs — the reference and the table agree. No assertion was weakened; the mis-attributed phrase was corrected and the previously unchecked binding is now asserted. | (a) Leaving the mis-attribution (would violate rule 5); (b) changing the sim to frame 18 (table and reference both say 15). | Yes — docs/test text only; no behavior change. |
+| D14 | 2026-10-10 | 008 | **Hard checkpoint: by Oct 17 (EOD) one level must be completable by a human on the new sim path** — B0 vertical slice complete (player on pop_sim in the real scene, one hand-built room-grid level, plates/gates/exit, Echo on the new path, level-complete flow, headless completion smoke). If not met, **fall back to the legacy path polished for the video** (plan R2/B0.1) and spend the freed hours on audio, art and docs. | B0 is the biggest remaining risk and the remaining [M] work (my estimate 24–31 h) does not fit the ≤23.7 h confirmed budget; a forced early decision protects the submission. Trigger condition: Oct 17 EOD without a human-completable level on the new path → fallback activates; freed B2/B3-sim hours redirect to B4/B5. | Continuing B0 past Oct 17 (would eat the W3/W4 buffer); abandoning the new core now (premature — B0 unattempted; the fallback stays available). | Reversible before Oct 17; after the trigger fires the fallback is effectively one-way — which is the point. Contingent on the B0 design-note approval (still pending). |
 
 ---
 
@@ -885,6 +924,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 008 | 2026-10-10 | Step 0 integrity; D14 checkpoint; B0 gated off | [N] | Integrity green (441/0, legal greps empty); **D14**: Oct 17 EOD human-completable level on the new sim path or fall back to the legacy path for the video; B0 Step 2/3 not started (approval input blank); hand-off checklist (playtest, A5.2 OBS clip, push+CI). No code written. | 0 added (441 total) |
 | 007 | 2026-10-09 | Step 0 legal rework; A5.1 built and ticked | [N] | §20 + guard tables re-expressed in our own schema (`b3d7a60`, `f5caf79`, `1c32db2`); B1 gap list + B0 design note (awaiting approval); A5.1 parity harness — P1–P8 + C1/C2 vs PARITY rows read at runtime — with the stand-Up grab lanes rebuilt on `check_jump_up`/`grab_up_with_floor_behind`/`jump_up_or_grab` and seq_8/seq_24 added (`b6b0c70`); PARITY measured-in-ours vs measured-in-SDLPoP columns; streams identical to source at every frame. Hours pending user figure. | 28 added (441 total) |
 | 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 + A4.3 built | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper / falling-block crush (PARITY §8/§11); A4.3 guard duel with seeded transcripts (PARITY §12–§14). Two of my own test probes corrected (crush direction, §13 substrings). Hours pending user figure. | 98 added (341 total) |
 | 004 | 2026-10-08 | A2.3 rebuilt (under audit); A3 started | [N] | Rebuilt the A2.3 acceptance tests; repaired working-tree corruption (autoloads, `pop_input` stub, `STATE_KEYS`, `TURN_TICKS`, plus a fused line in this log); circularity audit + D13 (stand frame f15 vs tick 18); Section 3 evidence upgrades (PARITY §2 edge snap, §4 standing-jump trigger); clean-clone check green; A3.1 SimClock + A3.3 input latch + A3.2 pop_lab sandbox (feel needs playtest). Hours pending user figure. | 54 added (243 total) |
