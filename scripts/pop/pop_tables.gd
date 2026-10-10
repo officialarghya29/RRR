@@ -601,6 +601,32 @@ const SEQUENCES: Dictionary = {
 		[Op.DX, -1], [Op.FRAME, 80],
 		[Op.JUMP, "hang"],
 	],
+	# seq_8 = jumphangMed / jump_up_and_grab_straight (`types.h:432`): pure
+	# frames — the x commit happened on the action tick
+	# (`seg005.c:871-874` grab_up_with_floor_behind + `seg005.c:783-786`),
+	# which lane 1 of _jump_up_from_stand performs.
+	"jump_grab_straight": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 67],
+		[Op.FRAME, 68], [Op.FRAME, 69], [Op.FRAME, 70], [Op.FRAME, 71],
+		[Op.FRAME, 72], [Op.FRAME, 73], [Op.FRAME, 74], [Op.FRAME, 75],
+		[Op.FRAME, 76], [Op.FRAME, 77],
+		[Op.ACTION, Action.HANG_CLIMB], [Op.FRAME, 78],
+		[Op.FRAME, 79], [Op.FRAME, 80],
+		[Op.JUMP, "hang"],
+	],
+	# seq_24 = jumphangLong / jump_up_and_grab_forward (`types.h:447`): the
+	# dx +1/+2/+1 across f78–f80 is the `distance − 4` shortfall left by the
+	# x commit (`seg005.c:877-879` grab_up_with_floor_behind's else branch).
+	"jump_grab_forward": [
+		[Op.ACTION, Action.RUN_JUMP], [Op.FRAME, 67],
+		[Op.FRAME, 68], [Op.FRAME, 69], [Op.FRAME, 70], [Op.FRAME, 71],
+		[Op.FRAME, 72], [Op.FRAME, 73], [Op.FRAME, 74], [Op.FRAME, 75],
+		[Op.FRAME, 76], [Op.DX, -1], [Op.FRAME, 77],
+		[Op.ACTION, Action.HANG_CLIMB], [Op.DX, 1], [Op.FRAME, 78],
+		[Op.DX, 2], [Op.FRAME, 79],
+		[Op.DX, 1], [Op.FRAME, 80],
+		[Op.JUMP, "hang"],
+	],
 	# Reference: `seqtbl.c:608-612` (hangfall) — releasing the ledge into a
 	# fall (hand momentum then free fall).
 	"release_fall": [

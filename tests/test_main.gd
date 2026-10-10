@@ -59,6 +59,9 @@ func _ready() -> void:
 	_section("A4.3 guard duel at 10 fps (plan A4.3 / §8 gate 3)")
 	_test_a43_duel()
 
+	_section("A5.1 parity harness (plan A5.1)")
+	_test_a51_harness("")
+
 	_section("Health component")
 	_test_health()
 
@@ -2489,3 +2492,307 @@ func _test_a43_duel() -> void:
 	print("  MEAS duel(seed 20261008, skill 0, attack): winner=%s ticks=%d guard_hp=%d kid_hp=%d dist=%d transcript=%d events" % [
 		String(w1["winner"]), int(w1["ticks"]), int(w1["guard_hp"]), int(w1["kid_hp"]),
 		int(w1["dist"]), (w1["transcript"] as Array).size()])
+
+
+# --- A5.1 parity harness (plan A5.1) ---------------------------------------
+
+## A5.1 — one hand-built replica of an original room's GRAMMAR (not layout).
+## Grammar source: the level-1 opening sequence in A1's study notes of SDLPoP
+## level 1 (`study/level_00.txt`, untracked): a raised start floor you drop
+## from, a ground floor with a gap to jump, a ledge you jump-grab and climb,
+## and the level's plate->gate doorlink (room 1's doorlink). The row/column
+## layout below is entirely our own. Driven by one input script; the four
+## A5.1 invariants (jump distance, hang frame counts, spike survival, gate
+## timing) are asserted against PARITY §4/§5/§6/§8/§9/§10 rows read at runtime.
+func _a51_room() -> Dictionary:
+	const F: int = PopTables.Tile.FLOOR
+	const E: int = PopTables.Tile.EMPTY
+	const SP: int = PopTables.Tile.SPIKES
+	const BTN: int = PopTables.Tile.BUTTON_RAISE
+	const GT: int = PopTables.Tile.GATE
+	# row 0: start floor (0..4) | gap | ledge (13..18: plate at 16, gate at 18)
+	# row 1: ground floor | spike pit (9) | ground floor to the right edge
+	# row 2: spike floor under the pit plus one column of drift margin each
+	#         side (fall frames carry dx +1/+2/−1/−2, `seqtbl.c:491-497`); see
+	#         the A5.1 GAP list.
+	var tiles: Array = [
+		[F, F, F, F, F, E, E, E, E, E, E, E, E, F, F, F, BTN, F, GT, E, E, E, E, E],
+		[F, F, F, F, F, F, F, F, F, E, F, F, F, F, F, F, F, F, F, F, F, F, F, F],
+		[E, E, E, E, E, E, E, E, SP, SP, SP, E, E, E, E, E, E, E, E, E, E, E, E, E],
+		[E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E],
+	]
+	return {
+		"tiles": tiles,
+		"mods": {"2,8": 3, "2,9": 3, "2,10": 3},
+		"entities": {
+			"gates": {"0,18": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,16": 0},
+			"links": [{"plate": "0,16", "gate": "0,18"}],
+		},
+	}
+
+
+## A5.1: one fixed input script through the replica room, asserting the four
+## plan-A5.1 invariants (jump distance, hang frame counts, spike survival,
+## gate timing). Every expected value is read from a PARITY §4/§5/§6/§8/§9/§10
+## row at runtime; behavior with no independent oracle is labelled
+## "sim characterization, not parity evidence".
+func _test_a51_harness(md: String) -> void:
+	if md.is_empty():
+		md = FileAccess.get_file_as_string("res://docs/PARITY.md")
+	check(md.length() > 0, "docs/PARITY.md is readable for the A5.1 cross-checks")
+	if md.is_empty():
+		return
+
+	# --- expected values, read from PARITY rows (never from sim output) --
+	var s4_head := _parity_row(md, "4", "frame")
+	var s5_head := _parity_row(md, "5", "frame")
+	var s4 := _expand_cells(s4_head, _parity_row(md, "4", "cum x"))
+	var s5 := _expand_cells(s5_head, _parity_row(md, "5", "cum x"))
+	var i27 := _frame_index(s4_head, 27)
+	var i44 := _frame_index(s5_head, 44)
+	var stand_land := int(s4[i27]) if i27 >= 0 and i27 < s4.size() else _MISSING_PARITY_VALUE
+	var stand_total := int(s4[s4.size() - 1]) if s4.size() > 0 else _MISSING_PARITY_VALUE
+	var run_land := int(s5[i44]) if i44 >= 0 and i44 < s5.size() else _MISSING_PARITY_VALUE
+	var run_total := int(s5[s5.size() - 1]) if s5.size() > 0 else _MISSING_PARITY_VALUE
+	var sway := _ints(_parity_cell(md, "6", "hang sway", 2))
+	var sway_ticks: int = int(sway[0]) if sway.size() > 0 else _MISSING_PARITY_VALUE
+	var climb := _ints(_parity_cell(md, "6", "climb up", 1))
+	var climb_ticks: int = int(climb[climb.size() - 1]) if climb.size() > 0 else _MISSING_PARITY_VALUE
+	var climb_dx: int = int(climb[3]) if climb.size() > 5 else _MISSING_PARITY_VALUE
+	var climb_dy: int = int(climb[4]) if climb.size() > 5 else _MISSING_PARITY_VALUE
+	var climb_row: int = int(climb[5]) if climb.size() > 5 else _MISSING_PARITY_VALUE
+	var open_delta := _parity_int(md, "9", "opening / permanent")
+	var close_delta := _parity_int(md, "9", "normal closing")
+	var open_row := _ints(_parity_cell(md, "9", "open reached"))
+	var plate_timer := _parity_int(md, "10", "press timer", 2)
+	var spike_off := _parity_cell(md, "8", "disabled", 1)
+	var spike_keys := ["2,8", "2,9", "2,10"]
+	check(open_row.size() >= 2 and sway_ticks == 43 and climb_ticks == 18
+			and stand_total == 39 and run_total == 67,
+		"A5.1 reads the §4/§5/§6/§9 targets (39 / 67 / 43 / 18 / 188,238; got %d / %d / %d / %d / %s)" %
+			[stand_total, run_total, sway_ticks, climb_ticks, str(open_row)])
+
+	var bundle := _a51_room()
+	var tiles: Array = bundle["tiles"]
+	var mods: Dictionary = bundle["mods"]
+	var entities: Dictionary = bundle["entities"]
+
+	# --- P1: standing jump on the start floor (PARITY §4) ---------------
+	var st: Dictionary = PopSim.initial_state(4242, tiles, mods, entities)
+	var x0 := int(st["x"])
+	var t := 0
+	var x_at27 := -1
+	while t < 40:
+		st = PopSim.step(st, PopInput.make(1, -1))  # fwd+Up = standing jump (§4 trigger row)
+		t += 1
+		if x_at27 < 0 and int(st["frame"]) == 27:
+			x_at27 = int(st["x"])
+		if t > 3 and String(st["seq"]) == "stand":
+			break
+	check(x_at27 > 0 and x_at27 - x0 == stand_land,
+		"A5.1 P1 landing distance at f27 = %d units (PARITY §4 cum x; got %d)" % [stand_land, x_at27 - x0])
+	check(int(st["x"]) - x0 == stand_total,
+		"A5.1 P1 standing-jump total travel = %d units (PARITY §4 cum x end; got %d)" % [stand_total, int(st["x"]) - x0])
+	check(int(st["dead"]) == 0 and int(st["hp"]) == 3,
+		"A5.1 P1 the standing jump leaves the kid alive at full HP (sim characterization, not parity evidence)")
+
+	# --- P2: run off the start floor onto the ground floor (1-row drop) --
+	var n2 := 0
+	while n2 < 60:
+		st = PopSim.step(st, PopInput.make(1, 0))
+		n2 += 1
+		if int(st["row"]) == 1 and String(st["seq"]) == "run_cycle":
+			break
+	check(int(st["row"]) == 1,
+		"A5.1 P2 the run drops the kid to the ground floor (grammar; sim characterization, not parity evidence)")
+	check(int(st["dead"]) == 0 and int(st["hp"]) == 3,
+		"A5.1 P2 the 1-row drop lands soft — no HP lost (PARITY §7 soft land <22; got hp %d)" % int(st["hp"]))
+
+	# --- P3a: run up to the take-off tile -------------------------------
+	var n3 := 0
+	while int(st["x"]) < 150 and n3 < 30:
+		st = PopSim.step(st, PopInput.make(1, 0))
+		n3 += 1
+
+	# --- P3b: run jump over the spike pit (PARITY §5 + §8) --------------
+	var x_takeoff := int(st["x"])
+	var n4 := 0
+	var x_at44 := -1
+	while n4 < 40:
+		st = PopSim.step(st, PopInput.make(1, -1))
+		n4 += 1
+		if x_at44 < 0 and int(st["frame"]) == 44:
+			x_at44 = int(st["x"])
+		if n4 > 3 and String(st["seq"]) == "run_cycle":
+			break
+	check(x_at44 > 0 and x_at44 - x_takeoff == run_land,
+		"A5.1 P3b landing distance at f44 = %d units (PARITY §5 cum x; got %d)" % [run_land, x_at44 - x_takeoff])
+	check(int(st["x"]) - x_takeoff == run_total,
+		"A5.1 P3b run-jump total travel = %d units (PARITY §5 cum x end; got %d)" % [run_total, int(st["x"]) - x_takeoff])
+	check(int(st["dead"]) == 0 and int(st["hp"]) == 3,
+		"A5.1 P3b the run jump clears the spike pit (spike survival control; got dead=%d hp=%d)" % [int(st["dead"]), int(st["hp"])])
+	var spikes_clear := true
+	for key: String in spike_keys:
+		if int((st["mods"] as Dictionary).get(key, 0)) != int(mods[key]):
+			spikes_clear = false
+	check(spikes_clear,
+		"A5.1 P3b the pit spikes stay armed through the jump (PARITY §8: %s only on a kill; got %s)" % [spike_off, str(st["mods"])])
+
+	# --- P4: stop the run, then walk to the grab position --------------
+	# The grab window: det_col = col_of(x − 10) = 12 (x ∈ 236..249) makes the
+	# reference probe (lane 1 of check_jump_up) see the ledge lip col 13
+	# ahead-above (`seg005.c:682-685`); within that window the commit arithmetic
+	# hangs the kid at x 248 whatever the exact stand x (see _grab_up_with_floor_behind).
+	var n4b := 0
+	while String(st["seq"]) != "stand" and n4b < 30:
+		st = PopSim.step(st, PopInput.neutral())
+		n4b += 1
+	var n5 := 0
+	while int(st["x"]) < 236 and n5 < 20:
+		st = PopSim.step(st, PopInput.make(1, 0, 1))
+		n5 += 1
+	var n5b := 0
+	while String(st["seq"]) != "stand" and n5b < 15:
+		st = PopSim.step(st, PopInput.neutral())
+		n5b += 1
+	check(String(st["seq"]) == "stand" and int(st["row"]) == 1,
+		"A5.1 P4 the kid stops and safe-steps to the ledge lip (grammar; got seq %s row %d)" % [String(st["seq"]), int(st["row"])])
+
+	# --- P5: jump-grab the ledge (shift+Up) -----------------------------
+	var hang_tick := -1
+	var sway_start: Dictionary = {}
+	var n6 := 0
+	while n6 < 30:
+		st = PopSim.step(st, PopInput.make(0, -1, 1))
+		n6 += 1
+		if String(st["seq"]) == "hang":
+			hang_tick = int(st["tick"])
+			sway_start = st.duplicate(true)
+			break
+	check(hang_tick > 0 and int(st["frame"]) == 91,
+		"A5.1 P5 shift+Up grabs the ledge and enters the sway on f91 (PARITY §6 hang sway; got seq %s f%d)" % [String(st["seq"]), int(st["frame"])])
+
+	# --- P6: climb onto the ledge (PARITY §6 climb up row) --------------
+	var climb_tick := -1
+	var x_climb := 0
+	var y_climb := 0
+	var row_climb := 0
+	var x_f141 := -1
+	var y_f141 := -1
+	var row_f141 := -1
+	var n7 := 0
+	while n7 < 40:
+		st = PopSim.step(st, PopInput.make(0, -1, 1))
+		n7 += 1
+		if climb_tick < 0 and String(st["seq"]) == "climb_up":
+			climb_tick = int(st["tick"])
+			x_climb = int(st["x"])
+			y_climb = int(st["y"])
+			row_climb = int(st["row"])
+		if x_f141 < 0 and String(st["seq"]) == "climb_up" and int(st["frame"]) == 141:
+			x_f141 = int(st["x"])
+			y_f141 = int(st["y"])
+			row_f141 = int(st["row"])
+		if String(st["seq"]) == "stand":
+			break
+	check(climb_tick > 0 and String(st["seq"]) == "stand" and int(st["frame"]) == 15,
+		"A5.1 P6 the climb ends on the stand opening frame f15 (PARITY §6 climb up row; got seq %s f%d)" % [String(st["seq"]), int(st["frame"])])
+	# §6 counts inclusively: "stand (frame f15) on tick 18" — f135 plays on
+	# the climb's first tick and f15 on its 18th, so the tick *difference*
+	# stand − climb_start is 17.
+	check(int(st["tick"]) - climb_tick + 1 == climb_ticks,
+		"A5.1 P6 climb up reaches stand on climb-tick %d (PARITY §6 climb up row; got %d)" %
+			[climb_ticks, int(st["tick"]) - climb_tick + 1])
+	check(x_f141 > 0 and x_f141 - x_climb == climb_dx and y_f141 - y_climb == climb_dy and row_f141 - row_climb == climb_row,
+		"A5.1 P6 f141 applies dx %+d, dy %+d, row %+d (PARITY §6 climb up row; got dx %+d, dy %+d, row %+d)" % [
+			climb_dx, climb_dy, climb_row, x_f141 - x_climb, y_f141 - y_climb, row_f141 - row_climb])
+	check(int(st["row"]) == 0 and int(st["y"]) == int(PopTables.Y_LAND[1]),
+		"A5.1 P6 the climb-out stands on the ledge row at the row-0 floor y (PARITY §2 y_land; got row %d y %d)" % [int(st["row"]), int(st["y"])])
+	var stand_col := PopSim._col_of(PopSim._foot_x(st))
+	check(PopSim._is_floor(PopSim._tile(st, 0, stand_col)) and int(st["dead"]) == 0,
+		"A5.1 P6 the climb-out lands on the ledge floor at column %d (grammar; sim characterization, not parity evidence)" % stand_col)
+
+	# --- P7: run across the ledge onto the plate (PARITY §10) -----------
+	var n8 := 0
+	var press_tick := -1
+	var plate_after := -1
+	while n8 < 60:
+		st = PopSim.step(st, PopInput.make(1, 0))
+		n8 += 1
+		var plate_now: int = int((st["plates"] as Dictionary).get("0,16", 0))
+		if plate_now > 0 and press_tick < 0:
+			press_tick = int(st["tick"])
+			plate_after = plate_now
+		if press_tick > 0 and int(st["x"]) >= 296:
+			break
+	check(press_tick > 0,
+		"A5.1 P7 crossing the ledge steps on the plate (grammar; sim characterization, not parity evidence)")
+	check(plate_after == plate_timer - 1,
+		"A5.1 P7 the press sets the hold timer to %d then decrements once (PARITY §10 press-timer row; got %d)" % [plate_timer, plate_after])
+
+	# --- P8: stop and watch the gate (PARITY §9) ------------------------
+	st = PopSim.step(st, PopInput.neutral())
+	var t_park := -1
+	var t_zero := -1
+	var n9 := 0
+	while n9 < 500:
+		st = PopSim.step(st, PopInput.neutral())
+		n9 += 1
+		var g: Dictionary = (st["gates"] as Dictionary)["0,18"]
+		var m := int(g["mod"])
+		if t_park < 0 and m >= int(open_row[1]):
+			t_park = int(st["tick"])
+		if t_park >= 0 and m == 0:
+			t_zero = int(st["tick"])
+			break
+	var expected_open: int = int(open_row[0]) / open_delta    # 188 / 4
+	var expected_close: int = int(open_row[1]) / abs(close_delta)  # 238 / 1
+	check(t_park > 0 and abs((t_park - press_tick) - expected_open) <= 1,
+		"A5.1 P8 the gate opens %d±1 ticks after the press (PARITY §9 open-reached + opening rows; got %d)" % [expected_open, t_park - press_tick])
+	check(t_zero > 0 and abs((t_zero - t_park) - expected_close) <= 1,
+		"A5.1 P8 the gate closes to 0 in %d±1 ticks (PARITY §9 normal-closing row; got %d)" % [expected_close, t_zero - t_park])
+	check(int(((st["gates"] as Dictionary)["0,18"])["mod"]) == 0,
+		"A5.1 P8 the gate ends fully closed (PARITY §9 close-reached row)")
+
+	# --- C1: control — running into the spike pit kills (PARITY §8) -----
+	var c1: Dictionary = PopSim.initial_state(4242, tiles, mods, entities)
+	var nC := 0
+	while nC < 120 and int(c1["dead"]) == 0:
+		c1 = PopSim.step(c1, PopInput.make(1, 0))
+		nC += 1
+	check(int(c1["dead"]) == 1 and int(c1["hp"]) == 0,
+		"A5.1 C1 running into the spike pit kills (spike survival control; got dead=%d hp=%d tick=%d)" % [int(c1["dead"]), int(c1["hp"]), int(c1["tick"])])
+	check(String(c1["seq"]) == "impale",
+		"A5.1 C1 the spike kill plays the impale sequence (sim characterization, not parity evidence; got %s)" % String(c1["seq"]))
+	var spiked_key := ""
+	for key: String in spike_keys:
+		if int((c1["mods"] as Dictionary).get(key, 0)) == 255:
+			spiked_key = key
+	check(spiked_key != "" and spike_off.contains("0xFF"),
+		"A5.1 C1 the impaled spike tile is disabled to %s (PARITY §8 disabled row; got tile %s)" % [spike_off, spiked_key])
+
+	# --- C2: control — the hang sway auto-drops after the §6 count ------
+	if hang_tick > 0:
+		var c2: Dictionary = sway_start
+		var drop_tick := -1
+		var w := 0
+		while w < sway_ticks + 40 and drop_tick < 0:
+			c2 = PopSim.step(c2, PopInput.make(0, 0, 1))  # Shift held, no Up: no climb, no release
+			w += 1
+			if String(c2["seq"]) == "hang_drop":
+				drop_tick = int(c2["tick"])
+		check(drop_tick > 0 and drop_tick - hang_tick == sway_ticks,
+			"A5.1 C2 the hang sway auto-drops after %d ticks (PARITY §6 hang sway; got %d)" % [sway_ticks, drop_tick - hang_tick])
+		var c2n := 0
+		while String(c2["seq"]) != "stand" and c2n < 10:
+			c2 = PopSim.step(c2, PopInput.make(0, 0, 1))
+			c2n += 1
+		check(String(c2["seq"]) == "stand" and int(c2["dead"]) == 0 and int(c2["hp"]) == 3,
+			"A5.1 C2 the auto-drop lands the kid on his feet below the ledge (sim characterization, not parity evidence; got seq %s hp %d)" % [String(c2["seq"]), int(c2["hp"])])
+	else:
+		check(false, "A5.1 C2 needs the P5 hang (skipped: the ledge grab never fired)")
+
+	print("  GAP: A5.1 column probes use the plain left-edge column outside the hang/climb frames (pop_sim simplification list; the m7 migration is gate-2 work).")
+	print("  GAP: pop_sim._m7_x subtracts 7 against the facing direction; get_tile_div_mod_m7 subtracts 7 unconditionally (`seg006.c:0690-0692`) — left-facing hangs still diverge (gate-2).")
+	print("  GAP: A5.1 room layout is ours (grammar only); the spike floor pads the one-column fall drift that the reference m7 landing probe would absorb.")

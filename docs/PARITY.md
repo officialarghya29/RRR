@@ -9,7 +9,16 @@ citation are acceptable in tracked files**. House rules for everything below:
 - No code and no reference tables are pasted verbatim; values are re-expressed in
   this file's schema. Arithmetic done here is marked [D].
 - "Ours" columns are filled by `scripts/pop/` measurements (plan §8 gates 2–3) and
-  stay empty until those gates exist.
+  stay empty until those gates exist. Plan **A5.1** adds two provenance columns to
+  the tables its harness exercises (§4–§6, §8–§10): **measured-in-ours** (what
+  `tests/test_main.gd::_test_a51_harness` measured on our sim, room grammar of
+  `pop_lab`-style layout) and **measured-in-SDLPoP** (what the reference binary
+  measures). Tags: `[A5.1]` = measured by that harness; `[source-matched]` = read
+  from the cited lines and implemented, not independently measured; `[observed]` =
+  measured against the running binary (`study/OBSERVATION.md`); `—` = not measured
+  yet. In the transposed stream tables (§4/§5) the ours-value appears as a row
+  instead of a column. The other sections get their columns as their own gates
+  land.
 - Observation status: the reference binary now **builds and runs locally**
   (Session 002, approved); the screenshot cross-check has run (A1.1), and
   Session 003 produced the first gameplay observations [O]: **tick rate 12.00 Hz**
@@ -75,10 +84,15 @@ Source `seqtbl.c:381-400` (`sjland` label at 391).
 | dx | 0 | 0 | 2 each | 7 | 9 | 5 | 1 | 4 | −3 | 5 | 0 | 1 |
 | dy | 0 | 0 | 0 | 0 | 0 | −6 | +6 | 0 | 0 | 0 | 0 | 0 |
 | cum x | 0 | 0 | 2→10 | 17 | 26 | 31 | 32 | 36 | 33 | 38 | 38 | 39 |
+| ours cum x [A5.1] | 0 | 0 | 2→10 | 17 | 26 | 31 | 32 | 36 | 33 | 38 | 38 | 39 |
 
 - Crouch phase 5 frames × dx2; landing impact frame f27 (knock + footstep,
   `seqtbl.c:393`); horizontal at landing ≈ **36 units ≈ 2.57 tiles** [D].
-- No row change; vertical excursion only 6 units. Ours: — pending gate 2.
+- No row change; vertical excursion only 6 units.
+- measured-in-ours (A5.1): the `ours cum x [A5.1]` row is our sim's frame-by-frame
+  measurement — identical to the source row at every frame (f27 = 36 and the 39
+  end are asserted in P1). measured-in-SDLPoP: landing ≈38 units [observed]
+  (Session 003, bbox error ±2 u); the remaining frames are [source-matched] only.
 - [O] **Observed (Session 003):** standing jump with Up held 0.35 s moved the kid
   bbox x 86 → 261 = 175 px; at 64 px/tile and 14 units/tile (≈4.57 px/unit) that
   is ≈ **38 units ≈ 2.7 tiles** — consistent with the 36-unit landing value within
@@ -98,25 +112,30 @@ Source `seqtbl.c:402-416` (`rjlandrun` label at 413).
 | dy | 0 | 0 | 0 | 0 | 0 | 0 | −3 | −9 | −2 | +11 | +3 | 0 |
 | cum x | 0 | 5 | 11 | 14 | 19 | 26 | 38 | 46 | 54 | 58 | 62 | 67 |
 | cum y | 0 | 0 | 0 | 0 | 0 | 0 | −3 | −12 | −14 | −3 | 0 | 0 |
+| ours cum x [A5.1] | 0 | 5 | 11 | 14 | 19 | 26 | 38 | 46 | 54 | 58 | 62 | 67 |
 
 - Approach 26 units (same pre-flight as standing jump); airborne frames f40–f44 =
   36 units, apex −14 units at f42; total f34→f7 = **67 units ≈ 4.79 tiles** [D].
 - Gap-span targets for A2.2's acceptance (stand-jump 1 tile, run-jump 2 tiles of
   *cleared gap*) get pinned by edge-position measurement in gate 2; the streams
-  above are the ground truth. Ours: — pending gate 2.
+  above are the ground truth.
+- measured-in-ours (A5.1): the `ours cum x [A5.1]` row is our sim's frame-by-frame
+  measurement — identical to the source row (f44 = 62 and the 67 end are asserted
+  in P3b). measured-in-SDLPoP: — never successfully observed (Session 003,
+  `study/OBSERVATION.md` §4); the stream stays [source-matched].
 
 ## 6. Hang and climb geometry
 
-| Sequence | Frames | Geometry | Citation |
-|---|---|---|---|
-| hang sway | f91 + 42-frame loop (sprites f87–f99), then auto-drop | 43 frames ≈ 3.6 s at 12 fps [D] | `seqtbl.c:554-567` |
-| hangstraight | f92,f93,f93,f92,f92 then f91 loop | no auto-drop | `seqtbl.c:569-573` |
-| climb up | 6 frames (f135–f140), then dx +5, dy −63, row−1, f141 … stand (frame f15) on tick 18 | row = **63 units**; ≈1.5 s | `seqtbl.c:590-600`, `seqtbl.c:261-263` |
-| climb down | 6 frames, then dx −5, dy +63, row+1 → hang sway in 10 frames | mirrored; ≈0.8 s | `seqtbl.c:581-588` |
-| climb fail | 11 frames, dx −7 → hangdrop | | `seqtbl.c:575-579` |
-| hangdrop | f81–f85 then dx +3 → stand | 5 frames | `seqtbl.c:602-607` |
-| stand frame | f15 | the `stand` sequence opens on frame 15 (`act(actions_0_stand), frame_15_stand, jmp(stand)`); climb/turn/land all jump to it | `seqtbl.c:261-263` |
-| mid-air grab | Shift held; fall speed < 32 (30 with port fix); alive; floor row ≤ 25 y-units below; probe −8 units | success: snap x/y, reset fall, `grab_timer = 12` frames (≈1 s) | `seg006.c:1159-1201`, timer `seg006.c:1387-1388` |
+| Sequence | Frames | Geometry | Citation | measured-in-ours (A5.1) | measured-in-SDLPoP |
+|---|---|---|---|---|---|
+| hang sway | f91 + 42-frame loop (sprites f87–f99), then auto-drop | 43 frames ≈ 3.6 s at 12 fps [D] | `seqtbl.c:554-567` | `[A5.1]` auto-drop fires with drop − hang = 43 ticks (C2) | [source-matched] |
+| hangstraight | f92,f93,f93,f92,f92 then f91 loop | no auto-drop | `seqtbl.c:569-573` | — | [source-matched] |
+| climb up | 6 frames (f135–f140), then dx +5, dy −63, row−1, f141 … stand (frame f15) on tick 18 | row = **63 units**; ≈1.5 s | `seqtbl.c:590-600`, `seqtbl.c:261-263` | `[A5.1]` f141 dx +5 / dy −63 / row −1; stand f15 on climb-tick 18; ledge col reached (P6) | [source-matched] |
+| climb down | 6 frames, then dx −5, dy +63, row+1 → hang sway in 10 frames | mirrored; ≈0.8 s | `seqtbl.c:581-588` | — | [source-matched] |
+| climb fail | 11 frames, dx −7 → hangdrop | | `seqtbl.c:575-579` | — (reference label unreachable: `seg005.c:812-830`) | [source-matched] |
+| hangdrop | f81–f85 then dx +3 → stand | 5 frames | `seqtbl.c:602-607` | — (C2's auto-drop exits through it; frames not asserted) | [source-matched] |
+| stand frame | f15 | the `stand` sequence opens on frame 15 (`act(actions_0_stand), frame_15_stand, jmp(stand)`); climb/turn/land all jump to it | `seqtbl.c:261-263` | `[A5.1]` climb exit frame f15 (P6) | [source-matched] |
+| mid-air grab | Shift held; fall speed < 32 (30 with port fix); alive; floor row ≤ 25 y-units below; probe −8 units | success: snap x/y, reset fall, `grab_timer = 12` frames (≈1 s) | `seg006.c:1159-1201`, timer `seg006.c:1387-1388` | — (A5.1 grabs through the jump-up family, not the mid-air probe) | [source-matched] |
 
 ## 7. Fall thresholds
 
@@ -135,12 +154,12 @@ integration) [D]. Ours: — pending gate 2 (3-row kill / 2-row −1 HP acceptanc
 
 State machine from `animate_spike` (`seg007.c:310-329`); durations counted here [D]:
 
-| Phase | Modifier states | Frames | Harmful? |
-|---|---|---|---|
-| extend | 0→1→2→3→4→(5→0x8F) | 5 | yes while 1–4 (class 2) |
-| extended hold | 0x8F→…→0x81→6 | 15 | yes (class 1) |
-| retract | 6→7→8→(9→0, stop) | 3 | no |
-| disabled | 0xFF | permanent | no (set on a kill, `seg005.c:220-222`) |
+| Phase | Modifier states | Frames | Harmful? | measured-in-ours (A5.1) | measured-in-SDLPoP |
+|---|---|---|---|---|---|
+| extend | 0→1→2→3→4→(5→0x8F) | 5 | yes while 1–4 (class 2) | — (cycle length not A5.1-asserted) | [source-matched] |
+| extended hold | 0x8F→…→0x81→6 | 15 | yes (class 1) | — | [source-matched] |
+| retract | 6→7→8→(9→0, stop) | 3 | no | — | [source-matched] |
+| disabled | 0xFF | permanent | no (set on a kill, `seg005.c:220-222`) | `[A5.1]` armed mod 3 survives the P3b jump; 0xFF written on the C1 kill | [source-matched] |
 
 Full cycle ≈ **23 logic frames ≈ 1.9 s** at 12 fps [D]. Harmfulness classes:
 `is_spike_harmful()` (`seg007.c:1171-1176`); contact rules differ for running frames
@@ -152,27 +171,27 @@ Full cycle ≈ **23 logic frames ≈ 1.9 s** at 12 fps [D]. Harmfulness classes:
 Gate modifier: 0 = closed, ≥188 = open, 238 = parked after opening, 0xFF = permanent
 (`seg007.c:336-403`).
 
-| Motion | Speed (units/logic frame) | Citation |
-|---|---|---|
-| normal closing | −1 (`door_delta[0]`) | `seg007.c:334`, `seg007.c:364` |
-| opening / permanent | +4 (`door_delta[1..2]`) | `seg007.c:334`, `seg007.c:364` |
-| fast close (types 3–8) | 20, 40, 60, 80, 100, 120; type auto-increments each frame up to 8 | `seg007.c:332`, `seg007.c:344-352` |
-| open reached | ≥188 → snap 238 → switch to closing; permanent → 0xFF | `seg007.c:378-397` |
-| close reached | 0 → stop + sound | `seg007.c:366-367`, `seg007.c:405-409` |
-| level (exit) door | fast-close speeds {0,5,17,99}, starts open at modifier 43, clamps 0 | `seg007.c:411`, `seg007.c:424-431`, `seg007.c:795-798` |
+| Motion | Speed (units/logic frame) | Citation | measured-in-ours (A5.1) | measured-in-SDLPoP |
+|---|---|---|---|---|
+| normal closing | −1 (`door_delta[0]`) | `seg007.c:334`, `seg007.c:364` | `[A5.1]` park 238 → 0 in exactly 238 ticks (P8) | [source-matched] |
+| opening / permanent | +4 (`door_delta[1..2]`) | `seg007.c:334`, `seg007.c:364` | `[A5.1]` press → park 46 ticks (188/4 = 47, ±1 press alignment) (P8) | [source-matched] |
+| fast close (types 3–8) | 20, 40, 60, 80, 100, 120; type auto-increments each frame up to 8 | `seg007.c:332`, `seg007.c:344-352` | — | [source-matched] |
+| open reached | ≥188 → snap 238 → switch to closing; permanent → 0xFF | `seg007.c:378-397` | `[A5.1]` mod snaps to 238 at the park, then reverses (P8) | [source-matched] |
+| close reached | 0 → stop + sound | `seg007.c:366-367`, `seg007.c:405-409` | `[A5.1]` gate reaches mod 0 and stops (P8) | [source-matched] |
+| level (exit) door | fast-close speeds {0,5,17,99}, starts open at modifier 43, clamps 0 | `seg007.c:411`, `seg007.c:424-431`, `seg007.c:795-798` | — | [source-matched] |
 
 Modifier↔pixel mapping not derived; ±1-tick gate acceptance applies at the modifier
 level. Ours: — pending A4.1.
 
 ## 10. Plate / doorlink timing
 
-| Field | Encoding | Range | Citation |
-|---|---|---|---|
-| target tile | `d1 & 0x1F` | 0–29 | `seg007.c:725-727` |
-| chain flag | `!(d1 & 0x80)` | 0/1 | `seg007.c:730-732` |
-| target room | `((d1 & 0x60)>>5) + ((d2 & 0xE0)>>3)` | 0–23 | `seg007.c:735-739` |
-| hold timer | `d2 & 0x1F` | 0–31; 31 = jammed | `seg007.c:713-715`, `seg007.c:750-751` |
-| press timer | press sets the hold timer, then the button animation decrements it by one per logic frame and stops below 2 (re-press only when below 2) | 5 | `seg007.c:742-751`, `seg007.c:783-791` |
+| Field | Encoding | Range | Citation | measured-in-ours (A5.1) | measured-in-SDLPoP |
+|---|---|---|---|---|---|
+| target tile | `d1 & 0x1F` | 0–29 | `seg007.c:725-727` | — (one plate→one gate link in the A5.1 room) | [source-matched] |
+| chain flag | `!(d1 & 0x80)` | 0/1 | `seg007.c:730-732` | — | [source-matched] |
+| target room | `((d1 & 0x60)>>5) + ((d2 & 0xE0)>>3)` | 0–23 | `seg007.c:735-739` | — | [source-matched] |
+| hold timer | `d2 & 0x1F` | 0–31; 31 = jammed | `seg007.c:713-715`, `seg007.c:750-751` | — | [source-matched] |
+| press timer | press sets the hold timer, then the button animation decrements it by one per logic frame and stops below 2 (re-press only when below 2) | 5 | `seg007.c:742-751`, `seg007.c:783-791` | `[A5.1]` press → 5, next tick reads 4 (P7) | [source-matched] |
 
 Press sets timer = **5**; the button animation decrements per logic frame and stops
 below 2 (≈4-frame press sequence; re-press only when < 2). The linked gate runs §9's

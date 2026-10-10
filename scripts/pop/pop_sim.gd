@@ -47,6 +47,11 @@ const STAND_Y: int = 55
 ## `x_bump[col+5] + 14` (`seg003.c:158`); tests place the kid explicitly.
 const _START_X: int = 65
 
+## `edge_type` id for EDGE (`types.h:1399-1403`: CLOSER 0, EDGE 1, FLOOR 2) —
+## the get_edge_distance class that selects grab_up_with_floor_behind's
+## straight branch (`seg005.c:868-869`).
+const _EDGE_TYPE_EDGE: int = 1
+
 const _FNV_OFFSET: int = 0x811C9DC5  ## FNV-1a 32-bit offset basis
 const _FNV_PRIME: int = 0x01000193   ## FNV-1a 32-bit prime
 const _FNV_MASK: int = 0xFFFFFFFF
@@ -203,6 +208,15 @@ static func _control(s: Dictionary, input: PopInput) -> void:
 		"crouch_cycle":
 			if input.y != 1:
 				_start_seq(s, "stand_up")         # control_crouched: down released → seq_49 (seg005.c:313-332)
+		"soft_land_crouch":
+			# control_crouched is dispatched on FRAME f109 whatever sequence
+			# reached it (`seg005.c:285-287`): soft_land_crouch loops on f109
+			# waiting for this dispatch. Down keeps the stoop; released →
+			# stand-up (seq_49, `seg005.c:331-332`). Down+forward crouch-hop
+			# (seq_79, `seg005.c:334-337`) is not modeled, matching the
+			# crouch_cycle arm above.
+			if input.y != 1:
+				_start_seq(s, "stand_up")
 		"grab_hang", "hang", "hang_cycle", "hang_straight":
 			_hang_control(s, input)
 		_:
@@ -550,37 +564,108 @@ static func _hang_release(s: Dictionary) -> void:
 		_start_seq(s, "hang_drop")
 
 
-## Up from stand (`seg005.c:407-424` up_pressed → check_jump_up `836-774`):
-## Shift+Up grabs a ledge ahead-above when one is reachable; otherwise a
-## straight jump up (`seg005.c:783-786`).
+## Up from stand (`seg005.c:407-424` up_pressed → `check_jump_up`,
+## `seg005.c:679-693`): the reference probes with curr_col from
+## determine_col — the m7 column (`seg006.c:0122-0124`, `seg006.c:0690-0692`)
+## — tries the front-above grab lane, then the above-tile lane, and falls
+## back to a straight jump up. The grab is NOT Shift-gated: both the Shift
+## and the plain-Up chains end in `up_pressed` (`seg005.c:379-382`,
+## `seg005.c:428-431`); Shift only decides whether the hang holds afterwards
+## (`seg005.c:798-820`).
 static func _jump_up_from_stand(s: Dictionary) -> void:
+	var dir: int = int(s["dir"])
 	var row: int = int(s["row"])
-	var foot_x := _foot_x(s)
-	var ahead_col: int = _col_of(foot_x) + int(s["dir"])
-	var target: int = _tile(s, row - 1, ahead_col)
-	var through: int = _tile(s, row - 1, _col_of(foot_x))
-	if int(s["input_shift"]) == 1 and not _tile_above_is_floor(through) \
-			and _is_floor(target) and target != PopTables.Tile.WALL:
-		# Lane 1 (`seg005.c:883-884` grab_up_no_floor_behind): the foot stays
-		# ≤ 8 units from the lip (`seg005.c:419-420`).
-		if _is_floor(_tile(s, row, _col_of(foot_x))) and _dist_to_edge(s, foot_x) <= 8:
-			s["x"] = int(s["x"]) + int(s["dir"]) * (_dist_to_edge(s, foot_x) - 9)
-			_start_seq(s, "grab_hang")
-			# The grab commit plays its frame on the arm tick, i.e. the
-			# next tick's _advance runs grab_hang from op 0 → f80 then the
-			# hang sway (reference: seq_15 + play_seq there is the same
-			# observable from stand, `seg005.c:884` + seqtbl grab-hang).
-			_advance(s)
-			return
-		# Lane 2 (`seg005.c:886-887` grab_up_floor_behind): carry the kid
-		# right up to the lip before the jump-grab.
-		_start_seq(s, "jump_grab_up")
+	var col := _det_col(s)
+	# Lane 1 (`seg005.c:682-685`): through = above the char, target = the
+	# tile front-above → grab_up_with_floor_behind.
+	if _can_grab(_tile(s, row - 1, col), _tile(s, row - 1, col + dir)):
+		_grab_up_with_floor_behind(s)
 		return
-	# Shift not pressed, or nothing grabbable ahead-above → straight up.
+	# Lane 2 (`seg005.c:686-690`): through = behind-above, target = the tile
+	# directly above → jump_up_or_grab.
+	if _can_grab(_tile(s, row - 1, col - dir), _tile(s, row - 1, col)):
+		_jump_up_or_grab(s, col)
+		return
+	# Nothing grabbable → the straight jump up (`seg005.c:691-692`).
 	if not _jump_up_route(s):
 		return
 	_start_seq(s, "jump_up")
-	_advance(s)
+
+
+## can_grab (`seg006.c:1588-1608`): the through tile must be neither a wall
+## nor floor, and the target tile must be floor. The doortop / shaking-loose
+## modifiers are unmodeled (no doortop grab in our rooms).
+static func _can_grab(through: int, target: int) -> bool:
+	if through == PopTables.Tile.WALL or _is_floor(through):
+		return false
+	return _is_floor(target)
+
+
+## determine_col's column (`seg006.c:0122-0124`): m7 of dx_weight — the
+## source subtracts 7 unconditionally (`seg006.c:0690-0692`), it is not
+## direction-relative (unlike `_m7_x`, see the A5.1 GAP list).
+static func _det_col(s: Dictionary) -> int:
+	return _col_of(_foot_x(s) - 7)
+
+
+## distance_to_edge_weight (`seg006.c:1305-1317`): distance from the m7
+## column to the edge the char faces — facing right → 13 − xl (TILE_RIGHTX),
+## facing left → xl (`types.h:1407`).
+static func _dist_to_edge_weight(s: Dictionary) -> int:
+	var m: int = _foot_x(s) - 7
+	var xl: int = m - (58 + 14 * _col_of(m))
+	return (13 - xl) if int(s["dir"]) == 1 else xl
+
+
+## get_edge_distance (`seg004.c:067C-0433`), reduced to the tile kinds we
+## model: floor ahead in the char's row → (EDGE_TYPE_FLOOR, 11); no floor
+## ahead → (EDGE_TYPE_CLOSER, distance_to_edge_weight()) (`seg004.c:417-427`).
+## The wall-typed branch (gate/doortop/mirror/chomper `dist_from_wall_forward`)
+## is unmodeled — the sim has no wall bump (reported simplification).
+static func _edge_distance(s: Dictionary, col: int) -> Array:
+	if _is_floor(_tile(s, int(s["row"]), col + int(s["dir"]))):
+		return [2, 11] # EDGE_TYPE_FLOOR
+	return [0, _dist_to_edge_weight(s)]   # EDGE_TYPE_CLOSER
+
+
+## grab_up_with_floor_behind (`seg005.c:858-881`): commit Char.x by the edge
+## distance, then either the straight grab (seq_8 = jumphangMed, no dx — the
+## commit already carried the kid) or the forward grab (seq_24 =
+## jumphangLong, whose dx +1/+2/+1 across f78–f80 makes up the "distance − 4"
+## shortfall). JUMP_STRAIGHT_CONDITION is the uncorrected source form
+## (`seg005.c:868-869`): distance < 4 && edge_distance < 4 && edge_type != EDGE.
+static func _grab_up_with_floor_behind(s: Dictionary) -> void:
+	var dir: int = int(s["dir"])
+	var distance := _dist_to_edge_weight(s)
+	var edge := _edge_distance(s, _det_col(s))
+	if distance < 4 and int(edge[1]) < 4 and int(edge[0]) != _EDGE_TYPE_EDGE:
+		s["x"] = int(s["x"]) + dir * distance
+		_start_seq(s, "jump_grab_straight")
+	else:
+		s["x"] = int(s["x"]) + dir * (distance - 4)
+		_start_seq(s, "jump_grab_forward")
+
+
+## jump_up_or_grab (`seg005.c:713-738`): the grabbable tile sits directly
+## above the char. Under 6 units from the edge → a plain jump up; no floor
+## behind → grab_up_no_floor_behind (x += distance − 10, seq_16 =
+## jumpbackhang, whose own dx −5 across f77–f80 completes it); floor behind →
+## step back `distance − TILE_SIZEX`, re-probe, then the shared commit
+## (`seg005.c:728-735`).
+static func _jump_up_or_grab(s: Dictionary, col: int) -> void:
+	var dir: int = int(s["dir"])
+	var distance := _dist_to_edge_weight(s)
+	if distance < 6:
+		if not _jump_up_route(s):
+			return
+		_start_seq(s, "jump_up")
+		return
+	if not _is_floor(_tile(s, int(s["row"]), col - dir)):
+		s["x"] = int(s["x"]) + dir * (distance - 10)
+		_start_seq(s, "jump_grab_up")
+		return
+	s["x"] = int(s["x"]) + dir * (distance - PopTables.TILE_W)
+	_grab_up_with_floor_behind(s)
 
 
 ## Straight-up route guard: nothing above blocks the jump (through tile
@@ -603,12 +688,6 @@ static func _above_is_climbable(s: Dictionary) -> bool:
 	if _is_floor(upper) or upper == PopTables.Tile.WALL:
 		return false
 	return true
-
-
-## The tile directly above the char's column (`seg006.c:1005-1007`): floor
-## there means the hands hit the lip row right above him.
-static func _tile_above_is_floor(through: int) -> bool:
-	return _is_floor(through)
 
 
 ## Down from stand (`seg005.c:461-495` down_pressed): at a floorless edge
