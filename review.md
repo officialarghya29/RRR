@@ -78,6 +78,23 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 
 **Never cut:** Stage A exit criteria (sandbox with duel and traps, determinism test green, PARITY.md populated for plan §4.3 items, A5.1 + A5.2).
 
+### Ranked trim list (Session 009, Step 1 — decision input; plan.md untouched)
+
+The §9 standing order above stays the baseline (A4.4 → A4.5 → A5.3 → A5.4 → B2.4 → B3.3 → B4.5 → B5.6 → last-resort A3.3). This list goes further, ranked by **hours recovered per unit of damage** (savings are my unconfirmed `[M]` estimates; the shortfall they must close is 24–31 h of remaining [M] work vs ≤23.7 h confirmed available — review.md S008). The rebuilt set reads as three levels: **L1** Collapsing Gate (B2.1), **L2** Hall of Echoes (B2.2), **L3** Time Warden boss level (B2.3 = catalog Level 5′).
+
+| Rank | Option | Saves [M] | Losses | Risks + mitigation |
+|---|---|---|---|---|
+| 0 | **Formalize cut-list #1 + #2** (A4.4 loose-floor mob, A4.5 potions/skeleton — both already `[N]`, unstarted) | ~2–3 h | Two optional mechanics never ship; loose floors already exist as traps (A4.2), so the gap is the mob variant only | None — the plan itself says "skip if time"; formalizing is free. Never touches Stage A exit |
+| 1 | **SFX-only, no music** (cut B4.2's 2 LMMS loops; keep B4.1 jsfxr SFX + B4.3 echo audio identity; answers open **Q4**/plan:783 as "no music track") | ~2 h | Title/explore + boss music absent; B5.3's "music bed" becomes SFX-driven edit | Video reads thinner without a bed → mitigate in the Kdenlive cut with paced SFX and tempo; deliverables (plan §9) require no music explicitly. Gameplay untouched |
+| 2 | **Stand-in procedural guard/warden art** (defer the B4.4 guard + Time Warden Aseprite passes; prince + environment passes stay in scope; reuses the existing A3.3 procedural style) | ~2–3 h | Character art stays block-style in a deliverable-worthy beat (the duel + boss are in the video) | Visual impression is the competition-facing risk → mitigate with silhouette/palette consistency; trigger-activated: only if W3 exit (Oct 19) is missed |
+| 3 | **Merge the duel tutorial into L3** (L2 becomes thesis-only; the block/parry teaching beat becomes L3's antechamber, where the boss fight needs the framework anyway) | ~1–1.5 h | No standalone safe-duel teaching moment; L2 accept "duel teaches block/parry safely" moves to L3 | L3 scope creep and pacing (teach → boss ≤3 min); mitigation: one small antechamber room reusing L1's grid. Video's duel beat survives |
+| 4 | **Lighter L2** (same "one recording, two mechanisms" thesis, smaller floorplan — fewer rooms, reuses L1's room grammar instead of new art) | ~1–1.5 h | Less content in the thesis level; smaller exploration | Thesis must stay legible: keep both mechanisms, cut rooms only. Accept stays "completable ≤3 min" |
+| — | *Last resort (cut-list #9): full A3.3 procedural incl. prince* | ~3–4 h | All character art procedural | Only if D14 (Oct 17) itself slips; triggers the fallback video path too |
+
+**Recommended package (closes the gap with margin, ranked items 0+1+3+4):** formalize A4.4/A4.5, ship SFX-only, merge the duel tutorial into L3, and build L2 lighter — **≈6–8 h recovered** vs the 0.3–7.3 h shortfall, leaving headroom for D14 slippage. **Rank 2 is the trigger-activated reserve** (activate at W3 exit if behind); last resort only with a D14 miss. **Never trimmed here:** Stage A exit criteria, determinism gate, PARITY, A5.2 + playtest, B0/D14, and the four §9 deliverables (build, video, GDD, slides + license record).
+
+→ **Needs the user's decision** (alongside Q4): accept/adjust the package; each line is reversible until picked up in a session.
+
 ---
 
 ## Time Ledger

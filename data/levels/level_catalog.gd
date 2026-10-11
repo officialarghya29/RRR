@@ -63,16 +63,16 @@ static func sim_level_one() -> Dictionary:
 		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
 		 T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR, T.GATE, T.FLOOR,
 		 T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT, T.FLOOR, T.FLOOR, T.FLOOR],
-		# ground floor with the one-column spike pit at 9
+		# ground floor with the one-column spike pit at 10
 		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
-		 T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
 		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
 		 T.FLOOR, T.FLOOR],
 		# spike floor under the pit, one column of drift margin each side
 		[T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
-		 T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
-		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
-		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY],
+		 T.EMPTY, T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY],
 	]
 	return {
 		"id": &"sim_gate",
@@ -82,7 +82,7 @@ static func sim_level_one() -> Dictionary:
 		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
 		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
 		"tiles": tiles,
-		"mods": {"2,8": 3, "2,9": 3, "2,10": 3},
+		"mods": {"2,9": 3, "2,10": 3, "2,11": 3},
 		"entities": {
 			"gates": {"0,19": {"mod": PopTables.GATE_CLOSED, "type": -1}},
 			"plates": {"0,16": 0},

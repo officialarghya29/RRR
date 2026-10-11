@@ -68,6 +68,9 @@ func _ready() -> void:
 	_section("B0 echo on the sim path (plan B0.1 step 4)")
 	_test_b0_echo()
 
+	_section("B0 completability smoke (plan 8 gate 5)")
+	_test_b0_completability()
+
 	_section("Health component")
 	_test_health()
 
@@ -3104,3 +3107,158 @@ func _test_b0_echo() -> void:
 	container.queue_free()
 	w.free()
 	w2.free()
+
+
+# --- Plan 8 gate 5: the level completability smoke --------------------------
+#
+# "Scripted input plays the shipped level to its exit event headless."
+# The script below is exactly what a player's hands do, segment by segment:
+# run off the start floor, land on the ground floor, run up to the pit and
+# jump it, stop, edge-safe-walk into the grab window, Shift+Up to hang,
+# Shift+Up to climb onto the ledge, then hold right — pressing the plate,
+# waiting out the §9 gate schedule pinned against it — and walk into the
+# open exit door. It runs through the REAL scene (GameManager.load_level →
+# SimWorld → SimPlayer), so exit_reached → complete_level is exercised
+# end to end, not called directly.
+#
+# What this gate proves: the level is FINISHABLE by a human today. What it
+# deliberately does not prove: that it is fun, fair or readable — **not
+# verified, needs human playtest** (D14's acceptance half).
+
+func _test_b0_completability() -> void:
+	GameManager.load_level(0)
+	check(GameManager.state == GameManager.State.PLAYING and GameManager.player is SimPlayer,
+		"gate 5 loads sim level 1 through the real scene (state %s)" % str(GameManager.state))
+	if not (GameManager.player is SimPlayer):
+		GameManager.return_to_menu()
+		return
+	var world: SimWorld = (GameManager.player as SimPlayer).world
+
+	var events: Array = []
+	var checkpoints: Array = []
+	var completed := [false]
+	var on_ent := func(kind: StringName, key: String) -> void:
+		events.append("%s:%s" % [String(kind), key])
+	var on_cp := func(id: StringName) -> void: checkpoints.append(String(id))
+	var on_done := func(_id: StringName) -> void: completed[0] = true
+	EventBus.sim_entity_event.connect(on_ent)
+	EventBus.checkpoint_reached.connect(on_cp)
+	EventBus.level_completed.connect(on_done)
+
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var jump := PopInput.make(1, -1)     # fwd+Up: the jump the player holds
+	var edge_walk := PopInput.make(1, 0, 1)  # Shift+fwd: slow, edge-safe walk
+	var grab := PopInput.make(0, -1, 1)  # Shift+Up: hang, then climb
+
+	# (1) Run off the start floor and land on the ground floor (1-row, soft).
+	var g := 0
+	while int(world.state["row"]) != 1 and int(world.state["dead"]) == 0 and g < 90:
+		world.step_with(right)
+		g += 1
+	check(int(world.state["row"]) == 1 and int(world.state["dead"]) == 0,
+		"gate 5 the kid drops to the ground floor alive (row %d dead %d x %d, %d ticks)" % [
+			int(world.state["row"]), int(world.state["dead"]), int(world.state["x"]), g])
+
+	# (2) Land the drop (step_fall → soft_land → stand_up) and reach a
+	# launchable run state on the ground floor. The take-off window for the
+	# col-10 pit (mouth x 198, far lip 212) is x ∈ [150, 178]: run_jump's
+	# ground roll-in f34-38 covers +19 (must stay below the mouth) and the
+	# airborne arc lands at f44 (+62, must reach past 212). startrun enters
+	# at x 167 — inside the window — so the loop exits there, BEFORE x
+	# reaches 181 (where run_cycle begins and the window has closed).
+	var g2 := 0
+	while int(world.state["dead"]) == 0 and g2 < 60 and not (
+			int(world.state["row"]) == 1
+			and (String(world.state["seq"]) == "startrun" or String(world.state["seq"]) == "run_cycle")
+			and int(world.state["x"]) >= 150 and int(world.state["x"]) <= 178):
+		world.step_with(right)
+		g2 += 1
+	var takeoff := int(world.state["x"])
+
+	# (3) fwd+Up from the run-up starts run_jump: roll in on the ground,
+	# arc the pit, land past the far lip. Held input is swallowed by the
+	# locked sequence, so keep holding through launch and flight.
+	var g3 := 0
+	while String(world.state["seq"]) != "run_jump" and int(world.state["dead"]) == 0 and g3 < 8:
+		world.step_with(jump)
+		g3 += 1
+	while String(world.state["seq"]) == "run_jump" and int(world.state["dead"]) == 0 and g3 < 40:
+		world.step_with(jump)
+		g3 += 1
+	check(int(world.state["row"]) == 1 and int(world.state["dead"]) == 0 and int(world.state["x"]) > 198,
+		"gate 5 the jump clears the spike pit (takeoff %d -> x %d, row %d dead %d)" % [
+			takeoff, int(world.state["x"]), int(world.state["row"]), int(world.state["dead"])])
+
+	# (4) Stop, then edge-safe-walk into the grab window (det_col = lip-1:
+	# x ∈ 250..263 makes the check_jump_up probe see the ledge lip col 14).
+	var g4 := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and g4 < 30:
+		world.step_with(neutral)
+		g4 += 1
+	var g5 := 0
+	while int(world.state["x"]) < 250 and int(world.state["row"]) == 1 \
+			and int(world.state["dead"]) == 0 and g5 < 40:
+		world.step_with(edge_walk)
+		g5 += 1
+	var g5b := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and g5b < 15:
+		world.step_with(neutral)
+		g5b += 1
+	check(String(world.state["seq"]) == "stand" and int(world.state["row"]) == 1
+			and int(world.state["x"]) >= 250 and int(world.state["x"]) <= 263,
+		"gate 5 the kid stands in the grab window (x %d row %d seq %s)" % [
+			int(world.state["x"]), int(world.state["row"]), String(world.state["seq"])])
+
+	# (5) Shift+Up: grab the ledge lip and hang.
+	var g6 := 0
+	while String(world.state["seq"]) != "hang" and int(world.state["dead"]) == 0 and g6 < 30:
+		world.step_with(grab)
+		g6 += 1
+	check(String(world.state["seq"]) == "hang",
+		"gate 5 Shift+Up grabs the ledge (seq %s after %d ticks)" % [
+			String(world.state["seq"]), g6])
+
+	# (6) Keep Shift+Up: climb onto the ledge.
+	var g7 := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and g7 < 40:
+		world.step_with(grab)
+		g7 += 1
+	var stand_col := PopSim._col_of(PopSim._foot_x(world.state))
+	check(String(world.state["seq"]) == "stand" and int(world.state["row"]) == 0
+			and PopSim._is_floor(PopSim._tile(world.state, 0, stand_col)),
+		"gate 5 the climb-out stands on the ledge (seq %s row %d col %d)" % [
+			String(world.state["seq"]), int(world.state["row"]), stand_col])
+
+	# (7) Hold right: cross the plate, get pinned on the closed gate, watch it
+	# run the §9 schedule, walk through, and step into the open exit door.
+	# The loop ends when the SCENE completes the level (exit_reached →
+	# GameManager.complete_level) — the end-to-end flow, never called here.
+	var g8 := 0
+	while GameManager.state == GameManager.State.PLAYING and int(world.state["dead"]) == 0 and g8 < 300:
+		world.step_with(right)
+		g8 += 1
+
+	EventBus.sim_entity_event.disconnect(on_ent)
+	EventBus.checkpoint_reached.disconnect(on_cp)
+	EventBus.level_completed.disconnect(on_done)
+
+	check(events.has("press:0,16"),
+		"gate 5 crossing the ledge presses the plate (got %s)" % str(events))
+	check(events.has("open:0,19"),
+		"gate 5 the linked gate parks open while the kid waits (got %s)" % str(events))
+	check(checkpoints.has("ground") and checkpoints.has("ledge"),
+		"gate 5 both position triggers fire on the way (got %s)" % str(checkpoints))
+	check(int(world.state["dead"]) == 0 and int(world.state["hp"]) == PopTables.KID_HP_START,
+		"gate 5 the run takes no damage (dead %d hp %d)" % [
+			int(world.state["dead"]), int(world.state["hp"])])
+	check(completed[0] and GameManager.state == GameManager.State.LEVEL_COMPLETE,
+		"gate 5 walking into the exit door completes the level end to end (completed %s, state %s, x %d, %d ticks)" % [
+			str(completed[0]), str(GameManager.state), int(world.state["x"]), g8])
+
+	GameManager.return_to_menu()
+	check(GameManager.state == GameManager.State.MENU,
+		"gate 5 teardown returns to the menu (state %s)" % str(GameManager.state))
+	# FINISHABLE ≠ FUN: this smoke proves the level can be completed by a
+	# human today; feel, fairness and readability are **not verified, needs
+	# human playtest** (D14 acceptance half, hand-off checklist).
