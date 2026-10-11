@@ -22,15 +22,15 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-10 (Session 008) |
-| Days to deadline | 22 (as of 2026-10-09) |
-| Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** · **A5.1 Done** (S007: parity harness 441/0, reference-accurate grab/climb lanes, PARITY ours-vs-SDLPoP columns) · **B1 ring done** · **B0 blocked on the design-note approval** |
-| Sessions logged | 7 entries (000, 002, 003, 004, 005, 006, 007). Session 001 has no entry — see Time Ledger |
-| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining. S004, S005, S006 and S007 hours pending the user's confirmed figures (not estimated here). |
-| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, 5/5 levels clean, 441 passed / 0 failed** (413 at S006 close + 28 A5.1 harness checks); A3 feel unverified. |
+| Last updated | 2026-10-11 (Session 009) |
+| Days to deadline | 20 (as of 2026-10-11) |
+| Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** · **A5.1 Done** (S007) · **B0 Done (S009)** — game boots on pop_sim, `--legacy-physics` fallback, one hand-built level scripted-complete · **B1 ring + echo v2 done (B1.1/B1.2 ticked S009); B1.3 open** |
+| Sessions logged | 9 entries (000, 002, 003, 004, 005, 006, 007, 008, 009). Session 001 has no entry — see Time Ledger |
+| Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining (upper bound). S004–S009 hours pending the user's confirmed figures (not estimated here). |
+| Test status | **./verify.sh exit 0, ALL CHECKS PASSED — import ok, both boot paths clean (sim level 1 + legacy 1–5), 490 passed / 0 failed** (441 at S008 + 49 B0/gate-5 checks); gate-5 completability is scripted-only — **not verified, needs human playtest**; A3 feel unverified. |
 | Parity checks passing | 6 / 8 — P1, P2, P3, P4, P6, P8 ✅ matching (source-matched; P1/P8 additionally [O]-observed); P5 ◐ (spike floor armed + 0xFF-on-kill asserted in S007, cycle length not); P7 ◐ source-matched only (no SDLPoP transcript observed) |
-| Open blockers | **B0 design note awaiting approval** — the S008 brief's approval field was blank, so Step 2/3 did not start; this is the one blocker between the plan and the vertical slice. **D14 checkpoint: Oct 17 EOD** — one level human-completable on the new sim path or fall back to the legacy path for the video. A3 feel not verified headlessly (playtest pending). Hours S004–S008 [N] — the 23.7 h remaining is an upper bound. Push NOT YET. Observation still partial (I3). |
-| Cut line status | Nothing cut yet. Stage A exit now **4/5**: determinism ✅, PARITY populated ✅ (with ours-vs-SDLPoP columns), A5.1 ✅ — **A5.2 + the human playtest remain**. No cut-list trigger raised. |
+| Open blockers | **Two decisions needed from you: the S009 ranked trim-list package + Q4 (music).** **D14 checkpoint: Oct 17 EOD** — the scripted measure is done (sim level 1 completes headless, 490/0); the "human-completable" clause needs the pending playtest; the fallback (legacy path polished for the video) stays intact behind `--legacy-physics` and is verify-gated. A3 feel not verified (playtest pending). Hours S004–S009 [N]. Push NOT YET. Observation still partial (I3). |
+| Cut line status | Nothing cut yet — the S009 Step-1 ranked trim list proposes a ≈6–8 h package (formalize A4.4/A4.5, SFX-only, merge duel tutorial into L3, lighter L2) **awaiting your decision**. Stage A exit still **4/5** (A5.2 + playtest remain). **B0 done — the Stage-B bridge is crossed; D14 on track on the scripted measure.** |
 | Competition deliverables | Build ⬜ · Video ⬜ · GDD ⬜ · Slides ⬜ · License record ⬜ |
 
 ### Weekly checkpoints (from plan §9)
@@ -38,7 +38,7 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 | Week | Dates | Exit checkpoint | Met? |
 |---|---|---|---|
 | W1 | Oct 6–12 | Sandbox playable; PARITY.md v1; refs removed from repo; CI online | ◐ 3/4 — sandbox boots (playtest pending), PARITY.md v1 ✅, refs removed ✅; CI workflow landed, not pushed |
-| W2 | Oct 13–19 | Stage A exit criteria met; one level on new core; Echo v2 | ⬜ — **hard checkpoint Oct 17 (D14)**: one level human-completable on the new sim path, else fall back to the legacy path for the video |
+| W2 | Oct 13–19 | Stage A exit criteria met; one level on new core; Echo v2 | ◐ — "one level on new core" ✅ scripted (B0 + gate 5, S009, 490/0); Echo v2 ✅ (B1.1/B1.2); **D14 Oct 17** still needs the human playtest; Stage A exit additionally needs A5.2 + playtest |
 | W3 | Oct 20–26 | 3 levels completable; SFX in; Linux + Windows builds validated | ⬜ |
 | W4 | Oct 27–30 | Video cut; GDD/slides updated; exports boot-tested; suite green | ⬜ |
 | Buffer | Oct 31 | Submitted | ⬜ |
@@ -55,8 +55,8 @@ Status: `Not started` · `In progress` · `Blocked` · `Done` · `Cut`
 | A3 | Presentation shell | 6 | In progress — SimClock + `pop_view` sandbox + input latch landed; feel unverified | 004 |
 | A4 | Traps, tiles, duels | 12 | In progress — **A4.1, A4.2 and A4.3 done (A4.3 ticked S006: reach-gated duel, reference decision bands, spike/chomper deaths for both parties)**; A4.4–A4.5 pending | 005, 006 |
 | A5 | Parity verification | 7 | In progress — **A5.1 done (S007)**: fixed-input harness P1–P8 + 2 controls vs PARITY rows (441/0), grab/climb lanes rebuilt on the reference, PARITY ours-vs-SDLPoP columns; A5.2 pending (user-manual, checklist in S007) | 007 |
-| B0 | Bridge decision (rebase on sim) | 2 | Blocked — design note awaiting user approval (S007); no code until approved | 007 |
-| B1 | Temporal Echo, input-level | 6 | In progress — thin **input-byte echo on the sim** done (record/replay, one-bit divergence) + **bounded 96-byte ring with per-tick event vectors** (S006); B1.1/B1.2 unticked, Stage-B bridge pending | 005, 006 |
+| B0 | Bridge decision (rebase on sim) | 2 | **Done (S009)** — B0.1 ticked: game boots on pop_sim (`SimWorld`), `--legacy-physics` fallback intact, one hand-built room-grid level scripted-complete; verify.sh green on both paths | 007, 009 |
+| B1 | Temporal Echo, input-level | 6 | In progress — ring + event vectors (S006); **B1.1 + B1.2 ticked (S009)**: recorder v2 = byte-per-tick into the ring, echo = second sim participant, determinism replays through a live sim, two-echoes-identical-plate-events test; **B1.3 open** (echo visibility to sim-side plates + tutorial-puzzle test) | 005, 006, 009 |
 | B2 | Three re-themed levels | 10 | Not started | |
 | B3 | Combat and boss | 4 | Not started | |
 | B4 | Audio and art | 6 | Not started | |
@@ -110,12 +110,63 @@ The §9 standing order above stays the baseline (A4.4 → A4.5 → A5.3 → A5.4
 | 006 | 2026-10-09 | [N] | 10.3 (S004–006 pending) | — | Step 0 audit answers (integrity outputs, B1 status, A4.1/A4.2 provenance tables + correction legitimacy, sim-calibrated relabels); B1 bounded ring 96 B + event vectors (`85af8a2`, 351/0); A4.3 reach + decision bands + trap deaths + PARITY §20 (`e98f0fd`, 413/0); A4.3 ticked; Stage A exit position reported. Hours pending the user's confirmed figure. |
 | 007 | 2026-10-09 | [N] | 10.3 (S004–007 pending) | — | Step 0 legal rework (§20 + guard tables → own schema, `b3d7a60`/`f5caf79`/`1c32db2`); B1 gap list + B0 design note (awaiting approval); **A5.1 parity harness** P1–P8 + C1/C2 with the stand-Up grab lanes rebuilt on `check_jump_up` (`b6b0c70`, 441/0); PARITY measured-in-ours vs measured-in-SDLPoP columns; A5.1 ticked. Hours pending the user's confirmed figure. |
 | 008 | 2026-10-10 | [N] | 10.3 (S004–008 pending) | — | Session 008: Step 0 integrity green (441/0, both legal greps empty); **D14 Oct-17 fallback checkpoint** recorded; B0 Step 2/3 NOT started (approval input blank in the brief); hand-off checklist written (playtest, A5.2 OBS clip, push+CI). plan.md untouched. Hours pending the user's confirmed figure. |
+| 009 | 2026-10-11 | [N] | 10.3 (S004–009 pending) | — | Session 009: Step 0 integrity green (441/0); Step 1 **ranked trim list** (decision input, in this file); Step 2 **B0 vertical slice** — game boots on pop_sim, one hand-built level, puzzle on sim events, exit at the door, echo replays input bytes (`393fb99`, `168c1b9`, `2c96d27`); Step 3 **gate 5 scripted ✅** — pit layout aligned + takeoff-window jump scripted (`d7902f0`, 490/0, both paths clean); **B0.1/B1.1/B1.2 ticked with evidence, B1.3 open**. Gate-5 state: scripted completability proven — **not verified, needs human playtest**. Hours pending the user's confirmed figure. |
 
 ---
 
 ## Session Log
 
 <!-- Newest first. Copy the template below for each new session. -->
+
+### Session 009: 2026-10-11 — Step 0 integrity ✅ (441/0); ranked trim list; **B0 slice landed (3 commits)**; **gate 5 scripted ✅ (490/0)**; B0.1/B1.1/B1.2 ticked, B1.3 open
+_(entry opened at session start and completed at close)_
+
+**Baseline at session start**
+- Branch `dev/pop-rebuild`, HEAD `d593a17` (S008 close); tracked tree clean; untracked scratch (never committed): `tools/frame_decode_check.py`, `tools/smoke_pop.gd`, `tools/smoke_pop.gd.uid`.
+- Last green: `verify_s008_step0.log` — **441 passed / 0 failed, ALL CHECKS PASSED, exit=0**.
+
+**Inputs as pasted:** B0 design note **approved** in the S009 brief (the Step-2 gate opened; the S007/S008 hold is lifted). Playtest "not done yet"; hours `[N]`; push NOT YET; Arghya not counted.
+
+**Step 0 — integrity (green)**
+- `./verify.sh` → **441/0, exit=0** at session start — matched the expected count.
+- `git status --short` → only the 3 untracked scratch files. Both legal greps empty: `git ls-files | grep -E "\.tools|\.log|\.patch|Original|study|SDLPoP|4dprinceprsia"` → nothing; `git log --all --oneline -- 4dprinceprsia SDLPoP-1.23 study` → nothing.
+
+**Step 1 — ranked trim list (in this file, committed with `d7902f0`; plan.md untouched)**
+- "Ranked trim list" section above: 5 ranked options + last resort, ordered by hours recovered per unit of damage. Recommended package (formalize A4.4/A4.5, SFX-only, merge the duel tutorial into L3, lighter L2) recovers **≈6–8 h** vs the 24–31 h [M] work vs ≤23.7 h available gap. **Needs your decision**, alongside Q4 (music).
+
+**Step 2 — B0 vertical slice (3 commits: `393fb99`, `168c1b9`, `2c96d27`)**
+- **B0 steps 1–2 (`393fb99`):** the game boots on the sim — `SimWorld` owns SimClock + `PopSim` + the `PopLevel` entities and emits sim events on EventBus; `SimPlayer`/`SimLevelView` render sim state with the existing lerp; one hand-built room-grid level in `data/levels/level_catalog.gd`; `--legacy-physics` boot flag (`scripts/main/main.gd`) keeps the old stack; `verify.sh` boot gate now boots **both** paths (sim level 1 + legacy levels 1–5).
+- **B0 steps 3+5 (`168c1b9`):** the plate→gate puzzle runs on sim events, and the level ends at the exit-door event (GameManager consumes sim milestones; level-complete flow).
+- **B0 step 4 (`2c96d27`):** the echo records input bytes (`TemporalManager.record_sim_tick` → PopReplay ring) and replays as a **second sim participant** (`spawn_sim_echo` → `SimEcho`); the legacy snapshot path stays untouched behind `--legacy-physics`.
+- Suite: 441 → **490** checks.
+
+**Step 3 — gate-5 completability smoke (`d7902f0`)**
+- Two defects fixed, **assertions unchanged**: (a) the sim level's pit put the hole (col 10), spikes (row 2, cols 9/10/11) and damage mods (`2,9`/`2,10`/`2,11`) in different columns — all three rows now agree (26 cols each); (b) the test's phases 1–3 drove input during fall-recovery, where input is swallowed — they now wait for a launchable run state (startrun/run_cycle inside the x∈[150,178] take-off window) before pressing fwd+Up. Same checks, fixed loop gates.
+- Tracer (`tools/smoke_pop.gd`, untracked): take-off x=167 → lands x=234 row 1 → grab x=256 → climb x=268 row 0 → gate opens (mod 228) → exit at x=357, **dead=0, hp=3**.
+- `./verify.sh` → **490 passed / 0 failed, ALL CHECKS PASSED**; boot gate: sim level 1 ok + legacy levels 1–5 ok.
+- **Gate-5 state: scripted completability proven for the shipped sim level; NOT verified, needs human playtest.** One sim level exists (`sim_count()==1`), so gate 5 is met for the whole shipped set; the plan-table "3 levels" smoke stays B2 territory (Parity Tracker row updated).
+
+**Step 4 — close: checkbox evidence (plan.md, checkbox-only)**
+- **B0.1 ticked.** Accept: verify.sh green on **both paths** (boot gate runs sim + legacy every run) ✅; new path passes a full play-through of a single hand-built level ✅ (`_test_b0_completability`, gate 5). Honest note inside the tick: the prose line "enemies consume sim events" is unproven in-level — the gate-5 level has no enemies and the Godot-side enemy scripts don't yet listen to `player_moved` (that wiring is B1.3/B3); the echo and puzzle halves do consume sim events.
+- **B1.1 ticked.** recorder tests updated ✅ (one-byte-per-tick capture; cap test asserts the hard stop at `RING_CAPACITY` and `take.size()==96`); buffer cap enforced ✅ (ring eviction + `at_capacity` stop in `record_sim_tick`); determinism replays through a live sim ✅ (echo state hash == manual `PopSim.step` loop over the recorded bytes; two echoes hash-equal). Event attachment kept — special events ride the per-tick milestone vectors stamped at record time; the byte's `special` field exists but the sim latch doesn't set it (noted in the tick).
+- **B1.2 ticked.** second sim participant from the release moment + final-pose hold ✅; existing assertions still pass with v2 in place — suite 490/0 with v2 live and the legacy path untouched (the old 116 are a subset) ✅; new test: two echoes from the same input buffer → identical plate-timing events (press:0,16 + open:0,19; hash-identical states) ✅.
+- **B1.3 NOT ticked** — echo visibility to sim-side plates + the level-1 tutorial-puzzle test are not done; `_test_b0_echo`'s own comment says so ("What this cannot prove: that an echo makes a puzzle solvable — that is B1.3").
+- **Superseding note:** this closes the S007 Step-1 gap list for B1.1/B1.2 (that list predates B0 step 4). S007's entry stays as written (append-only rule).
+
+**D14 (Oct 17) status:** on track by the scripted measure — the new path has a completable level 6 days before the checkpoint; the D14 clause "human-completable" still needs the pending playtest. If the playtest reveals a blocker, the fallback (legacy path, polished for the video) remains intact behind `--legacy-physics` and is itself verify-gated.
+
+**Files touched this session** (4 code commits + this close):
+- `393fb99`: data/levels/level_catalog.gd; scripts/level/sim_level_view.gd(+.uid); scripts/main/main.gd; scripts/player/sim_player.gd(+.uid); scripts/pop/pop_sim.gd; scripts/pop/sim_world.gd(+.uid); scripts/systems/event_bus.gd; scripts/systems/game_manager.gd; scripts/ui/hud.gd; tests/test_main.gd; verify.sh
+- `168c1b9`: scripts/pop/pop_replay.gd; scripts/pop/sim_world.gd; scripts/systems/event_bus.gd; scripts/systems/game_manager.gd; tests/test_main.gd
+- `2c96d27`: scripts/temporal/temporal_manager.gd; scripts/temporal/sim_echo.gd(+.uid); scripts/pop/pop_replay.gd; scripts/pop/pop_sim.gd; scripts/pop/sim_world.gd; tests/test_main.gd
+- `d7902f0`: data/levels/level_catalog.gd; tests/test_main.gd; review.md (trim list)
+- close: review.md (this entry + trackers), plan.md (3 ticks)
+- **Licensing:** no new assets; nothing new for the Asset Ledger.
+
+**Close**
+- plan.md: B0.1/B1.1/B1.2 ticked with Status notes; B1.3 and Stage B remainder untouched. review.md: this entry + dashboard, W2 row, phase tracker, ledger (009 `[N]`), parity gate row, change index.
+- **Hours:** `[N]` (not stated in the brief; no estimate substituted). Cumulative stays **10.3 / 34 h** (S004–S009 pending). **Playtest:** not done yet. **Push:** NOT YET (nothing pushed). **Decisions needed from you:** (1) the ranked trim-list package (Step 1), (2) Q4 music. **Arghya:** not counted.
+- `.backup/s009_close/` taken; final `./verify.sh` re-run after the doc edits.
 
 ### Session 008: 2026-10-10 — Step 0 integrity ✅ (441/0); D14 Oct-17 fallback checkpoint; B0 Step 2/3 NOT started (approval input blank); hand-off checklist
 _(entry opened and completed in one pass — no code was written this session)_
@@ -900,7 +951,7 @@ Reference values live in tracked `docs/PARITY.md` since Q1 was answered (Session
 | Kinematics parity table | ◐ partial — run/stand-jump + fall + edge-snap + turn/stop rows | ✅ those rows (189/0) | 003 |
 | Duel transcript | ✅ | ✅ | 005 |
 | Echo replay v2 (plus one-bit divergence test) | ◐ thin slice | ✅ thin slice | 005 |
-| Level completability smoke (3 levels) | ⬜ | ⬜ | |
+| Level completability smoke (3 levels) | ✅ — scripted run exists and covers the 1 shipped sim level (`_test_b0_completability`); the 3-level set is B2 | ✅ for the shipped level (scripted run reaches the exit headless, 490/0); **not verified, needs human playtest** | 009 |
 | CI workflow green | ⬜ | ⬜ | |
 
 ---
@@ -941,6 +992,7 @@ Required before submission: 3 completions of L1, 2 of L2, 2 boss kills, on Linux
 
 | Session | Date | Phase | Hours | One-line summary | Tests |
 |---|---|---|---|---|---|
+| 009 | 2026-10-11 | B0 slice landed + gate 5; B0.1/B1.1/B1.2 ticked | [N] | B0 steps 1–5: game boots on pop_sim with the `--legacy-physics` fallback (verify.sh boots both paths), one hand-built room-grid level, puzzle on sim events, exit at the door, echo = input-byte second sim participant (`393fb99`, `168c1b9`, `2c96d27`); gate 5: pit layout aligned + takeoff-window jump scripted (`d7902f0`) — 490/0. B1.3 open; gate-5 human playtest pending; ranked trim list needs a decision. | 49 added (490 total) |
 | 008 | 2026-10-10 | Step 0 integrity; D14 checkpoint; B0 gated off | [N] | Integrity green (441/0, legal greps empty); **D14**: Oct 17 EOD human-completable level on the new sim path or fall back to the legacy path for the video; B0 Step 2/3 not started (approval input blank); hand-off checklist (playtest, A5.2 OBS clip, push+CI). No code written. | 0 added (441 total) |
 | 007 | 2026-10-09 | Step 0 legal rework; A5.1 built and ticked | [N] | §20 + guard tables re-expressed in our own schema (`b3d7a60`, `f5caf79`, `1c32db2`); B1 gap list + B0 design note (awaiting approval); A5.1 parity harness — P1–P8 + C1/C2 vs PARITY rows read at runtime — with the stand-Up grab lanes rebuilt on `check_jump_up`/`grab_up_with_floor_behind`/`jump_up_or_grab` and seq_8/seq_24 added (`b6b0c70`); PARITY measured-in-ours vs measured-in-SDLPoP columns; streams identical to source at every frame. Hours pending user figure. | 28 added (441 total) |
 | 005 | 2026-10-08 | A2.3 ticked; A4.1 + thin B1 + A4.2 + A4.3 built | [N] | Pre-push audit clean (not pushed); A2.3 ticked with caveat; A4.1 gates/plates/level-exit door + `pop_level.gd` room-grid loader (PARITY §9/§10, ±1 tick); thin B1 input-byte echo; A4.2 spike cycle / loose floor / chomper / falling-block crush (PARITY §8/§11); A4.3 guard duel with seeded transcripts (PARITY §12–§14). Two of my own test probes corrected (crush direction, §13 substrings). Hours pending user figure. | 98 added (341 total) |

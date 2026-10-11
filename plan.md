@@ -552,7 +552,7 @@ determinism test green; PARITY.md populated for all §4.3 items; A5.1+A5.2 deliv
 
 ### B0 — The bridge decision (do this before B1) · ~2 h · [M]
 
-- [ ] **B0.1 [M]** **Rebase the game on the sim.** New main gameplay = pop_sim running
+- [x] **B0.1 [M]** **Rebase the game on the sim.** New main gameplay = pop_sim running
       the (re-themed) game; enemies/echoes/puzzles consume sim events. Ship both paths
       behind a boot flag (`--legacy-physics`) until B2 is verified so the current
       vertical slice stays runnable for the video if the worst happens.
@@ -561,21 +561,49 @@ determinism test green; PARITY.md populated for all §4.3 items; A5.1+A5.2 deliv
       **Keep / refactor / discard summary** (from §4.6): keep echo manager, puzzles,
       enemies, HUD, levels-as-data; refactor recorder/echo to input-byte replay;
       replace player controller; discard freeform-motion tuning.
+      **Status (ticked Session 009):** met on both Accept clauses — `./verify.sh`
+      boots every sim level via `SimWorld` AND every legacy level behind
+      `--legacy-physics`, then runs the suite green on each path (490/0,
+      ALL CHECKS PASSED); `_test_b0_completability` scripts a full play-through of
+      the hand-built room-grid level (run-jump the pit → grab → climb → plate →
+      gate → exit, dead=0). Honest caveat: echoes and puzzles consume sim events,
+      but no in-level enemy listens to sim events yet — the gate-5 level has no
+      combat and the Godot-side enemy scripts don't subscribe to `player_moved`
+      (PopGuard exists; the wiring is B1.3/B3 territory). The legacy stack is
+      untouched behind the flag.
 
 ### B1 — Temporal Echo, input-level · ~6 h · [M]
 
-- [ ] **B1.1 [M]** `TemporalRecorder` v2: record `pop_input` bytes per sim tick into a
+- [x] **B1.1 [M]** `TemporalRecorder` v2: record `pop_input` bytes per sim tick into a
       bounded ring (8 s = 96 bytes at 12 fps — trivially small). Keep current event
       attachment (interact presses as `special` bits).
       **Accept:** recorder tests updated; buffer cap enforced; determinism test now
       replays *through a live sim* not transform lerp.
-- [ ] **B1.2 [M]** `TemporalEcho` v2: a full second sim participant replaying input
+      **Status (ticked Session 009):** met — `TemporalManager.record_sim_tick` pushes
+      one input byte + event vector + milestones per tick into the PopReplay ring;
+      tests updated (one-byte-per-tick capture; cap test asserts the hard stop at
+      `RING_CAPACITY` with `take.size() == 96`); the 96-byte cap is enforced (ring
+      eviction + `at_capacity` stop); determinism replays through a live sim (echo
+      state hash == a manual `PopSim.step` loop over the recorded bytes). Event
+      attachment kept: `record_event` → `_sim_pending_events` → per-tick milestones;
+      the byte's `special` field exists but the sim latch doesn't set it — event ids
+      ride milestones instead (noted, not a silent gap).
+- [x] **B1.2 [M]** `TemporalEcho` v2: a full second sim participant replaying input
       bytes from release moment; final-pose hold preserved (non-loop default);
       echo-only rune, plate weight, enemy-targetable — all existing behaviors keep
       working via the same signal surface.
       **Accept:** existing 116 assertions still pass with v2 in place (they assert
       exactly the behaviors that must survive); new test: two echoes from the same
       input buffer produce identical plate-timing events.
+      **Status (ticked Session 009):** met — `TemporalManager.spawn_sim_echo` spawns a
+      `SimEcho` (second sim participant stepping `PopSim.step` from the release
+      moment, final-pose hold asserted); the legacy snapshot path stays intact for
+      `--legacy-physics`, and the full suite (490/0 — the old 116 are a subset) passes
+      with v2 live; new test: two echoes from the same input buffer produce identical
+      plate-timing events (press:0,16 + open:0,19; two echoes hash-equal). The
+      rune/plate/enemy-targetable behaviors ride the unchanged signal surface
+      (`echo_created`/`echo_expired`/`echo_event_replayed` asserted unchanged); the
+      sim-side plate visibility for an echo is B1.3's scope, not this item.
 - [ ] **B1.3 [M]** Echo visibility to *sim-side* mechanisms (plates in sim) + to
       *Godot-side* enemies (unchanged); energy economy and capacity unchanged.
       **Accept:** level-1 tutorial puzzle solvable identically to today's design.
