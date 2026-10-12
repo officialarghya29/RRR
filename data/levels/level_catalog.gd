@@ -37,7 +37,7 @@ static func count() -> int:
 # -----------------------------------------------------------------------------
 
 static func sim_count() -> int:
-	return 2
+	return 3
 
 
 static func get_sim_level(index: int) -> Dictionary:
@@ -46,6 +46,8 @@ static func get_sim_level(index: int) -> Dictionary:
 			return sim_level_one()
 		1:
 			return sim_level_two()
+		2:
+			return sim_level_three()
 		_:
 			push_error("LevelCatalog.get_sim_level: no sim level at index %d." % index)
 			return {}
@@ -166,6 +168,60 @@ static func sim_level_two() -> Dictionary:
 			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
 			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
 		],
+	}
+
+
+# SIM LEVEL 3 — THE TIME WARDEN (plan B2.3/B3.1; session 011 step 4).
+# Flat boss arena on the sim path: the Warden (SimBoss = the guard framework
+# at high skill) wears a SHIELD that drops ONLY while an ECHO holds the arena
+# plate at col 4. Geometry enforces the rule: the plate sits outside the
+# boss's wake range (ACTIVATE_RANGE 90 — he sleeps while you stand on it),
+# so you cannot fight from the plate yourself; leave it and the shield is up
+# until a released take re-presses it. No softlock: the take can be recorded
+# again after it expires (test-proven). One row, no hazards — the boss IS
+# the challenge. Fight budget: at most 3 minutes (1800 ticks of the 10 fps
+# fight clock). FAIRNESS AND DIFFICULTY NOT VERIFIED — needs human playtest.
+static func sim_level_three() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# spawn 0-6 (plate at 4) | arena | gate 18 | exit doors 19-20
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.GATE, T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT],
+	]
+	return {
+		"id": &"sim_boss",
+		"title": "The Time Warden",
+		"objective": "Record your stand on the arena plate, release, and beat the Warden while your echo holds it.",
+		"seed": 9401,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {},
+		"entities": {
+			# The exit sits behind a gate LINKED to the arena plate: the echo's
+			# hold keeps it parked open (S010's held-plate re-park), so the door
+			# is only reachable WHILE the shield is down. Without the echo the
+			# gate never opens — the Warden's room cannot be walked past (the
+			# sim stops the kid at a closed gate). The kid's own press cannot
+			# buy the crossing either: leaving the plate closes the §9 window
+			# long before col 19.
+			"gates": {"0,18": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,4": 0},
+			"links": [{"plate": "0,4", "gate": "0,18"}],
+			# static open (type -1): the level ends by walking in
+			"exit": {"row": 0, "col": 19, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# The first boss on the sim path (SimBoss): high skill, boss pool,
+		# shield keyed on the echo-held plate "0,4". seed 9401 + 0 = 9401 is
+		# the PROBED duel seed (the scripted counter wins 5 -> 0, kid hp 1).
+		"enemies": {
+			"guards": [{"x_sim": 247, "skill": 4, "seed_offset": 0, "boss": true, "plate": "0,4"}],
+		},
+		# Long hold: a single take can cover the whole fight (120 s at the
+		# 10 fps fight tick = 1200 fight ticks, well over the 3-minute cap).
+		"temporal": {"echo_lifetime": 120.0},
+		"checkpoints": [],
 	}
 
 

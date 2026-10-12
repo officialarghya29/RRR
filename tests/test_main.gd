@@ -80,6 +80,9 @@ func _ready() -> void:
 	_section("Level 2 Hall of Echoes (plan B1.3 + trim L2, session 010)")
 	_test_b13_level2()
 
+	_section("Level 3 boss: the Time Warden's echo-gated shield (plan B2.3/B3.1, session 011)")
+	await _test_b23_level3_boss()
+
 	_section("SoundEvents hook points (session 010 step 4)")
 	_test_sound_events()
 
@@ -2911,8 +2914,8 @@ func _test_b0_sim_path() -> void:
 	var data: Dictionary = LevelCatalog.get_sim_level(0)
 	check(data.size() > 0 and String(data.get("id", "")) == "sim_gate",
 		"B0 sim level 1 loads from the catalog")
-	check(LevelCatalog.sim_count() == 2,
-		"B0 the sim level list carries both sim levels (Session 010 added Hall of Echoes)")
+	check(LevelCatalog.sim_count() == 3,
+		"B0 the sim level list carries all three sim levels (S010 Hall of Echoes, S011 The Time Warden)")
 	var bundle := _b0_dup({"tiles": data["tiles"], "mods": data["mods"], "entities": data["entities"]})
 	var spawn_px: Vector2 = data["spawn"]
 	var spawn_sim_x := int(spawn_px.x / SimWorld.PX_PER_UNIT)
@@ -3663,6 +3666,337 @@ func _test_b13_level2() -> void:
 	# FINISHABLE ≠ FAIR: the scripted runs prove completability and the
 	# mandatory-echo property. Feel, fairness and difficulty are **not
 	# verified, needs human playtest**.
+
+
+# --- Session 011 step 4: level 3 boss, the Time Warden (plan B2.3/B3.1) -----
+#
+# The first boss on the sim path, built on the guard framework: high skill
+# (the cited PARITY §12 profile), a design HP pool, and a SHIELD that drops
+# only while an ECHO holds the arena plate (the kid's own press never
+# counts). Accept (S011 brief): scripted completion WITH the echo; a negative
+# run proving the boss cannot be beaten without it; determinism across two
+# runs; the fight at most 3 minutes (1800 ticks of the 10 fps fight clock);
+# no softlock on echo expiry (the re-record/respawn loop tested). Expected
+# values are PARITY rows where they exist (§12 profile, the 10 fps fight
+# tick); the pool size, cadence and seed are characterization. FAIRNESS AND
+# DIFFICULTY ARE NOT VERIFIED — needs human playtest.
+func _test_b23_level3_boss() -> void:
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var strike := PopInput.make(0, 0, 0, 1)   # special bit 1 = duel strike
+	var block := PopInput.make(0, 0, 0, 2)    # special bit 2 = duel block
+
+	# --- (0) the scene spawns the boss from the level data ---------------
+	GameManager.load_level(2)
+	check(GameManager.state == GameManager.State.PLAYING and GameManager.player is SimPlayer,
+		"level 3 loads on the sim path through the real scene (state %s)" % str(GameManager.state))
+	if not (GameManager.player is SimPlayer):
+		GameManager.return_to_menu()
+		return
+	var world: SimWorld = (GameManager.player as SimPlayer).world
+	var boss := world.get_parent().get_node_or_null("SimBoss") as SimBoss
+	check(boss != null and boss.skill == 4 and boss.shielded
+			and int(boss.guard["hp"]) == SimBoss.BOSS_HP,
+		"level 3 spawns the high-skill Warden shielded with the boss pool (skill %d, shield %s, hp %d)" % [
+			boss.skill if boss != null else -1, str(boss.shielded) if boss != null else "?",
+			int(boss.guard["hp"]) if boss != null else -1])
+	if boss == null:
+		GameManager.return_to_menu()
+		return
+	GameManager.return_to_menu()
+
+	# --- (1) POSITIVE: record on the plate, release, fight, exit ---------
+	var pos := _l3_positive_run()
+	check(bool(pos["completed"]),
+		"level 3 scripted completion WITH the echo (completed %s, kid hp %s, %s fight ticks)" % [
+			str(pos["completed"]), str(pos["kid_hp"]), str(pos["fight"])])
+	check(int(pos["boss_dead"]) != 0 and int(pos["boss_hp"]) == 0,
+		"the Warden falls in the scripted fight (dead %s, hp %s)" % [str(pos["boss_dead"]), str(pos["boss_hp"])])
+	check(int(pos["fight"]) <= 1800,
+		"the fight fits the 3-minute budget (%s fight ticks of the 10 fps clock ≤ 1800)" % str(pos["fight"]))
+	check(int(pos["fight"]) <= 1200,
+		"a single take covers the fight (echo lifetime 120 s = 1200 fight ticks; fought %s)" % str(pos["fight"]))
+	check(int(pos["kid_hp"]) > 0 and int(pos["kid_dead"]) == 0,
+		"the kid survives the duel (hp %s, dead %s)" % [str(pos["kid_hp"]), str(pos["kid_dead"])])
+	check(bool(pos["engaged"]) and int(pos["shield_events"]) >= 1,
+		"the boss bar engages and the echo's stance drops the shield (engaged %s, shield transitions %s)" % [
+			str(pos["engaged"]), str(pos["shield_events"])])
+	
+	# --- (2) NEGATIVE: without an echo the boss cannot be beaten ---------
+	GameManager.load_level(2)
+	var nworld: SimWorld = (GameManager.player as SimPlayer).world
+	var nboss := nworld.get_parent().get_node_or_null("SimBoss") as SimBoss
+	var n_completed := [false]
+	var on_ndone := func(_id: StringName) -> void: n_completed[0] = true
+	EventBus.level_completed.connect(on_ndone)
+	# Walk into the arena and strike in range for the same budget — no take,
+	# no echo: the kid's own plate press (walked over, col 4) never counts.
+	var n1 := 0
+	while int(nworld.state["dead"]) == 0 and n1 < 400 \
+			and absi(int(nworld.state["x"]) - nboss.guard_x) > 15:
+		nworld.step_with(right)
+		n1 += 1
+	var n2 := 0
+	while int(nworld.state["dead"]) == 0 and n2 < 900 and int(nboss.guard["dead"]) == 0:
+		# Fight at the duel's real engagement band: opp = abs + FRONT_OFFSET
+		# (13, both facing), so strikes only connect at abs <= 15 (opp < 29 =
+		# HIT_MAX). Striking from further out whiffs forever (measured: the
+		# skill-4 guard parks at opp 32 and both fighters idle).
+		nworld.step_with(_l3_cmd(nboss, nworld))
+		n2 += 1
+	var absorbed := 0
+	for line: String in nboss.transcript:
+		if String(line) == "boss:shield":
+			absorbed += 1
+	EventBus.level_completed.disconnect(on_ndone)
+	check(int(nboss.guard["hp"]) == SimBoss.BOSS_HP and int(nboss.guard["dead"]) == 0,
+		"WITHOUT an echo the Warden never loses a point (hp %d after %d fight ticks)" % [
+			int(nboss.guard["hp"]), nboss.fight_count()])
+	check(absorbed > 0,
+		"the strikes really happened and were absorbed by the shield (%d boss:shield markers)" % absorbed)
+	check(not n_completed[0] and int(nboss.guard["dead"]) == 0,
+		"the level is not completable without the echo (completed %s, boss alive, state %s)" % [
+			str(n_completed[0]), str(GameManager.state)])
+	GameManager.return_to_menu()
+
+	# --- (3) ECHO EXPIRY: no softlock — shield returns, re-record wins ---
+	GameManager.load_level(2)
+	var eworld: SimWorld = (GameManager.player as SimPlayer).world
+	var eboss := eworld.get_parent().get_node_or_null("SimBoss") as SimBoss
+	# take 1: settle on the plate, release — the kid is still safe here
+	# (the plate sits outside the boss's 90-unit wake range).
+	check(TemporalManager.start_recording(), "expiry flow: the take begins at spawn")
+	var e1 := 0
+	while PopSim._col_of(PopSim._foot_x(eworld.state)) != 4 and e1 < 40:
+		eworld.step_with(right)
+		eworld.step_with(neutral)
+		e1 += 1
+	var e1b := 0
+	while String(eworld.state["seq"]) != "stand" and e1b < 15:
+		eworld.step_with(neutral)
+		e1b += 1
+	_l3_ticks8(eworld)
+	TemporalManager.stop_recording()
+	# The echo replays the take from its start (the walk from spawn), so its
+	# stance reaches the plate a beat after release - step until it does.
+	var esh := 0
+	while eboss.shielded and esh < 150:
+		_l3_neutral(eworld)
+		esh += 1
+	check(TemporalManager.echo_count() == 1 and not eboss.shielded,
+		"take 1 releases and the echo's stance drops the shield (echoes %d, shielded %s, %d ticks)" % [
+			TemporalManager.echo_count(), str(eboss.shielded), esh])
+	# Force the lifetime timer to elapse — the same field _physics_process
+	# decrements, so the production expiry path runs (two physics frames).
+	for echo: TemporalEcho in TemporalManager.active_sim_echoes():
+		echo._life_left = 0.01
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(TemporalManager.echo_count() == 0,
+		"the echo expires on its lifetime (echoes %d)" % TemporalManager.echo_count())
+	_l3_neutral(eworld)
+	check(eboss.shielded, "expiry brings the shield back on the next logic tick")
+	# walk in and fight shielded: the boss takes NOTHING (each hit absorbs).
+	var hp_shielded := int(eboss.guard["hp"])
+	var e3 := 0
+	var e_absorbed := 0
+	while int(eworld.state["dead"]) == 0 and e3 < 300 and e_absorbed == 0:
+		eWorld_step_cmd(eworld, eboss)
+		if not eboss.transcript.is_empty() \
+				and String(eboss.transcript[eboss.transcript.size() - 1]) == "boss:shield":
+			e_absorbed += 1
+		e3 += 1
+	check(int(eboss.guard["hp"]) == hp_shielded and e_absorbed > 0,
+		"after expiry the shielded Warden takes no damage (hp %d -> %d, %d absorbs)" % [
+			hp_shielded, int(eboss.guard["hp"]), e_absorbed])
+	# Re-record from wherever the kid ended up — walk back to the plate with
+	# a parry tap between steps (the chasing boss gets no free hits on the
+	# retreat; measured: an uncovered retreat bled the kid dry before e5).
+	var e4 := 0
+	while PopSim._col_of(PopSim._foot_x(eworld.state)) != 4 and e4 < 200 \
+			and int(eworld.state["dead"]) == 0:
+		eworld.step_with(PopInput.make(-1, 0))
+		eworld.step_with(PopInput.make(0, 0, 0, 2))   # parry tap
+		e4 += 1
+	var e4b := 0
+	while String(eworld.state["seq"]) != "stand" and e4b < 15 \
+			and int(eworld.state["dead"]) == 0:
+		eworld.step_with(neutral)
+		e4b += 1
+	if int(eworld.state["dead"]) == 0:
+		check(TemporalManager.start_recording(), "expiry flow: the second take begins")
+		_l3_ticks8(eworld)
+		TemporalManager.stop_recording()
+		eworld.step_with(neutral)
+	check(TemporalManager.echo_count() == 1 and not eboss.shielded,
+		"the SECOND take drops the shield again — no softlock on expiry (echoes %d, shielded %s)" % [
+			TemporalManager.echo_count(), str(eboss.shielded)])
+	# Finish: fight to the fall, walk into the exit door.
+	var e_completed := [false]
+	var on_edone := func(_id: StringName) -> void: e_completed[0] = true
+	EventBus.level_completed.connect(on_edone)
+	var e5 := 0
+	while int(eboss.guard["dead"]) == 0 and int(eworld.state["dead"]) == 0 \
+			and GameManager.state == GameManager.State.PLAYING and e5 < 1750:
+		eWorld_step_cmd(eworld, eboss)
+		e5 += 1
+	var e6 := 0
+	while GameManager.state == GameManager.State.PLAYING and int(eworld.state["dead"]) == 0 and e6 < 400:
+		eworld.step_with(right)
+		e6 += 1
+	EventBus.level_completed.disconnect(on_edone)
+	check(int(eboss.guard["dead"]) != 0 and e_completed[0],
+		"after the re-record the run finishes end to end (boss dead %d, completed %s, kid hp %d)" % [
+			int(eboss.guard["dead"]), str(e_completed[0]), int(eworld.state["hp"])])
+	GameManager.return_to_menu()
+
+	# --- (4) DETERMINISM: two positive runs, identical duel records -------
+	var d1 := _l3_positive_run()
+	var d2 := _l3_positive_run()
+	check((d1["transcript"] as Array) == (d2["transcript"] as Array)
+			and int(d1["boss_hp"]) == int(d2["boss_hp"])
+			and int(d1["kid_hp"]) == int(d2["kid_hp"])
+			and bool(d1["completed"]) == bool(d2["completed"]),
+		"same seed, same script -> identical Warden transcript and outcome (%d transcript entries, kid hp %s/%s)" % [
+			(d1["transcript"] as Array).size(), str(d1["kid_hp"]), str(d2["kid_hp"])])
+	check(bool(d1["completed"]) and bool(d2["completed"]),
+		"both deterministic runs complete the level")
+	# FINISHABLE ≠ FAIR: completability, the mandatory-echo property, the
+	# 3-minute budget and determinism are proven headlessly. Feel, fairness
+	# and difficulty are **not verified, needs human playtest**.
+
+
+## The positive flow for one fresh level-3 run: record on the plate at col
+## 4, release the take, walk into the arena, fight the Warden (strike with a
+## block beat), walk into the exit door. Returns the metrics the acceptance
+## checks assert on.
+func _l3_positive_run() -> Dictionary:
+	var out := {
+		"ok": false, "completed": false, "transcript": [],
+		"fight": 0, "boss_hp": -1, "boss_dead": -1,
+		"kid_hp": -1, "kid_dead": -1,
+		"engaged": false, "shield_events": 0,
+	}
+	GameManager.load_level(2)
+	if not (GameManager.player is SimPlayer):
+		GameManager.return_to_menu()
+		return out
+	var world: SimWorld = (GameManager.player as SimPlayer).world
+	var boss := world.get_parent().get_node_or_null("SimBoss") as SimBoss
+	if boss == null:
+		GameManager.return_to_menu()
+		return out
+	var engaged := [false]
+	var shield_events := [0]
+	var on_engaged := func(_n: String, _c: int, _m: int) -> void: engaged[0] = true
+	var on_shield := func(_s: bool) -> void: shield_events[0] = int(shield_events[0]) + 1
+	EventBus.boss_engaged.connect(on_engaged)
+	EventBus.boss_shield_changed.connect(on_shield)
+	var completed := [false]
+	var on_done := func(_id: StringName) -> void: completed[0] = true
+	EventBus.level_completed.connect(on_done)
+
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var strike := PopInput.make(0, 0, 0, 1)
+	var block := PopInput.make(0, 0, 0, 2)
+
+	# Record the take: tap-walk onto the plate at col 4, settle to a stand
+	# ON it, hold a few ticks, release (same discipline as level 2).
+	if not TemporalManager.start_recording():
+		EventBus.boss_engaged.disconnect(on_engaged)
+		EventBus.boss_shield_changed.disconnect(on_shield)
+		EventBus.level_completed.disconnect(on_done)
+		GameManager.return_to_menu()
+		return out
+	var p1 := 0
+	while PopSim._col_of(PopSim._foot_x(world.state)) != 4 and p1 < 40:
+		world.step_with(right)
+		world.step_with(neutral)
+		p1 += 1
+	var p1b := 0
+	while String(world.state["seq"]) != "stand" and p1b < 15:
+		world.step_with(neutral)
+		p1b += 1
+	check(PopSim._col_of(PopSim._foot_x(world.state)) == 4,
+		"L3 the take settles standing ON the arena plate (foot col %d)" %
+			PopSim._col_of(PopSim._foot_x(world.state)))
+	world.step_ticks(8, [neutral.to_byte()])
+	TemporalManager.stop_recording()
+	check(TemporalManager.echo_count() == 1,
+		"L3 release spawns the echo that holds the plate (count %d)" % TemporalManager.echo_count())
+
+	# The shield reacts on the next logic tick — the echo replays the take
+	# from its start (the walk from spawn), so its stance reaches the plate
+	# a beat after release; step until it does.
+	var sh := 0
+	while boss.shielded and sh < 150:
+		world.step_with(neutral)
+		sh += 1
+	check(not boss.shielded, "L3 the echo's stance drops the Warden's shield (after %d ticks)" % sh)
+
+	# Walk into range and fight with the adaptive cadence (chase → counter on
+	# committed chains / hurt refractory → parry otherwise; engagement band
+	# abs <= 15, see the negative run's opp_dist note).
+	var fight := 0
+	while int(boss.guard["dead"]) == 0 and int(world.state["dead"]) == 0 \
+			and GameManager.state == GameManager.State.PLAYING and fight < 1750:
+		world.step_with(_l3_cmd(boss, world))
+		fight += 1
+
+	# Walk into the open exit door.
+	var ex := 0
+	while GameManager.state == GameManager.State.PLAYING and int(world.state["dead"]) == 0 and ex < 400:
+		world.step_with(right)
+		ex += 1
+
+	out["completed"] = completed[0]
+	out["transcript"] = (boss.transcript as Array).duplicate()
+	out["fight"] = fight
+	out["boss_hp"] = int(boss.guard["hp"])
+	out["boss_dead"] = int(boss.guard["dead"])
+	out["kid_hp"] = int(world.state["hp"])
+	out["kid_dead"] = int(world.state["dead"])
+	out["engaged"] = engaged[0]
+	out["shield_events"] = shield_events[0]
+	out["ok"] = true
+	EventBus.boss_engaged.disconnect(on_engaged)
+	EventBus.boss_shield_changed.disconnect(on_shield)
+	EventBus.level_completed.disconnect(on_done)
+	GameManager.return_to_menu()
+	return out
+
+
+## Adaptive fight command (characterization): chase the Warden to the duel
+## band (abs <= 15 — opp = abs + FRONT_OFFSET must be < HIT_MAX 29), block
+## only his committed swings (the kid's parry frames eat them) and counter
+## everything else. Cadence D from the session-011 fight matrix: at the
+## pinned duel seed this lands 5 hits before the kid's third incoming — the
+## only tested configuration that beats hp 5 while surviving. Returning a
+## WALK input while apart keeps the kid from walking PAST the boss toward
+## the exit (measured: an abs-only script overshoots).
+func _l3_cmd(boss: SimBoss, world: SimWorld) -> PopInput:
+	var kx := int(world.state["x"])
+	if absi(kx - boss.guard_x) > 15:
+		return PopInput.make(1, 0) if boss.guard_x > kx else PopInput.make(-1, 0)
+	if String(boss.guard["seq"]).contains("strike"):
+		return PopInput.make(0, 0, 0, 2)   # parry the committed swing
+	return PopInput.make(0, 0, 0, 1)      # counter everything else
+
+
+## 8 neutral ticks while recording (the same hold level 2 uses).
+func _l3_ticks8(w: SimWorld) -> void:
+	w.step_ticks(8, [PopInput.neutral().to_byte()])
+
+
+## One adaptive-fight step (see [method _l3_cmd]).
+func eWorld_step_cmd(w: SimWorld, boss: SimBoss) -> void:
+	w.step_with(_l3_cmd(boss, w))
+
+
+## One neutral logic tick (keeps the shield/duel ticking without moving).
+func _l3_neutral(w: SimWorld) -> void:
+	w.step_with(PopInput.neutral())
 
 
 # --- Session 010 step 4: the SoundEvent hook points -------------------------

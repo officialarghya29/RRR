@@ -204,11 +204,20 @@ func _build_sim_level(data: Dictionary) -> void:
 	# per-tick snapshots/events (SimGuard documents what crosses the border).
 	var enemies: Dictionary = data.get("enemies", {})
 	for gdata: Dictionary in enemies.get("guards", []):
-		var guard := SimGuard.new()
-		guard.name = "SimGuard"
-		_world.add_child(guard)
-		guard.setup(world, int(gdata.get("x_sim", 0)), int(gdata.get("skill", 0)),
-			int(data.get("seed", 4242)) + int(gdata.get("seed_offset", 0)))
+		var seed_n := int(data.get("seed", 4242)) + int(gdata.get("seed_offset", 0))
+		if bool(gdata.get("boss", false)):
+			# Session 011 (B2.3/B3.1): the Time Warden — the guard framework
+			# with the echo-gated shield (SimBoss documents the boundary).
+			var boss := SimBoss.new()
+			boss.name = "SimBoss"
+			_world.add_child(boss)
+			boss.setup_boss(world, int(gdata.get("x_sim", 0)), int(gdata.get("skill", 0)),
+				seed_n, String(gdata.get("plate", "")))
+		else:
+			var guard := SimGuard.new()
+			guard.name = "SimGuard"
+			_world.add_child(guard)
+			guard.setup(world, int(gdata.get("x_sim", 0)), int(gdata.get("skill", 0)), seed_n)
 
 	_hud.bind_player(player)
 	_hud.show()

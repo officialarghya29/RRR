@@ -169,8 +169,12 @@ func _fight_tick(state: Dictionary) -> void:
 				_ended = "guard"
 				transcript.append("end:guard")
 	if int(guard["hp"]) < guard_hp0:
-		duel_event.emit(&"hit_guard")
-		SoundEvents.emit_sfx(&"sword_strike", _px())   # session 010 step 4 hook
+		# Session 011 (B2.3): subclass hook FIRST — the boss's shield may
+		# restore the local hp here, in which case no damage publishes.
+		_guard_hp_absorbed(guard_hp0)
+		if int(guard["hp"]) < guard_hp0:
+			duel_event.emit(&"hit_guard")
+			SoundEvents.emit_sfx(&"sword_strike", _px())   # session 010 step 4 hook
 	if int(guard["dead"]) != 0:
 		duel_event.emit(&"defeated")
 		SoundEvents.emit_sfx(&"guard_death", _px())   # session 010 step 4 hook
@@ -178,6 +182,14 @@ func _fight_tick(state: Dictionary) -> void:
 		if String(transcript[i]) == "k:parry" or String(transcript[i]) == "g:parry":
 			duel_event.emit(&"clash")
 			SoundEvents.emit_sfx(&"sword_clash", _px())   # session 010 step 4 hook
+
+
+## Subclass hook (session 011): called when the local duel reports the
+## guard hurt this fight tick, BEFORE the damage events publish. Default is
+## a no-op — plain guards behave exactly as before. [SimBoss] overrides it
+## to absorb hits while its echo-plate shield is up.
+func _guard_hp_absorbed(_hp_before: int) -> void:
+	pass
 
 
 ## World-pixel position of the guard's body, for sound placement. The guard
