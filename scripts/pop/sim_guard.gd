@@ -180,10 +180,13 @@ func _fight_tick(state: Dictionary) -> void:
 			SoundEvents.emit_sfx(&"sword_clash", _px())   # session 010 step 4 hook
 
 
-## World-pixel position of the guard's body, for sound placement.
+## World-pixel position of the guard's body, for sound placement. The guard
+## stands on row 0's floor line — through the one world-to-screen mapping
+## (session 011 step 2; the old code used the x scale for y, drawing him
+## ~93 px below the floor line).
 func _px() -> Vector2:
-	return Vector2(float(guard_x) * SimWorld.PX_PER_UNIT,
-		float(int(PopTables.Y_LAND[1])) * SimWorld.PX_PER_UNIT)
+	return SimWorld.sim_units_to_px(
+		float(guard_x), float(int(PopTables.Y_LAND[1])))
 
 
 ## Fight ticks stepped so far (0 while the duel sleeps) — tests read this to
@@ -197,8 +200,10 @@ func fight_count() -> int:
 func _draw() -> void:
 	if world == null:
 		return
-	var x := float(guard_x) * SimWorld.PX_PER_UNIT
-	var y := float(int(PopTables.Y_LAND[1])) * SimWorld.PX_PER_UNIT
+	# Foot point on row 0's floor line, via the one mapping (see _px).
+	var at := _px()
+	var x := at.x
+	var y := at.y
 	if int(guard.get("dead", 0)) != 0:
 		draw_rect(Rect2(x - BODY_H * 0.5, y - BODY_W, BODY_H, BODY_W),
 			Color(0.35, 0.12, 0.12))

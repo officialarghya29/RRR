@@ -83,6 +83,9 @@ func _ready() -> void:
 	_section("SoundEvents hook points (session 010 step 4)")
 	_test_sound_events()
 
+	_section("View: world-to-screen mapping (session 011 step 2; VIEW tests, not parity)")
+	_test_view_mapping()
+
 	_section("B0 completability smoke (plan 8 gate 5)")
 	_test_b0_completability()
 
@@ -3955,3 +3958,83 @@ func _test_b0_completability() -> void:
 	# FINISHABLE ≠ FUN: this smoke proves the level can be completed by a
 	# human today; feel, fairness and readability are **not verified, needs
 	# human playtest** (D14 acceptance half, hand-off checklist).
+
+
+# --- Session 011 step 2: view tests (presentation only — NOT parity) --------
+#
+# These pin the RENDERING contract the screenshot review asked for: ONE
+# world-to-screen mapping with separate x/y scales, an object in row r drawn
+# within row r and above the floor line, and the prince sized as a documented
+# fraction of a row. They assert geometry only — no sim behavior, no PARITY
+# value — and the completability smoke above/below proves the sim did not
+# change. Every message is prefixed "VIEW:" for that reason.
+func _test_view_mapping() -> void:
+	# (1) Tile cell aspect: 14x63 sim units at the cited 32 px : 63 px display
+	# ratio (`types.h:1405`/`types.h:1408`, PARITY §2) -> h/w = 63/32 =
+	# 1.96875 (~2:1 as measured from the original), never the old isotropic
+	# ×3's 189/42 = 4.5:1.
+	var cell := SimLevelView.tile_rect(2, 1)
+	check(is_equal_approx(cell.size.x, 14.0 * SimWorld.PX_PER_UNIT),
+		"VIEW: tile cell width = 14 units at the x scale (got %f)" % cell.size.x)
+	check(is_equal_approx(cell.size.y, 63.0 * SimWorld.PX_PER_UNIT_Y),
+		"VIEW: tile cell height = 63 units at the y scale (got %f)" % cell.size.y)
+	check(absf(cell.size.y / cell.size.x - 63.0 / 32.0) < 0.001,
+		"VIEW: cell aspect = the cited 63/32 (~2:1), got %.3f:1" % (cell.size.y / cell.size.x))
+
+	# (2) The ground block sits directly BELOW row r's feet line: its top edge
+	# is floor_y(r) = Y_LAND[r+1] (PARITY §2) — tiles stand on nothing above
+	# that line, so the kid never draws buried in the floor.
+	for r: int in 3:
+		var t := SimLevelView.tile_rect(0, r)
+		check(is_equal_approx(t.position.y,
+				float(PopTables.Y_LAND[r + 1]) * SimWorld.PX_PER_UNIT_Y),
+			"VIEW: tile row %d's block starts at the floor line Y_LAND[%d] (got %f)" % [
+				r, r + 1, t.position.y])
+
+	# (3) An object in row r is drawn WITHIN row r's walkable cell and ABOVE
+	# the floor line: bottom edge ON the line, top edge one row up. This is
+	# the fix for the screenshot's "one row too low" — view, not level data.
+	for r: int in 3:
+		var o := SimLevelView.object_rect(3, r)
+		var floor_px := float(PopTables.Y_LAND[r + 1]) * SimWorld.PX_PER_UNIT_Y
+		var top_px := float(PopTables.Y_LAND[r]) * SimWorld.PX_PER_UNIT_Y
+		check(is_equal_approx(o.end.y, floor_px),
+			"VIEW: row %d object's bottom edge stands ON the floor line (got %f, want %f)" % [
+				r, o.end.y, floor_px])
+		check(is_equal_approx(o.position.y, top_px) and o.position.y < floor_px,
+			"VIEW: row %d object fills the space above the floor line inside its row (top %f)" % [
+				r, o.position.y])
+	# The plate is a lip ON that line, never sunk into the floor block.
+	var p := SimLevelView.plate_rect(5, 1)
+	check(is_equal_approx(p.end.y, float(PopTables.Y_LAND[2]) * SimWorld.PX_PER_UNIT_Y)
+			and p.size.y <= 0.25 * 63.0 * SimWorld.PX_PER_UNIT_Y,
+		"VIEW: plate lip sits on the floor line and is under a quarter-row tall (%f px)" % p.size.y)
+	# The gate slab hangs from the cell top: closed fills the cell standing on
+	# the line, half-open has risen off it, fully open clears the walkway
+	# (visual counterpart of PARITY §9's mod schedule — geometry only here).
+	var g_closed := SimLevelView.gate_slab_rect(4, 0, 0.0)
+	var g_half := SimLevelView.gate_slab_rect(4, 0, 0.5)
+	var g_open := SimLevelView.gate_slab_rect(4, 0, 1.0)
+	check(is_equal_approx(g_closed.end.y, float(PopTables.Y_LAND[1]) * SimWorld.PX_PER_UNIT_Y)
+			and is_equal_approx(g_closed.position.y, float(PopTables.Y_LAND[0]) * SimWorld.PX_PER_UNIT_Y),
+		"VIEW: a closed gate slab fills its row standing on the floor line")
+	check(is_equal_approx(g_half.position.y, g_closed.position.y)
+			and g_half.end.y < g_closed.end.y and g_half.end.y > g_closed.position.y,
+		"VIEW: a half-open gate hangs from the cell top with its bottom risen off the floor")
+	check(is_equal_approx(g_open.size.y, 0.0),
+		"VIEW: a fully open gate leaves the walkway clear")
+
+	# (4) The prince: height as a documented fraction of a row (0.79 = 50/63
+	# sim units — the reference prince fills most of a row; placeholder
+	# proportions, NOT parity evidence), width from the sim's kid x-footprint
+	# (10 units, matching the grab probe / edge nudges), bottom edge on the
+	# sim's foot point so he stands on the floor line, not in it.
+	var prince := SimPlayer.prince_rect_local()
+	var row_px := 63.0 * SimWorld.PX_PER_UNIT_Y
+	var frac := prince.size.y / row_px
+	check(frac >= 0.7 and frac <= 0.9,
+		"VIEW: prince height is a documented fraction of a row (0.70..0.90, got %.2f)" % frac)
+	check(is_equal_approx(prince.size.x, 10.0 * SimWorld.PX_PER_UNIT),
+		"VIEW: prince width = 10 sim units at the x scale (got %f)" % prince.size.x)
+	check(is_equal_approx(prince.end.y, 0.0) and prince.position.y < 0.0,
+		"VIEW: the prince rect hangs upward from the sim's foot point (bottom edge = foot y)")

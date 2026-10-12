@@ -26,6 +26,9 @@ const DEFAULTS: Dictionary = {
 	&"temporal_record": [KEY_Q],
 	&"pause": [KEY_ESCAPE],
 	&"restart": [KEY_R],
+	# Session 011 step 2: toggle the sim view's debug overlay (tile grid,
+	# row/col numbers, sim x/y + tick readout, color legend).
+	&"debug_overlay": [KEY_F3],
 }
 
 ## Deadzone is only meaningful for analogue input; keys are always 0 or 1.

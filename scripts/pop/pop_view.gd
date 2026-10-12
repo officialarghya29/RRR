@@ -13,9 +13,11 @@ extends Node2D
 ## Controls: A/D run, W jump-up, S crouch, Shift grab/climb, P pause,
 ## `.` frame-step one sim tick while paused.
 
-const PX_PER_UNIT: float = 3.0  ## 14-unit tile → 42 px; 63-unit row → 189 px
-const BODY_W: float = 30.0
-const BODY_H: float = 54.0
+## Session 011 (step 2): ONE world-to-screen mapping shared with the game
+## path — [method SimWorld.sim_units_to_px], with separate x/y scales (x:
+## 14-unit tile → 42 px; y: 63-unit row → 63·14/32 = 82.7 px — the cited
+## 32:63 display ratio, `types.h:1405`/`types.h:1408`, PARITY §2). The old
+## isotropic ×3 drew 42×189 px cells (4.5:1) instead of the original's ~2:1.
 const PAUSE_KEY: int = KEY_P
 const STEP_KEY: int = KEY_PERIOD  ## '.' — frame-step while paused
 
@@ -93,25 +95,30 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
+	# Same two rectangle rules as SimLevelView: the ground block under row r's
+	# feet line ([Y_LAND[r+1], +63]) and the prince sized in sim units — the
+	# sandbox renders through the identical mapping as the game path.
 	for row: int in range(level.size()):
 		var cells: Array = level[row]
 		for col: int in range(cells.size()):
 			var tile := int(cells[col])
 			if tile == PopTables.Tile.EMPTY:
 				continue
-			draw_rect(Rect2(
-				float(col * PopTables.TILE_W) * PX_PER_UNIT,
-				float(row * PopTables.TILE_H) * PX_PER_UNIT,
-				float(PopTables.TILE_W) * PX_PER_UNIT,
-				float(PopTables.TILE_H) * PX_PER_UNIT),
-				_COLORS.get(tile, _DEFAULT_TILE_COLOR))
-	var px := clock.lerp_channel("x") * PX_PER_UNIT
-	var py := clock.lerp_channel("y") * PX_PER_UNIT
-	draw_rect(Rect2(px - BODY_W * 0.5, py - BODY_H, BODY_W, BODY_H), _PRINCE_COLOR)
+			var x0 := float(PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN] + PopTables.TILE_W * col)
+			var floor_units := float(int(PopTables.Y_LAND[mini(row + 1, PopTables.Y_LAND.size() - 1)]))
+			var tl := SimWorld.sim_units_to_px(x0, floor_units)
+			var br := SimWorld.sim_units_to_px(
+				x0 + float(PopTables.TILE_W), floor_units + float(PopTables.TILE_H))
+			draw_rect(Rect2(tl, br - tl), _COLORS.get(tile, _DEFAULT_TILE_COLOR))
+	var pos := SimWorld.sim_units_to_px(
+		clock.lerp_channel("x"), clock.lerp_channel("y"))
+	var body := SimPlayer.prince_rect_local()
+	var rect := Rect2(pos + body.position, body.size)
+	draw_rect(rect, _PRINCE_COLOR)
 	if clock.curr.is_empty():
 		return
 	var label := "%s f%d%s" % [
 		String(clock.curr.get("seq", "?")), int(clock.curr.get("frame", 0)),
 		("  [paused]" if paused else "")]
-	draw_string(ThemeDB.fallback_font, Vector2(px - 24.0, py - BODY_H - 6.0),
+	draw_string(ThemeDB.fallback_font, Vector2(pos.x - 24.0, rect.position.y - 6.0),
 		label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, 0.85))

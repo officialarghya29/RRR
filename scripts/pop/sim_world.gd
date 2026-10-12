@@ -14,9 +14,27 @@ extends Node2D
 ## [member state] after a tick. Nothing outside this file mutates the state
 ## dict — the same determinism contract the tests enforce headlessly.
 
-## World pixels per sim unit (14-unit tile -> 42 px; PARITY §2 unit scale).
-## Same scale pop_lab's PopView renders at.
+## --- World-to-screen (session 011 step 2; THE one mapping) -----------------
+## The reference draws a 14-unit-wide tile as 32 screen px and a 63-unit-tall
+## row as 63 px (`types.h:1405`, `types.h:1408`; PARITY §2 "Unit scale") —
+## x and y carry DIFFERENT scales by design, which is why the old isotropic
+## ×3 mapping rendered 42×189 px cells (4.5:1) instead of the original's
+## ~2:1. Rendering keeps the x look (14 u → 42 px) and derives y from the
+## cited 1:1 unit ratio at the same zoom: 1 u → 3·14/32 = 1.3125 px, so a
+## cell draws 42 × 82.69 px (1.97:1 — measured ≈2:1 by the user from the
+## original). VIEW PRESENTATION ONLY: no sim quantity changes.
+##
+## Level-data px (spawn, checkpoint pos_px) remain in the legacy isotropic
+## 3 px/u input space, converted in [method _fresh_state] — that is an input
+## convention, not this render mapping.
+## World pixels per sim unit, horizontally (14-unit tile -> 42 px).
 const PX_PER_UNIT: float = 3.0
+## World pixels per sim unit, vertically (cited 32:63 display ratio).
+const PX_PER_UNIT_Y: float = PX_PER_UNIT * 14.0 / 32.0   # = 1.3125
+
+## Sim units -> world pixels (the render mapping; every call site uses it).
+static func sim_units_to_px(x: float, y: float) -> Vector2:
+	return Vector2(x * PX_PER_UNIT, y * PX_PER_UNIT_Y)
 
 ## Emitted after every logic tick with the post-step state (read-only view).
 signal sim_tick(state: Dictionary)
@@ -209,7 +227,7 @@ func apply_duel_hit(amount: int) -> void:
 
 ## World-pixel position of the sim state (post-tick, un-interpolated).
 func pos_px() -> Vector2:
-	return Vector2(float(state.get("x", 0)) * PX_PER_UNIT, float(state.get("y", 0)) * PX_PER_UNIT)
+	return sim_units_to_px(float(state.get("x", 0)), float(state.get("y", 0)))
 
 
 ## Seed this world runs under — stamped into the echo recorder's take so a
@@ -221,7 +239,7 @@ func take_seed() -> int:
 ## Sim units -> world pixels for an arbitrary state: the echo renders its own
 ## participant state through this (read-only helper, plan B0 step 4).
 func sim_to_px(s: Dictionary) -> Vector2:
-	return Vector2(float(s.get("x", 0)) * PX_PER_UNIT, float(s.get("y", 0)) * PX_PER_UNIT)
+	return sim_units_to_px(float(s.get("x", 0)), float(s.get("y", 0)))
 
 
 # --- Event publication (diffs, never guesses) -------------------------------
@@ -274,7 +292,7 @@ func _key_px(key: String) -> Vector2:
 		return Vector2.ZERO
 	return Vector2(
 		float(58 + PopTables.TILE_W * int(parts[1]) + 7) * PX_PER_UNIT,
-		float(int(PopTables.Y_LAND[int(parts[0]) + 1])) * PX_PER_UNIT)
+		float(int(PopTables.Y_LAND[int(parts[0]) + 1])) * PX_PER_UNIT_Y)
 
 
 ## Session 010 step 4: landing and trap sounds from the sequence transition
