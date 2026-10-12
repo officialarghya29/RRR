@@ -636,17 +636,17 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
       holds the arena plate; boss duel uses the guard-skill framework at high skill).
       **Accept:** boss beatable only via echo; fight ≤3 min; no softlocks on echo
       expiry (respawn logic tested).
-      **Status (S011 step 4, `verify.sh` 588/0):** shipped as the trimmed L3 (D15
-      renumber; catalog `sim_boss`). `SimBoss` = `SimGuard` + the echo-gated shield;
-      negative run: solo kid, gate closed — the shield NEVER drops and boss hp never
-      moves (provably pinned); the scripted run completes the level END TO END —
-      the Warden falls, the plate-linked exit gate (col 18) parks open, the kid
-      walks into the exit door (`level_completed` asserted; fight ≤ 1200 fight
-      ticks of the 10-fps clock asserted, cap 1800 = 3 min); expiry → shield
-      returns → re-record → finish tested (no softlock). Skill 4 (measured
-      winnable; probed skills 5–7 unbeatable within kid hp 3 for the scripted
-      kid — B3.1's ~7–9 probe stays open). Completability is scripted; fairness
-      and feel need the human playtest.
+      **Status (S011 step 4; asserted in `_test_b23_level3_boss`):** shipped as
+      the trimmed L3 (D15 renumber; catalog `sim_boss` — every level number
+      lives there). `SimBoss` = `SimGuard` + the echo-gated shield; negative
+      run: solo kid, no take — the shield NEVER drops and the boss never loses
+      a point (provably pinned); the scripted run completes the level END TO
+      END — the Warden falls, the plate-linked exit gate parks open, the kid
+      walks into the exit door (`level_completed` asserted; the fight fits one
+      take and the plan's 3-minute cap); expiry → shield returns → re-record
+      → finish tested (no softlock). Boss skill = the highest measured-
+      winnable skill (D18; B3.1's ~7–9 clause stays open). Completability is
+      scripted; fairness and feel need the human playtest.
 - [ ] **B2.4 [N]** Level 4' two-echo sanctum (12 s / 2 echoes tier) — cut from must-
       have; the *engine* supports it, add only if ahead of schedule.
 - [ ] **B2.5 [M]** HUD + boss bar re-skin to new art; checkpoint respawns audited for
@@ -657,13 +657,15 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
 - [ ] **B3.1 [M]** Boss = guard-archetype at skill ~7–9 with shield gating (existing
       `time_warden.gd` logic) but fighting through the sim duel rules.
       **Accept:** shield-nullified hits asserted in tests (existing boss tests ported).
-      **Status (S011 step 4): UNTICKED — partial.** The guard-archetype boss with
-      shield gating on the sim duel rules shipped (SimBoss, B2.3 above) and
-      shield-nullified hits ARE asserted in tests — but at skill 4 (measured), not
-      ~7–9: the probed 5–7 configurations beat the scripted kid within hp 3, so a
-      ~7–9 config needs a stronger scripted tactic or a design lever. Legacy
-      `time_warden.gd` tests were not ported (new SimBoss tests written instead).
-      Remaining: the skill 7–9 probe + the ported-test clause.
+      **Status (S011 step 4; UNTICKED — partial):** the guard-archetype boss
+      with shield gating on the sim duel rules shipped (SimBoss, B2.3 above)
+      and shield-nullified hits ARE asserted in tests — but at the highest
+      measured-winnable skill, not ~7–9: every probed higher skill's pacing
+      beat the scripted kid inside its starting hp, so a ~7–9 config needs a
+      stronger scripted tactic or a design lever (D18 proposes an accept-
+      clause amendment for the user's approval — pending). Legacy
+      `time_warden.gd` tests were not ported (new SimBoss tests written
+      instead). Remaining: the ~7–9 probe + the ported-test clause.
 - [ ] **B3.2 [M]** Hoverer archetypes (Shadow Echo, Temporal Sentinel) re-target
       sim-based entities; their motion stays Godot-side.
       **Accept:** baiting via echo still works (existing enemy tests).
