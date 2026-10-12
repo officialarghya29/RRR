@@ -604,9 +604,22 @@ determinism test green; PARITY.md populated for all §4.3 items; A5.1+A5.2 deliv
       rune/plate/enemy-targetable behaviors ride the unchanged signal surface
       (`echo_created`/`echo_expired`/`echo_event_replayed` asserted unchanged); the
       sim-side plate visibility for an echo is B1.3's scope, not this item.
-- [ ] **B1.3 [M]** Echo visibility to *sim-side* mechanisms (plates in sim) + to
+- [x] **B1.3 [M]** Echo visibility to *sim-side* mechanisms (plates in sim) + to
       *Godot-side* enemies (unchanged); energy economy and capacity unchanged.
       **Accept:** level-1 tutorial puzzle solvable identically to today's design.
+      **Status (ticked Session 010):** met — `SimWorld` steps sim echoes before each
+      tick's entity stage and feeds every echo's foot tile through
+      `PopLevel.press_plates_for` (position only, read-only; SimWorld stays the single
+      writer). The mechanic rests on a **held-plate parity fix**: the reference
+      re-triggers a held plate's links every held tick (`seg007.c:764`), re-parking
+      the gate at 238 until the body steps off — our old one-shot press diverged;
+      fixed with a regression test (park on tick 46, stays ≥188 while held, §9 close
+      resumes on step-off). Level-1 tutorial puzzle proven solvable identically via
+      the echo path (`_test_b13_echo_plate`: the world's event stream shows the
+      ECHO's re-press, the gate never closes while it holds, the kid walks through
+      to the exit door). Godot-side (legacy) enemies untouched and green; energy
+      economy and capacity unchanged (stock config restored in tests; existing
+      assertions pass). Suite 539/0, both boot paths clean.
 
 ### B2 — Echo-aware level re-theming on PoP kinematics · ~10 h · [M]
 
