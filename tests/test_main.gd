@@ -71,6 +71,9 @@ func _ready() -> void:
 	_section("B0 echo on the sim path (plan B0.1 step 4)")
 	_test_b0_echo()
 
+	_section("B1.3 echo presses sim-side plates (plan B1.3)")
+	_test_b13_echo_plate()
+
 	_section("B0 completability smoke (plan 8 gate 5)")
 	_test_b0_completability()
 
@@ -3168,6 +3171,111 @@ func _test_b0_echo() -> void:
 	container.queue_free()
 	w.free()
 	w2.free()
+
+
+# --- Plan B1.3: an echo's stance presses the world's plates ----------------
+#
+# Session 010. The tutorial puzzle, solved through the echo path exactly as
+# designed: record a take that ends standing on the plate, release the echo,
+# step off — the memory's stance re-fires the world's gate (the press that
+# matters comes from the ECHO, proven by the world-level event count) and
+# holds it open while the kid walks through into the exit door. Level 1's
+# route to the ledge is gate 5's proven ground; this test isolates the
+# mechanic. The negative control (the level cannot be completed WITHOUT the
+# echo) is level 2's mandatory-echo test, session 010 step 3d.
+func _test_b13_echo_plate() -> void:
+	var data: Dictionary = LevelCatalog.get_sim_level(0)
+	var bundle := _b0_dup({"tiles": data["tiles"], "mods": data["mods"], "entities": data["entities"]})
+
+	var container := Node2D.new()
+	_sandbox.add_child(container)
+	TemporalManager.configure_for_level({})
+	TemporalManager.set_echo_container(container)
+	TemporalManager.clear_echoes()
+	TemporalManager.reset_energy()
+
+	var w := SimWorld.new()
+	w.setup(_b0_dup(bundle), int(data["seed"]), Vector2(195.0, 165.0), [])
+	TemporalManager.register_sim_world(w)
+
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var right_byte := right.to_byte()
+	var neutral_byte := neutral.to_byte()
+
+	var events: Array = []
+	var on_ent := func(kind: StringName, key: String) -> void:
+		events.append("%s:%s" % [String(kind), key])
+	EventBus.sim_entity_event.connect(on_ent)
+	var exit_hit := [false]
+	var on_exit := func() -> void: exit_hit[0] = true
+	w.exit_reached.connect(on_exit)
+
+	# (1) Park the kid on the ledge at col 15 (gate 5 proves the route there;
+	# this test starts him in place to isolate the echo-plate mechanic).
+	w.state["x"] = 58 + 14 * 15 + 10
+	var presses_before := 0
+
+	# (2) Record a take: walk onto the plate at col 16 and STAND there, so
+	# the take ends with the plate held and the released echo replays into
+	# exactly that stance.
+	check(TemporalManager.start_recording(), "B1.3 the take begins on the sim path")
+	var g1 := 0
+	while PopSim._col_of(PopSim._foot_x(w.state)) != 16 and int(w.state["dead"]) == 0 and g1 < 20:
+		w.step_with(right)
+		g1 += 1
+	check(PopSim._col_of(PopSim._foot_x(w.state)) == 16,
+		"B1.3 the kid walks onto the plate at col 16 (x %d, %d ticks)" % [int(w.state["x"]), g1])
+	w.step_ticks(8, [neutral_byte])   # take ends standing on the plate
+	TemporalManager.stop_recording()
+	var echo_count_at_release := TemporalManager.echo_count()
+	check(echo_count_at_release == 1 and TemporalManager.active_sim_echoes().size() == 1,
+		"B1.3 release spawns one SimEcho (count %d)" % echo_count_at_release)
+
+	# (3) Step off and walk toward the gate. The kid's own press fired the
+	# plate once during the take; the press that re-fires it now must come
+	# from the ECHO's stance.
+	for e: String in events:
+		if e == "press:0,16":
+			presses_before += 1
+	check(presses_before == 1,
+		"B1.3 the kid's own press fired the plate once during the take (got %d)" % presses_before)
+	var first_open := -1
+	var closed_after_open := false
+	var g2 := 0
+	while not exit_hit[0] and int(w.state["dead"]) == 0 and g2 < 220:
+		w.step_with(right)
+		var mod := int((w.state["gates"]["0,19"] as Dictionary)["mod"])
+		if first_open >= 0 and mod < PopTables.GATE_OPEN_THRESHOLD:
+			closed_after_open = true
+		if first_open < 0 and mod >= PopTables.GATE_OPEN_THRESHOLD:
+			first_open = g2
+		g2 += 1
+	var presses_after := 0
+	for e2: String in events:
+		if e2 == "press:0,16":
+			presses_after += 1
+	check(presses_after >= 2,
+		"B1.3 the echo's stance re-presses the WORLD's plate after the kid stepped off (%d presses, got %s)" % [
+			presses_after, str(events)])
+	check(not closed_after_open,
+		"B1.3 once the gate reads open it never closes again while the echo holds (first open tick %d)" % first_open)
+	check(exit_hit[0] and int(w.state["dead"]) == 0,
+		"B1.3 the kid walks through the held gate into the exit door (dead %d, %d ticks)" % [
+			int(w.state["dead"]), g2])
+	var echo := TemporalManager.active_sim_echoes()[0] as SimEcho
+	check(echo != null and echo.cursor() >= echo.take.size(),
+		"B1.3 the echo is still standing on the plate when the kid exits (cursor %d / take %d)" % [
+			echo.cursor() if echo != null else -1, echo.take.size() if echo != null else -1])
+
+	EventBus.sim_entity_event.disconnect(on_ent)
+	TemporalManager.cancel_recording("test_cleanup")
+	TemporalManager.register_sim_world(null)
+	TemporalManager.clear_echoes()
+	TemporalManager.configure_for_level({})
+	TemporalManager.reset_energy()
+	container.queue_free()
+	w.free()
 
 
 # --- Plan 8 gate 5: the level completability smoke --------------------------

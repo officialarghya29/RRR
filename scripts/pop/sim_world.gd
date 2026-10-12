@@ -95,7 +95,14 @@ func _tick() -> void:
 ## Step one tick with an explicit input (live path passes the latch's byte;
 ## tests and the completability smoke pass scripted bytes — same function).
 func step_with(input: PopInput) -> void:
+	# Echoes step first in lockstep, then their stances press this world's
+	# plates BEFORE the entity stage runs — so an echo press goes through the
+	# same trigger-then-animate flow as the kid's own press (plan B1.3,
+	# session 010) and lands in the same tick's diff for the puzzle stream
+	# and the echo recorder. The prev snapshot must predate the echo press.
 	var prev_view: Dictionary = PopReplay._entity_view(state)
+	TemporalManager.step_sim_echoes()
+	_apply_echo_presses()
 	state = PopSim.step(state, input)
 	clock.push(state)
 	_publish(prev_view)
@@ -107,8 +114,29 @@ func step_with(input: PopInput) -> void:
 			input.to_byte(),
 			PopReplay.entity_events(prev_view, state),
 			PopReplay.milestones_for(prev_view, state))
-	# Echo participants step in lockstep with this world, one tick per tick.
-	TemporalManager.step_sim_echoes()
+
+
+## Plan B1.3 (session 010): an echo's stance presses this world's plates —
+## the first mechanism the shared world gains from a sim participant. The
+## echo contributes POSITION ONLY (its own state dict, read here read-only);
+## the press itself runs through PopLevel's own trigger path, and this node
+## remains the single writer of the state dict (approval condition a).
+## Reference basis: a body standing on a raise plate re-triggers its gate
+## every held tick (`seg007.c:764`), so a memory left standing on a plate
+## holds the linked gate open — the level-2 "cooperate with your past self"
+## thesis rides on this.
+func _apply_echo_presses() -> void:
+	for echo: TemporalEcho in TemporalManager.active_sim_echoes():
+		var es: Dictionary = (echo as SimEcho).state
+		if es.is_empty() or int(es.get("dead", 0)) != 0:
+			continue
+		var erow := int(es.get("row", -1))
+		if erow < 0:
+			continue
+		var ecol := PopSim._col_of(PopSim._foot_x(es))
+		# The tile is read from the WORLD's grid (the echo's own copy of the
+		# level belongs to its private run), and the press mutates the world.
+		PopLevel.press_plates_for(state, erow, ecol, PopSim._tile(state, erow, ecol))
 
 
 ## Synchronous helper for headless tests and the scripted smoke run: step

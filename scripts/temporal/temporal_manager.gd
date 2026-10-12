@@ -417,5 +417,17 @@ func echo_count() -> int:
 	return _active_echoes.size()
 
 
+## Session 010 (plan B1.3): the sim-path echoes currently alive, so SimWorld
+## can read their stances (read-only — the world stays the only writer of its
+## state) and let an echo standing on a plate press it. Legacy snapshot
+## echoes are not sim participants and are not returned.
+func active_sim_echoes() -> Array:
+	var out: Array = []
+	for echo: TemporalEcho in _active_echoes:
+		if echo is SimEcho and is_instance_valid(echo):
+			out.append(echo)
+	return out
+
+
 func has_active_echo() -> bool:
 	return not _active_echoes.is_empty()

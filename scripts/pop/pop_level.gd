@@ -78,19 +78,10 @@ static func step_entities(s: Dictionary, kid_row: int, kid_col: int, kid_tile: i
 	if gates.is_empty() and plates.is_empty() and exit_door.is_empty():
 		return
 
-	# 1. press: check_press → trigger_button (`seg007.c:742-768`). A held plate
-	#    resets its timer to 5 every tick, and its linked mechanisms re-trigger
-	#    on EVERY held tick (`seg007.c:764`: do_trigger_list sits outside the
-	#    link_timer < 2 branch) — that is the reference behaviour that keeps a
-	#    held plate's gate re-parked at 238 open instead of closing. The plate's
-	#    own visual/sound trob is the only part that fires once per press
-	#    (`seg007.c:758-763`, modeled by the press milestone in PopReplay).
-	var plate_key: String = "%d,%d" % [kid_row, kid_col]
-	var pressing: bool = kid_tile == PopTables.Tile.BUTTON_RAISE \
-			or kid_tile == PopTables.Tile.BUTTON_DROP
-	for key: String in plates.keys():
-		if pressing and key == plate_key:
-			_trigger_plate(s, key, kid_tile)
+	# 1. press: check_press → trigger_button (`seg007.c:742-768`), via the
+	#    shared press stage below (the same path a sim-path echo's stance
+	#    takes, plan B1.3).
+	press_plates_for(s, kid_row, kid_col, kid_tile)
 
 	# 2. animate buttons (`seg007.c:783-791`): the timer decrements per logic
 	#    frame and stops below 2.
@@ -106,6 +97,25 @@ static func step_entities(s: Dictionary, kid_row: int, kid_col: int, kid_tile: i
 	# 4. animate the level-exit door (`seg007.c:411-449`).
 	if not exit_door.is_empty():
 		_animate_leveldoor(exit_door)
+
+
+## The press stage of [method step_entities], callable for ANY participant
+## standing on a plate tile: the kid inside the sim step, or — on the sim
+## path — a temporal echo whose stance presses the world's plates (plan
+## B1.3, session 010). Reference: check_press reads the tile the char
+## stands on (`seg006.c:1676-1698`); a held plate re-triggers its links
+## every tick (`seg007.c:764`), so a body left standing on a raise plate
+## holds its gate open.
+static func press_plates_for(s: Dictionary, row: int, col: int, tile: int) -> void:
+	var plates: Dictionary = s.get("plates", {})
+	if plates.is_empty():
+		return
+	if tile != PopTables.Tile.BUTTON_RAISE and tile != PopTables.Tile.BUTTON_DROP:
+		return
+	var key: String = "%d,%d" % [row, col]
+	if not plates.has(key):
+		return
+	_trigger_plate(s, key, tile)
 
 
 ## `trigger_button` + `trigger_gate` (`seg007.c:742-768`, `seg007.c:600-637`):
