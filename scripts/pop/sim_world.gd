@@ -20,6 +20,11 @@ const PX_PER_UNIT: float = 3.0
 
 ## Emitted after every logic tick with the post-step state (read-only view).
 signal sim_tick(state: Dictionary)
+## Session 010 (plan §4.7): per-logic-tick feed for Godot-side duel
+## participants on the sim path — the post-step state (read-only snapshot)
+## plus this tick's packed input byte (the player's intent). The first
+## consumer is [SimGuard]; what crosses the boundary is documented there.
+signal logic_tick(state: Dictionary, input_byte: int)
 ## A checkpoint trigger fired this tick: id plus its world-pixel position.
 signal checkpoint_hit(id: StringName, pos_px: Vector2)
 ## The kid reached the (open) level-exit door tile.
@@ -114,6 +119,10 @@ func step_with(input: PopInput) -> void:
 			input.to_byte(),
 			PopReplay.entity_events(prev_view, state),
 			PopReplay.milestones_for(prev_view, state))
+	# Session 010: the per-tick feed for Godot-side duel participants (the
+	# guard steps AFTER publication, so a damage request applied here joins
+	# the NEXT tick's diff — one tick of latency, documented in SimGuard).
+	logic_tick.emit(state, input.to_byte())
 
 
 ## Plan B1.3 (session 010): an echo's stance presses this world's plates —
@@ -172,6 +181,27 @@ func force_death() -> void:
 	state["dead"] = 1
 	state["hp"] = 0
 	EventBus.player_died.emit()
+	sim_tick.emit(state)
+
+
+## Session 010: a Godot-side duel participant REQUESTS damage; this node
+## applies it to the sim state — the only writer stays here (approval
+## condition a). The request lands after this tick's publication, so the
+## health/death events surface on the next tick's diff (documented in
+## SimGuard). The death presentation reuses the crushed marker (hard_land,
+## f185) — the sim kid has no sword frames (model split, characterization).
+func apply_duel_hit(amount: int) -> void:
+	if amount <= 0 or int(state.get("dead", 0)) != 0:
+		return
+	var hp := int(state.get("hp", 0)) - amount
+	if hp <= 0:
+		state["hp"] = 0
+		state["dead"] = 1
+		state["seq"] = "hard_land"
+		state["op"] = 0
+		state["frame"] = 185
+	else:
+		state["hp"] = hp
 	sim_tick.emit(state)
 
 

@@ -74,6 +74,9 @@ func _ready() -> void:
 	_section("B1.3 echo presses sim-side plates (plan B1.3)")
 	_test_b13_echo_plate()
 
+	_section("Guard duel on the sim path (plan §4.7, session 010)")
+	_test_sim_guard_duel()
+
 	_section("B0 completability smoke (plan 8 gate 5)")
 	_test_b0_completability()
 
@@ -3276,6 +3279,141 @@ func _test_b13_echo_plate() -> void:
 	TemporalManager.reset_energy()
 	container.queue_free()
 	w.free()
+
+
+# --- Session 010: the guard duel on the sim path (plan §4.7) ---------------
+#
+# The first Godot-side enemy that consumes sim events on the NEW path: the
+# guard reads the world's per-tick snapshot + input byte (read-only) and
+# REQUESTS damage through SimWorld, the single writer (SimGuard documents
+# the boundary). Accept: the scripted duel runs deterministically across two
+# runs, on the 10 fps fight tick, with kid damage landing in the sim state.
+# Duel expectations come from PARITY §12/§13/§20 wherever a row exists; the
+# driver (activation range, byte→command mapping, kid position source) is
+# labelled sim characterization. FIGHT FEEL IS NOT VERIFIED — needs human
+# playtest.
+func _guard_arena() -> Dictionary:
+	const T := PopTables.Tile
+	var row0: Array = []
+	var row1: Array = []
+	var row2: Array = []
+	for i: int in 30:
+		row0.append(T.FLOOR)
+		row1.append(T.FLOOR)
+		row2.append(T.EMPTY)
+	return {
+		"tiles": [row0, row1, row2],
+		"mods": {},
+		"entities": {"gates": {}, "plates": {}, "links": [], "exit": {}},
+	}
+
+
+func _test_sim_guard_duel() -> void:
+	var arena := _guard_arena()
+	var strike_byte := PopInput.make(0, 0, 0, 1).to_byte()   # special bit 1 = strike
+	var neutral_byte := PopInput.neutral().to_byte()
+	# The A4.3 attack cadence (strike every 5th input), as sim-path bytes.
+	var script: Array = []
+	for i: int in 300:
+		script.append(strike_byte if (i % 5) == 0 else neutral_byte)
+
+	var run := func(seed_n: int, guard_x: int, script: Array) -> Dictionary:
+		var w := SimWorld.new()
+		w.setup(_b0_dup(arena), seed_n, Vector2(300.0, 165.0), [])   # x = 100 = START_X
+		TemporalManager.register_sim_world(w)
+		var g := SimGuard.new()
+		_sandbox.add_child(g)
+		g.setup(w, guard_x, 0, seed_n)
+		var events: Array = []
+		var on_ev := func(kind: StringName) -> void: events.append(String(kind))
+		g.duel_event.connect(on_ev)
+		w.step_ticks(300, script)
+		var out := {
+			"transcript": g.transcript.duplicate(),
+			"fight": g.fight_count(),
+			"active": g.active,
+			"guard_hp": int(g.guard["hp"]),
+			"guard_dead": int(g.guard["dead"]),
+			"sim_hp": int(w.state["hp"]),
+			"sim_dead": int(w.state["dead"]),
+			"hash": PopSim.hash_state(w.state),
+			"events": events.duplicate(),
+		}
+		g.duel_event.disconnect(on_ev)
+		g.free()
+		TemporalManager.register_sim_world(null)
+		w.free()
+		return out
+
+	# (1) A nearby guard wakes and fights on the 10 fps fight tick driven by
+	# the 12 fps sim clock: 300 logic ticks -> exactly 250 fight ticks.
+	var a: Dictionary = run.call(777, 107, script)   # START_X + START_DIST - FRONT_OFFSET
+	check(bool(a["active"]) and (a["transcript"] as Array).size() > 0,
+		"sim guard a guard within range wakes and fights (transcript %d entries)" % (a["transcript"]).size())
+	check((a["transcript"] as Array).has("k:strike"),
+		"the kid's strike rides the input byte's special bit into the duel (got %s)" % str((a["transcript"] as Array).slice(0, 6)))
+	check(int(a["fight"]) == 300 * PopTables.TICK_HZ_SWORD / PopTables.TICK_HZ_TRAVERSE,
+		"the duel steps at the 10 fps fight tick off the 12 fps clock (got %d, want 250)" % int(a["fight"]))
+
+	# (2) Every duel hit lands in the sim state — the guard's damage REQUEST
+	# is applied by the single writer (hp 3 - hits, death included).
+	var kid_hits := 0
+	for line: String in a["transcript"]:
+		if line == "kid:hit" or line == "kid:died":
+			kid_hits += 1
+	if int(a["sim_dead"]) != 0:
+		check(int(a["sim_hp"]) == 0,
+			"a lethal duel leaves the sim kid at 0 hp, dead (got %d)" % int(a["sim_hp"]))
+	else:
+		check(int(a["sim_hp"]) == PopTables.KID_HP_START - kid_hits,
+			"every duel hit lands in the sim state (hp %d = %d - %d hits)" % [
+				int(a["sim_hp"]), PopTables.KID_HP_START, kid_hits])
+	if int(a["guard_dead"]) != 0:
+		check((a["events"] as Array).has("defeated"),
+			"the guard's death surfaces as a duel event (got %s)" % str(a["events"]))
+	var tr: Array = a["transcript"]
+	check(str(tr[tr.size() - 1]).begins_with("end:"),
+		"the duel runs to a decision or the budget (last %s)" % str(tr[tr.size() - 1]))
+	# Pinned outcome for this seed + script (deterministic; the skill-0
+	# values behind it are PARITY §12 rows, the fight feel is characterization
+	# and NOT VERIFIED — needs human playtest).
+	check(str(tr[tr.size() - 1]) == "end:kid" and int(a["guard_dead"]) != 0
+			and int(a["sim_dead"]) == 0,
+		"seed 777 strike cadence: the kid wins the skill-0 duel (guard dead %d, kid dead %d, hp %d)" % [
+			int(a["guard_dead"]), int(a["sim_dead"]), int(a["sim_hp"])])
+
+	# (3) Plan §8 gate 3 on the sim path: same seed + same script -> identical
+	# transcripts, outcomes and world hashes.
+	var b: Dictionary = run.call(777, 107, script)
+	check((a["transcript"] as Array) == (b["transcript"] as Array)
+			and int(a["hash"]) == int(b["hash"])
+			and int(a["sim_hp"]) == int(b["sim_hp"])
+			and int(a["guard_hp"]) == int(b["guard_hp"]),
+		"same seed → identical sim-path duel transcript, outcome and world hash")
+
+	# (4) The seed is actually in play (PARITY §14 generator): with the A4.3
+	# pacing cadence (block every 4th tick), the guard's strike frames land
+	# against the kid's block/parry frames at seed-dependent alignments, so
+	# the transcripts differ. (The strike script above resolves so fast it
+	# pins determinism; a fully idle script would be seed-blind — failed
+	# draws leave no transcript trace.)
+	var block_byte := PopInput.make(0, 0, 0, 2).to_byte()   # special bit 2 = block
+	var pacing: Array = []
+	for i: int in 300:
+		pacing.append(block_byte if (i % 4) != 3 else neutral_byte)
+	var c1: Dictionary = run.call(777, 107, pacing)
+	var c2: Dictionary = run.call(999, 107, pacing)
+	check((c1["transcript"] as Array) != (c2["transcript"] as Array),
+		"a different seed produces a different sim-path duel transcript (%d vs %d entries)" % [
+			(c1["transcript"] as Array).size(), (c2["transcript"] as Array).size()])
+	check(int(c1["sim_dead"]) != 0 and int(c2["sim_dead"]) != 0,
+		"the pacing runs kill the undefended kid on both seeds (dead %d / %d)" % [
+			int(c1["sim_dead"]), int(c2["sim_dead"])])
+
+	# (5) A guard beyond the wake range sleeps: no draws, no transcript.
+	var d: Dictionary = run.call(777, 400, script)   # 300 units from the kid > ACTIVATE_RANGE
+	check(not bool(d["active"]) and (d["transcript"] as Array).is_empty(),
+		"a guard beyond the wake range never fights (transcript %d entries)" % (d["transcript"]).size())
 
 
 # --- Plan 8 gate 5: the level completability smoke --------------------------

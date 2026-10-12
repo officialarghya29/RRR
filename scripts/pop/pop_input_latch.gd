@@ -12,7 +12,12 @@ var _latch: PopInput = PopInput.neutral()
 
 ## OR one render frame's axes into the latch. Opposite directions pressed in
 ## the same interval cancel (x = right − left), as they would on a real pad.
-func sample(left: bool, right: bool, up: bool, down: bool, shift: bool) -> void:
+## Session 010: attack/block ride the byte's reserved special bits (1 = strike,
+## 2 = block) — plan B1.1 kept event attachment as special bits; SimGuard reads
+## them as duel commands on the sim path. A held bit latches like the axes and
+## clears on [method take], like every other field.
+func sample(left: bool, right: bool, up: bool, down: bool, shift: bool,
+		attack: bool = false, block: bool = false) -> void:
 	var x: int = (1 if right else 0) - (1 if left else 0)
 	var y: int = (1 if down else 0) - (1 if up else 0)
 	if x != 0:
@@ -21,6 +26,10 @@ func sample(left: bool, right: bool, up: bool, down: bool, shift: bool) -> void:
 		_latch.y = y
 	if shift:
 		_latch.shift = 1
+	if attack:
+		_latch.special |= 1
+	if block:
+		_latch.special |= 2
 
 
 ## Convenience: sample the runtime-registered actions (see
@@ -32,7 +41,9 @@ func sample_actions() -> void:
 		Input.is_action_pressed(&"move_right"),
 		Input.is_action_pressed(&"move_up"),
 		Input.is_action_pressed(&"crouch"),
-		Input.is_action_pressed(&"grab"))
+		Input.is_action_pressed(&"grab"),
+		Input.is_action_pressed(&"light_attack"),
+		Input.is_action_pressed(&"block"))
 
 
 func is_empty() -> bool:

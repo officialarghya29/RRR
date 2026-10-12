@@ -199,6 +199,17 @@ func _build_sim_level(data: Dictionary) -> void:
 	_world.add_child(player)
 	player.set_camera_limits(_level_bounds)
 
+	# Session 010 (plan §4.7): Godot-side duel participants on the sim path.
+	# The level data lists them; each is a read-only consumer of the world's
+	# per-tick snapshots/events (SimGuard documents what crosses the border).
+	var enemies: Dictionary = data.get("enemies", {})
+	for gdata: Dictionary in enemies.get("guards", []):
+		var guard := SimGuard.new()
+		guard.name = "SimGuard"
+		_world.add_child(guard)
+		guard.setup(world, int(gdata.get("x_sim", 0)), int(gdata.get("skill", 0)),
+			int(data.get("seed", 4242)) + int(gdata.get("seed_offset", 0)))
+
 	_hud.bind_player(player)
 	_hud.show()
 
