@@ -160,6 +160,7 @@ func _fight_tick(state: Dictionary) -> void:
 	if int(kid["hp"]) < kid_hp0:
 		var drop := kid_hp0 - int(kid["hp"])
 		duel_event.emit(&"hit_kid")
+		SoundEvents.emit_sfx(&"sword_hurt", _px())   # session 010 step 4 hook
 		if int(state.get("dead", 0)) == 0:
 			world.apply_duel_hit(drop)
 		if int(kid["hp"]) <= 0:
@@ -169,11 +170,20 @@ func _fight_tick(state: Dictionary) -> void:
 				transcript.append("end:guard")
 	if int(guard["hp"]) < guard_hp0:
 		duel_event.emit(&"hit_guard")
+		SoundEvents.emit_sfx(&"sword_strike", _px())   # session 010 step 4 hook
 	if int(guard["dead"]) != 0:
 		duel_event.emit(&"defeated")
+		SoundEvents.emit_sfx(&"guard_death", _px())   # session 010 step 4 hook
 	for i: int in range(before, transcript.size()):
 		if String(transcript[i]) == "k:parry" or String(transcript[i]) == "g:parry":
 			duel_event.emit(&"clash")
+			SoundEvents.emit_sfx(&"sword_clash", _px())   # session 010 step 4 hook
+
+
+## World-pixel position of the guard's body, for sound placement.
+func _px() -> Vector2:
+	return Vector2(float(guard_x) * SimWorld.PX_PER_UNIT,
+		float(int(PopTables.Y_LAND[1])) * SimWorld.PX_PER_UNIT)
 
 
 ## Fight ticks stepped so far (0 while the duel sleeps) — tests read this to

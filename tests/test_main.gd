@@ -80,6 +80,9 @@ func _ready() -> void:
 	_section("Level 2 Hall of Echoes (plan B1.3 + trim L2, session 010)")
 	_test_b13_level2()
 
+	_section("SoundEvents hook points (session 010 step 4)")
+	_test_sound_events()
+
 	_section("B0 completability smoke (plan 8 gate 5)")
 	_test_b0_completability()
 
@@ -3657,6 +3660,146 @@ func _test_b13_level2() -> void:
 	# FINISHABLE ≠ FAIR: the scripted runs prove completability and the
 	# mandatory-echo property. Feel, fairness and difficulty are **not
 	# verified, needs human playtest**.
+
+
+# --- Session 010 step 4: the SoundEvent hook points -------------------------
+#
+# Every named SFX id fires in its own scenario, on the Godot side, with no
+# audio files involved: the sim publishes the same diffs/milestones it
+# always did and the hook layer names them. docs/AUDIO_BRIEF.md is the
+# hand-off table (id -> where it fires -> suggested duration -> the
+# ASSET_LICENSES.md rule for the eventual files).
+func _sound_row(segments: Array) -> Array:
+	var row: Array = []
+	for i: int in 21:
+		row.append(PopTables.Tile.EMPTY)
+	for seg: Array in segments:
+		for c: int in range(int(seg[0]), int(seg[1]) + 1):
+			row[c] = int(seg[2])
+	return row
+
+
+func _test_sound_events() -> void:
+	const T := PopTables.Tile
+	var right_byte := PopInput.make(1, 0).to_byte()
+	var seen: Array = []
+	var on_sfx := func(id: StringName, _pos: Vector2) -> void: seen.append(String(id))
+	SoundEvents.sfx.connect(on_sfx)
+
+	# One world-runner per scenario: fresh world, scripted steps, teardown.
+	# Returns the guard's duel transcript (empty when no guard participated).
+	var run_arena := func(tiles: Array, mods: Dictionary, ticks: int,
+			guard_skill: int = -1, spawn_px: Vector2 = Vector2(237.0, 165.0)) -> Array:
+		var w := SimWorld.new()
+		w.setup({"tiles": tiles, "mods": mods,
+			"entities": {"gates": {}, "plates": {}, "links": [], "exit": {}}},
+			777, spawn_px, [])
+		TemporalManager.register_sim_world(w)
+		var g: SimGuard = null
+		if guard_skill >= 0:
+			g = SimGuard.new()
+			_sandbox.add_child(g)
+			g.setup(w, 107, guard_skill, 777 if guard_skill == 0 else 4242)
+		var strike_byte := PopInput.make(0, 0, 0, 1).to_byte()
+		for i: int in ticks:
+			var packed := right_byte
+			if g != null:
+				packed = strike_byte if (i % 5) == 0 else PopInput.neutral().to_byte()
+			w.step_with(PopInput.from_byte(packed))
+		var out: Array = g.transcript.duplicate() if g != null else []
+		if g != null:
+			g.free()
+		TemporalManager.register_sim_world(null)
+		w.free()
+		return out
+
+	# (1) The three landing windows (PARITY §7) + the fall-out death.
+	run_arena.call([_sound_row([[0, 4, T.FLOOR]]), _sound_row([[0, 20, T.FLOOR]]),
+		_sound_row([])], {}, 40)
+	check(seen.has("land_soft"), "land_soft fires on a 1-row drop (got %s)" % str(seen))
+	seen.clear()
+	run_arena.call([_sound_row([[0, 4, T.FLOOR]]), _sound_row([]),
+		_sound_row([[0, 20, T.FLOOR]])], {}, 40)
+	check(seen.has("land_medium"), "land_medium fires on a 2-row drop (got %s)" % str(seen))
+	seen.clear()
+	run_arena.call([_sound_row([[0, 4, T.FLOOR]]), _sound_row([]), _sound_row([])], {}, 40)
+	check(seen.has("land_hard") and seen.has("death"),
+		"land_hard + death fire on a fall out of the world (got %s)" % str(seen))
+	seen.clear()
+
+	# (2) The spike impale (PARITY §8) — and the death it causes.
+	run_arena.call([_sound_row([[0, 4, T.FLOOR]]), _sound_row([]),
+		_sound_row([[0, 20, T.SPIKES]])], {"2,5": 3, "2,6": 3, "2,7": 3}, 40)
+	check(seen.has("spike") and seen.has("death"),
+		"spike (+ death) fires when the kid lands on spikes (got %s)" % str(seen))
+	seen.clear()
+
+	# (3) Plate press, gate open (park) and gate close (PARITY §9/§10).
+	# The kid walks through the gate and STOPS before the world's edge (the
+	# sim's entity stage is gated on the kid being alive — session 010 noted
+	# that as a parity question for later — so a dead kid would freeze the
+	# gate mid-close and the close milestone would never fire).
+	var gt := PopLevel.small_test_level()
+	var gw := SimWorld.new()
+	gw.setup({"tiles": gt["tiles"], "mods": gt["mods"], "entities": gt["entities"]},
+		4242, Vector2(300.0, 165.0), [])
+	TemporalManager.register_sim_world(gw)
+	for _i: int in 400:
+		var packed := right_byte if int(gw.state["x"]) < 300 else PopInput.neutral().to_byte()
+		gw.step_with(PopInput.from_byte(packed))
+	check(int(gw.state["dead"]) == 0,
+		"the gate-close scenario keeps the kid alive (dead %d)" % int(gw.state["dead"]))
+	TemporalManager.register_sim_world(null)
+	gw.free()
+	check(seen.has("plate") and seen.has("gate_open") and seen.has("gate_close"),
+		"plate / gate_open / gate_close fire through the §9-§10 milestones (got %s)" % str(seen))
+	seen.clear()
+
+	# (4) The sword ids through the live duel: the pinned skill-0 fight
+	# (kid at START_X 100, guard at 107, seed 777 — the unit-test geometry)
+	# gives strike, hurt (the kid's one hit taken) and the guard's death; a
+	# skill-1 guard (block odds 150, PARITY §12) parries, which gives the
+	# clash.
+	var flat := [_sound_row([[0, 20, T.FLOOR]]), _sound_row([[0, 20, T.FLOOR]]),
+		_sound_row([])]
+	var tr0: Array = run_arena.call(flat, {}, 300, 0, Vector2(300.0, 165.0))
+	check(seen.has("sword_strike") and seen.has("guard_death") and seen.has("sword_hurt"),
+		"sword_strike / sword_hurt / guard_death fire in the skill-0 duel (got %s; duel %s)" % [
+			str(seen), str(tr0.slice(0, 8))])
+	seen.clear()
+	var tr1: Array = run_arena.call(flat, {}, 300, 1, Vector2(300.0, 165.0))
+	check(seen.has("sword_clash"),
+		"sword_clash fires when the skill-1 guard parries (got %s; duel %s)" % [
+			str(seen), str(tr1.slice(0, 8))])
+	seen.clear()
+
+	# (5) The echo ids through the real record/release path.
+	var ew := SimWorld.new()
+	ew.setup({"tiles": [_sound_row([[0, 20, T.FLOOR]]), _sound_row([[0, 20, T.FLOOR]]),
+		_sound_row([])], "mods": {},
+		"entities": {"gates": {}, "plates": {}, "links": [], "exit": {}}},
+		777, Vector2(237.0, 165.0), [])
+	TemporalManager.register_sim_world(ew)
+	var container := Node2D.new()
+	_sandbox.add_child(container)
+	TemporalManager.configure_for_level({})
+	TemporalManager.set_echo_container(container)
+	TemporalManager.clear_echoes()
+	TemporalManager.reset_energy()
+	check(TemporalManager.start_recording(), "echo_record: the take begins")
+	ew.step_ticks(10, [right_byte])
+	TemporalManager.stop_recording()
+	check(seen.has("echo_record") and seen.has("echo_release"),
+		"echo_record / echo_release fire on the real record path (got %s)" % str(seen))
+	TemporalManager.register_sim_world(null)
+	TemporalManager.clear_echoes()
+	TemporalManager.configure_for_level({})
+	TemporalManager.reset_energy()
+	container.queue_free()
+	ew.free()
+	seen.clear()
+
+	SoundEvents.sfx.disconnect(on_sfx)
 
 
 # --- Plan 8 gate 5: the level completability smoke --------------------------

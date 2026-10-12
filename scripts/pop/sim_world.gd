@@ -106,11 +106,13 @@ func step_with(input: PopInput) -> void:
 	# session 010) and lands in the same tick's diff for the puzzle stream
 	# and the echo recorder. The prev snapshot must predate the echo press.
 	var prev_view: Dictionary = PopReplay._entity_view(state)
+	var prev_seq := String(state.get("seq", ""))
 	TemporalManager.step_sim_echoes()
 	_apply_echo_presses()
 	state = PopSim.step(state, input)
 	clock.push(state)
 	_publish(prev_view)
+	_publish_sounds(prev_seq)
 	# Plan B0 step 4: while a take is recording, stamp this tick's byte and
 	# its event vector into the echo recorder (the PopReplay ring) — one
 	# branch per tick, and only the recording path pays for the string diff.
@@ -246,10 +248,52 @@ func _publish(prev_view: Dictionary) -> void:
 ## events for the puzzle framework's consumers. The milestones come from
 ## PopReplay.milestones_for — the same rules the echo recorder stamps into
 ## its event vectors — so a level's puzzle timeline and its recorded vectors
-## cannot diverge.
+## cannot diverge. Session 010 step 4: the same milestones also emit named
+## SoundEvents (plate / gate open / gate close / death) — the audio hook
+## points sit on the diffs the sim already publishes, never inside the sim.
 func _publish_entity_events(prev_view: Dictionary) -> void:
 	for milestone: Dictionary in PopReplay.milestones_for(prev_view, state):
-		EventBus.sim_entity_event.emit(StringName(String(milestone["kind"])), String(milestone["key"]))
+		var kind := StringName(String(milestone["kind"]))
+		var key := String(milestone["key"])
+		EventBus.sim_entity_event.emit(kind, key)
+		match kind:
+			&"press":
+				SoundEvents.emit_sfx(&"plate", _key_px(key))
+			&"open":
+				SoundEvents.emit_sfx(&"gate_open", _key_px(key))
+			&"closed", &"fastclose":
+				SoundEvents.emit_sfx(&"gate_close", _key_px(key))
+			&"dead":
+				SoundEvents.emit_sfx(&"death")
+
+
+## World-pixel position of an entity key ("row,col") for sound placement.
+func _key_px(key: String) -> Vector2:
+	var parts := key.split(",")
+	if parts.size() != 2:
+		return Vector2.ZERO
+	return Vector2(
+		float(58 + PopTables.TILE_W * int(parts[1]) + 7) * PX_PER_UNIT,
+		float(int(PopTables.Y_LAND[int(parts[0]) + 1])) * PX_PER_UNIT)
+
+
+## Session 010 step 4: landing and trap sounds from the sequence transition
+## the sim already performs — soft / medium / hard land windows and the
+## spike impale (PARITY §7/§8; seq names are PopSim's own). Death itself
+## rides the "dead" milestone above.
+func _publish_sounds(prev_seq: String) -> void:
+	var seq := String(state.get("seq", ""))
+	if seq == prev_seq:
+		return
+	match seq:
+		"soft_land":
+			SoundEvents.emit_sfx(&"land_soft", pos_px())
+		"med_land":
+			SoundEvents.emit_sfx(&"land_medium", pos_px())
+		"hard_land":
+			SoundEvents.emit_sfx(&"land_hard", pos_px())
+		"impale":
+			SoundEvents.emit_sfx(&"spike", pos_px())
 
 
 ## Position triggers read the sim x/y (design note: checkpoints stay

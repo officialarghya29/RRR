@@ -180,6 +180,7 @@ func start_recording() -> bool:
 		_begin_sim_take()
 	EventBus.recording_started.emit(config.max_recording_duration)
 	EventBus.recording_progress.emit(0.0, config.max_recording_duration)
+	SoundEvents.emit_sfx(&"echo_record")   # session 010 step 4 hook point
 	return true
 
 
@@ -263,13 +264,12 @@ func _finalize_recording() -> void:
 		recorder.cancel()
 		EventBus.recording_cancelled.emit("too_short")
 		return
-
 	var produced: TemporalEcho = spawn_echo(recorder.get_snapshots())
 	if produced == null:
 		recorder.cancel()
 		EventBus.recording_cancelled.emit("echo_failed")
 		return
-
+	SoundEvents.emit_sfx(&"echo_release")   # session 010 step 4 hook point
 	energy = maxf(0.0, energy - config.energy_cost_per_echo)
 	_emit_energy(true)
 	recorder.cancel()
@@ -294,6 +294,7 @@ func _finalize_sim_take() -> void:
 		recorder.cancel()
 		EventBus.recording_cancelled.emit("echo_failed")
 		return
+	SoundEvents.emit_sfx(&"echo_release")   # session 010 step 4 hook point
 	energy = maxf(0.0, energy - config.energy_cost_per_echo)
 	_emit_energy(true)
 	recorder.cancel()
