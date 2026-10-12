@@ -50,6 +50,9 @@ func _ready() -> void:
 	_section("A4.1 gates, plates and the level exit (plan A4.1)")
 	_test_a41_entities()
 
+	_section("Held-plate gate hold (PARITY §10; seg007.c:764)")
+	_test_held_plate_gate_hold()
+
 	_section("B1 minimal input-byte echo (plan B1 / §8 gate 4)")
 	_test_b1_minimal_echo()
 
@@ -1651,13 +1654,18 @@ func _test_a41_entities() -> void:
 		"gate opens in %d±1 ticks (PARITY §9: 188 at +4/frame; got %d)" % [expected_open_tick, open_tick])
 
 	# --- gate closing -----------------------------------------------------
+	# The close schedule is observable AFTER release: while the kid stands on
+	# the plate the reference re-triggers its links every held tick
+	# (`seg007.c:764`), re-parking the gate at 238 — a held plate's gate never
+	# closes. So step him off (col 3 -> col 6) and watch the §9 close run.
+	st["x"] = PopTables.X_BUMP[PopTables.FIRST_ONSCREEN_COLUMN + 6] + 10
 	var close_tick := open_tick
 	while int(g["mod"]) > 0 and int(st["tick"]) < 900:
 		st = PopSim.step(st, PopInput.neutral())
 		g = (st["gates"] as Dictionary)[gate_key]
 		close_tick = int(st["tick"])
 	check(int(g["mod"]) == 0,
-		"the gate closes back to 0 (PARITY §9 close-reached row)")
+		"the gate closes back to 0 once the kid steps off (PARITY §9 close-reached row)")
 	var expected_close_ticks: int = PopTables.GATE_PARKED / abs(PopTables.DOOR_DELTA[0])  # 238 / 1
 	check(abs((close_tick - open_tick) - expected_close_ticks) <= 1,
 		"gate closes in %d±1 ticks (PARITY §9 normal closing −1/frame; got %d)" % [expected_close_ticks, close_tick - open_tick])
@@ -1716,6 +1724,59 @@ func _test_a41_entities() -> void:
 		e3 = PopSim.step(e3, PopInput.neutral())
 	check(PopSim.hash_state(e1) != PopSim.hash_state(e3),
 		"a different seed diverges with gate/plate state in the hash (sim characterization: determinism probe)")
+
+
+## Session 010 regression (B1.3 / level 2's mechanism): the reference
+## re-triggers a held plate's links EVERY tick (`seg007.c:764`, do_trigger_list
+## sits outside the link_timer < 2 branch), so a body standing on a raise plate
+## keeps re-parking its gate at GATE_PARKED and the gate never closes while
+## held — stepping off hands control back to the §9 close schedule. This is
+## the exact mechanic a temporal echo rides to hold a gate open for the kid.
+func _test_held_plate_gate_hold() -> void:
+	var bundle := PopLevel.small_test_level()
+	var s: Dictionary = PopSim.initial_state(
+		4242, bundle["tiles"], bundle["mods"], bundle["entities"])
+	var gate_key := "0,7"
+
+	# (1) A body held on the plate re-triggers the gate each tick: from the
+	# first press it opens at +4/tick, parks at 238, then oscillates 238/237
+	# (re-park, then the -1 close tick) — always >= the open threshold.
+	var parked_tick := -1
+	var ever_closed_while_held := false
+	for tick: int in 120:
+		PopLevel.step_entities(s, 0, 3, PopTables.Tile.BUTTON_RAISE)
+		var mod := int((s["gates"][gate_key] as Dictionary)["mod"])
+		if mod >= PopTables.GATE_PARKED and parked_tick < 0:
+			parked_tick = tick
+		if parked_tick >= 0 and mod < PopTables.GATE_OPEN_THRESHOLD:
+			ever_closed_while_held = true
+	check(parked_tick == 46,
+		"a held plate parks its gate at %d on tick 46 (the 47th held tick: 4*47 = 188 crosses the threshold, PARITY §9 open-reached row; got %d)" % [
+			PopTables.GATE_PARKED, parked_tick])
+	check(not ever_closed_while_held,
+		"the gate stays >= %d open for the whole hold (seg007.c:781 re-park, PARITY §10)" % PopTables.GATE_OPEN_THRESHOLD)
+	check(int(s["plates"]["0,3"]) == PopTables.PLATE_HOLD_TIMER - 1,
+		"the plate timer settles at %d while held (PARITY §10 press-timer row)" % (PopTables.PLATE_HOLD_TIMER - 1))
+
+	# (2) Stepping off hands control to the close schedule: the park value
+	# then falls -1/tick (PARITY §9 closing row) — below the open threshold
+	# after 50 ticks and fully closed exactly `mod_at_stepoff` ticks later.
+	var mod_off := int((s["gates"][gate_key] as Dictionary)["mod"])
+	var below_threshold := -1
+	var reached_zero := -1
+	for tick: int in 300:
+		PopLevel.step_entities(s, 0, 0, PopTables.Tile.FLOOR)   # off the plate
+		var mod := int((s["gates"][gate_key] as Dictionary)["mod"])
+		if mod < PopTables.GATE_OPEN_THRESHOLD and below_threshold < 0:
+			below_threshold = tick
+		if mod == 0 and reached_zero < 0:
+			reached_zero = tick
+	check(below_threshold == mod_off - PopTables.GATE_OPEN_THRESHOLD,
+		"after stepping off the gate drops below %d at tick %d (the §9 -1/tick close from %d)" % [
+			PopTables.GATE_OPEN_THRESHOLD, below_threshold, mod_off])
+	check(reached_zero == mod_off - 1,
+		"the gate closes fully %d ticks after stepping off (PARITY §9 park-to-zero row; got %d)" % [
+			mod_off - 1, reached_zero])
 
 
 # --- Plan B1 (thin slice): input-byte echo --------------------------------

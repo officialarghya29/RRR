@@ -79,8 +79,12 @@ static func step_entities(s: Dictionary, kid_row: int, kid_col: int, kid_tile: i
 		return
 
 	# 1. press: check_press → trigger_button (`seg007.c:742-768`). A held plate
-	#    resets its timer to 5 every tick, so it only fires when the timer was
-	#    below 2 at the start of the tick.
+	#    resets its timer to 5 every tick, and its linked mechanisms re-trigger
+	#    on EVERY held tick (`seg007.c:764`: do_trigger_list sits outside the
+	#    link_timer < 2 branch) — that is the reference behaviour that keeps a
+	#    held plate's gate re-parked at 238 open instead of closing. The plate's
+	#    own visual/sound trob is the only part that fires once per press
+	#    (`seg007.c:758-763`, modeled by the press milestone in PopReplay).
 	var plate_key: String = "%d,%d" % [kid_row, kid_col]
 	var pressing: bool = kid_tile == PopTables.Tile.BUTTON_RAISE \
 			or kid_tile == PopTables.Tile.BUTTON_DROP
@@ -105,15 +109,19 @@ static func step_entities(s: Dictionary, kid_row: int, kid_col: int, kid_tile: i
 
 
 ## `trigger_button` + `trigger_gate` (`seg007.c:742-768`, `seg007.c:600-637`):
-## a press fires the linked gate only when the plate's timer was < 2.
+## while a plate is held and not jammed it resets its timer to 5 and
+## re-triggers its links EVERY tick — in the reference `do_trigger_list`
+## runs on every held tick, not only on the timer fire (`seg007.c:764`), so
+## a body standing on a raise plate re-parks its gate at GATE_PARKED each
+## tick and the gate stays open until the body steps off. This is the
+## mechanic the temporal echo rides: a memory left standing on a plate
+## holds the linked gate open for it.
 static func _trigger_plate(s: Dictionary, key: String, kid_tile: int) -> void:
 	var plates: Dictionary = s["plates"]
 	var timer: int = int(plates[key])
 	if timer == PopTables.PLATE_JAMMED:
 		return  # jammed: ignore the press entirely
 	plates[key] = PopTables.PLATE_HOLD_TIMER
-	if timer >= PopTables.PLATE_REPRESS_BELOW:
-		return  # still animating: reset the timer but do not re-fire
 	for link: Dictionary in (s.get("links", []) as Array):
 		if String(link["plate"]) != key:
 			continue
