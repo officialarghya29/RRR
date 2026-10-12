@@ -77,6 +77,9 @@ func _ready() -> void:
 	_section("Guard duel on the sim path (plan §4.7, session 010)")
 	_test_sim_guard_duel()
 
+	_section("Level 2 Hall of Echoes (plan B1.3 + trim L2, session 010)")
+	_test_b13_level2()
+
 	_section("B0 completability smoke (plan 8 gate 5)")
 	_test_b0_completability()
 
@@ -2902,7 +2905,8 @@ func _test_b0_sim_path() -> void:
 	var data: Dictionary = LevelCatalog.get_sim_level(0)
 	check(data.size() > 0 and String(data.get("id", "")) == "sim_gate",
 		"B0 sim level 1 loads from the catalog")
-	check(LevelCatalog.sim_count() == 1, "B0 the sim level list carries 1 level")
+	check(LevelCatalog.sim_count() == 2,
+		"B0 the sim level list carries both sim levels (Session 010 added Hall of Echoes)")
 	var bundle := _b0_dup({"tiles": data["tiles"], "mods": data["mods"], "entities": data["entities"]})
 	var spawn_px: Vector2 = data["spawn"]
 	var spawn_sim_x := int(spawn_px.x / SimWorld.PX_PER_UNIT)
@@ -3414,6 +3418,245 @@ func _test_sim_guard_duel() -> void:
 	var d: Dictionary = run.call(777, 400, script)   # 300 units from the kid > ACTIVATE_RANGE
 	check(not bool(d["active"]) and (d["transcript"] as Array).is_empty(),
 		"a guard beyond the wake range never fights (transcript %d entries)" % (d["transcript"]).size())
+
+
+# --- Session 010 step 3d: level 2, Hall of Echoes (plan B1.3 + trim L2) ----
+#
+# The thesis level on the new path: record a take that ends standing on the
+# plate, release the echo, then do the skill route (drop, pit jump, hang-
+# climb, guard duel) while the memory holds the gate — the "cooperate with
+# your past self" beat. Accept (session 010 brief): scripted playthrough
+# completes level 2 (gate 5 extended); the echo puzzle is MANDATORY (the
+# negative run proves the level cannot be completed without it); the duel
+# outcome is deterministic (same seed, pinned); expected values are PARITY
+# rows (§9 gate schedule, §12 skill-0 tables) where they exist, everything
+# else labelled characterization. FAIRNESS AND DIFFICULTY ARE NOT VERIFIED
+# — needs human playtest.
+func _test_b13_level2() -> void:
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var jump := PopInput.make(1, -1)
+	var edge_walk := PopInput.make(1, 0, 1)
+	var grab := PopInput.make(0, -1, 1)
+	var strike := PopInput.make(0, 0, 0, 1)   # special bit 1 = duel strike
+
+	# --- negative run first: SOLO, even the best line cannot finish -------
+	# The kid presses the plate himself and holds it until the gate parks
+	# (the optimal solo start), then runs the route. The §9 window after
+	# stepping off is 50 ticks; the route needs ~200. Mandatory-echo proof.
+	GameManager.load_level(1)
+	check(GameManager.state == GameManager.State.PLAYING and GameManager.player is SimPlayer,
+		"level 2 loads on the sim path through the real scene (state %s)" % str(GameManager.state))
+	if not (GameManager.player is SimPlayer):
+		GameManager.return_to_menu()
+		return
+	var solo_events: Array = []
+	var on_ent_solo := func(kind: StringName, key: String) -> void:
+		solo_events.append("%s:%s" % [String(kind), key])
+	EventBus.sim_entity_event.connect(on_ent_solo)
+	var solo_world: SimWorld = (GameManager.player as SimPlayer).world
+	# walk onto the plate at col 3 with tap-steps: a full run's stop-skid
+	# (~20 units) always overshoots a 14-unit tile, so the settle would land
+	# off the plate (session 010: measured at x 119, foot col 4).
+	var s1 := 0
+	while PopSim._col_of(PopSim._foot_x(solo_world.state)) != 3 and s1 < 30:
+		solo_world.step_with(right)
+		solo_world.step_with(neutral)
+		s1 += 1
+	# hold it until the gate parks (optimal solo play), then run the route
+	var s2 := 0
+	while int((solo_world.state["gates"]["0,20"] as Dictionary)["mod"]) < PopTables.GATE_PARKED \
+			and s2 < 100:
+		solo_world.step_with(neutral)
+		s2 += 1
+	var solo_ticks := 0
+	while GameManager.state == GameManager.State.PLAYING \
+			and int(solo_world.state["dead"]) == 0 and solo_ticks < 900:
+		# the same route the positive run takes, minus the echo: drop, pit,
+		# grab, climb, duel (strike cadence in range), walk to the gate.
+		var g: Dictionary = (solo_world.state["gates"]["0,20"] as Dictionary)
+		if int(solo_world.state["row"]) == 0 \
+				and PopSim._col_of(PopSim._foot_x(solo_world.state)) >= 14:
+			# on the ledge: duel first (strike in reach), else walk right
+			var guard := solo_world.get_parent().get_node_or_null("SimGuard") as SimGuard
+			if guard != null and int(guard.guard["dead"]) == 0 \
+					and absi(int(solo_world.state["x"]) - guard.guard_x) <= 40:
+				solo_world.step_with(strike)
+			else:
+				solo_world.step_with(right)
+		elif int(solo_world.state["row"]) == 1 and int(solo_world.state["x"]) >= 150 \
+				and int(solo_world.state["x"]) <= 178 \
+				and (String(solo_world.state["seq"]) == "startrun" \
+					or String(solo_world.state["seq"]) == "run_cycle"):
+			solo_world.step_with(jump)
+		elif String(solo_world.state["seq"]) == "hang":
+			solo_world.step_with(grab)
+		elif int(solo_world.state["row"]) == 1 and int(solo_world.state["x"]) >= 250:
+			solo_world.step_with(grab)   # in the window: Shift+Up grabs/climbs
+		elif int(solo_world.state["row"]) == 1 and int(solo_world.state["x"]) >= 230:
+			solo_world.step_with(edge_walk)
+		else:
+			solo_world.step_with(right)
+		solo_ticks += 1
+	var solo_gate_mod := int((solo_world.state["gates"]["0,20"] as Dictionary)["mod"])
+	var solo_x := int(solo_world.state["x"])
+	check(solo_events.has("press:0,3") and solo_events.has("open:0,20"),
+		"level 2 solo the kid's own press opens the gate (got %s)" % str(solo_events))
+	check(GameManager.state == GameManager.State.PLAYING and solo_gate_mod < PopTables.GATE_OPEN_THRESHOLD \
+			and solo_x < 338,
+		"level 2 is MANDATORY-echo: even the best solo line is pinned at the closed gate "
+			+ "(x %d, gate mod %d, state %s, %d ticks) — the §9 window is 50 ticks, the route ~200" % [
+				solo_x, solo_gate_mod, str(GameManager.state), solo_ticks])
+	EventBus.sim_entity_event.disconnect(on_ent_solo)
+	GameManager.return_to_menu()
+
+	# --- positive run: record, release, route, duel, exit -----------------
+	GameManager.load_level(1)
+	var world: SimWorld = (GameManager.player as SimPlayer).world
+	var events: Array = []
+	var checkpoints: Array = []
+	var completed := [false]
+	var on_ent := func(kind: StringName, key: String) -> void:
+		events.append("%s:%s" % [String(kind), key])
+	var on_cp := func(id: StringName) -> void: checkpoints.append(String(id))
+	var on_done := func(_id: StringName) -> void: completed[0] = true
+	EventBus.sim_entity_event.connect(on_ent)
+	EventBus.checkpoint_reached.connect(on_cp)
+	EventBus.level_completed.connect(on_done)
+	var guard := world.get_parent().get_node_or_null("SimGuard") as SimGuard
+	check(guard != null and guard.skill == 0,
+		"level 2 spawns the skill-0 guard from the level data (got %s)" % str(guard != null))
+
+	# (1) Record the take: walk onto the plate at col 3, settle to a stand
+	# ON it (the run-stop skid drifts a few units — the take must end with
+	# the stance actually on the plate, or the released echo stops holding).
+	check(TemporalManager.start_recording(), "level 2 the take begins at spawn")
+	var p1 := 0
+	while PopSim._col_of(PopSim._foot_x(world.state)) != 3 and p1 < 30:
+		world.step_with(right)
+		world.step_with(neutral)   # tap-walk: keep the approach slow enough to stop on the tile
+		p1 += 1
+	var p1b := 0
+	while String(world.state["seq"]) != "stand" and p1b < 15:
+		world.step_with(neutral)
+		p1b += 1
+	var plate_foot := PopSim._col_of(PopSim._foot_x(world.state))
+	check(plate_foot == 3,
+		"level 2 the take settles standing ON the plate (foot col %d, x %d)" % [
+			plate_foot, int(world.state["x"])])
+	world.step_ticks(8, [neutral.to_byte()])
+	TemporalManager.stop_recording()
+	check(TemporalManager.echo_count() == 1,
+		"level 2 release spawns the echo that will hold the plate (count %d)" % TemporalManager.echo_count())
+
+	# (2) The route: drop off the start floor, run-jump the pit, hang-climb
+	# the ledge — the gate-5 phases, same geometry — then the duel.
+	var r1 := 0
+	while int(world.state["row"]) != 1 and int(world.state["dead"]) == 0 and r1 < 90:
+		world.step_with(right)
+		r1 += 1
+	var r2 := 0
+	while int(world.state["dead"]) == 0 and r2 < 60 and not (
+			int(world.state["row"]) == 1
+			and (String(world.state["seq"]) == "startrun" or String(world.state["seq"]) == "run_cycle")
+			and int(world.state["x"]) >= 150 and int(world.state["x"]) <= 178):
+		world.step_with(right)
+		r2 += 1
+	var r3 := 0
+	while String(world.state["seq"]) != "run_jump" and int(world.state["dead"]) == 0 and r3 < 8:
+		world.step_with(jump)
+		r3 += 1
+	while String(world.state["seq"]) == "run_jump" and int(world.state["dead"]) == 0 and r3 < 40:
+		world.step_with(jump)
+		r3 += 1
+	check(int(world.state["row"]) == 1 and int(world.state["dead"]) == 0 and int(world.state["x"]) > 198,
+		"level 2 the jump clears the spike pit (x %d row %d dead %d)" % [
+			int(world.state["x"]), int(world.state["row"]), int(world.state["dead"])])
+	var r4 := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and r4 < 30:
+		world.step_with(neutral)
+		r4 += 1
+	var r5 := 0
+	while int(world.state["x"]) < 250 and int(world.state["row"]) == 1 \
+			and int(world.state["dead"]) == 0 and r5 < 40:
+		world.step_with(edge_walk)
+		r5 += 1
+	var r5b := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and r5b < 15:
+		world.step_with(neutral)
+		r5b += 1
+	var r6 := 0
+	while String(world.state["seq"]) != "hang" and int(world.state["dead"]) == 0 and r6 < 30:
+		world.step_with(grab)
+		r6 += 1
+	var r7 := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and r7 < 40:
+		world.step_with(grab)
+		r7 += 1
+	check(int(world.state["row"]) == 0 and int(world.state["dead"]) == 0,
+		"level 2 the climb-out stands on the ledge (row %d dead %d)" % [
+			int(world.state["row"]), int(world.state["dead"])])
+
+	# (3) The duel: walk into range, strike cadence until the guard falls.
+	var guard_defeats := [0]
+	var on_duel := func(kind: StringName) -> void:
+		if kind == &"defeated":
+			guard_defeats[0] = int(guard_defeats[0]) + 1
+	if guard != null:
+		guard.duel_event.connect(on_duel)
+	var d1 := 0
+	while guard != null and int(guard.guard["dead"]) == 0 and int(world.state["dead"]) == 0 and d1 < 400:
+		if absi(int(world.state["x"]) - guard.guard_x) <= 40:
+			world.step_with(strike)
+		else:
+			world.step_with(right)
+		d1 += 1
+	check(guard != null and int(guard.guard["dead"]) != 0 and guard_defeats[0] == 1,
+		"level 2 the scripted duel beats the skill-0 guard deterministically (seed %d; dead %d after %d ticks)" % [
+			5252 + 1, int(guard.guard["dead"]) if guard != null else -1, d1])
+	check(int(world.state["hp"]) > 0 and int(world.state["dead"]) == 0,
+		"level 2 the kid survives the duel (hp %d dead %d)" % [
+			int(world.state["hp"]), int(world.state["dead"])])
+
+	# (4) Walk through the held gate into the exit door — the loop ends when
+	# the SCENE completes the level (exit_reached -> complete_level).
+	var first_open := -1
+	var closed_after_open := false
+	var r8 := 0
+	while GameManager.state == GameManager.State.PLAYING and int(world.state["dead"]) == 0 and r8 < 300:
+		world.step_with(right)
+		var mod := int((world.state["gates"]["0,20"] as Dictionary)["mod"])
+		if first_open >= 0 and mod < PopTables.GATE_OPEN_THRESHOLD:
+			closed_after_open = true
+		if first_open < 0 and mod >= PopTables.GATE_OPEN_THRESHOLD:
+			first_open = r8
+		r8 += 1
+	if guard != null:
+		guard.duel_event.disconnect(on_duel)
+
+	var presses := 0
+	for e: String in events:
+		if e == "press:0,3":
+			presses += 1
+	check(presses >= 2,
+		"level 2 the echo re-presses the world's plate while the kid crosses (presses %d)" % presses)
+	check(not closed_after_open and first_open >= 0,
+		"level 2 the gate never closes while the echo holds (first open tick %d, echoes %d, events %s)" % [
+			first_open, TemporalManager.active_sim_echoes().size(), str(events)])
+	check(checkpoints.has("ground") and checkpoints.has("ledge"),
+		"level 2 both position triggers fire on the way (got %s)" % str(checkpoints))
+	check(completed[0] and GameManager.state == GameManager.State.LEVEL_COMPLETE \
+			and int(world.state["dead"]) == 0,
+		"level 2 the scripted run completes end to end with the echo + duel (completed %s, state %s, x %d, %d ticks)" % [
+			str(completed[0]), str(GameManager.state), int(world.state["x"]), r8])
+
+	EventBus.sim_entity_event.disconnect(on_ent)
+	EventBus.checkpoint_reached.disconnect(on_cp)
+	EventBus.level_completed.disconnect(on_done)
+	GameManager.return_to_menu()
+	# FINISHABLE ≠ FAIR: the scripted runs prove completability and the
+	# mandatory-echo property. Feel, fairness and difficulty are **not
+	# verified, needs human playtest**.
 
 
 # --- Plan 8 gate 5: the level completability smoke --------------------------

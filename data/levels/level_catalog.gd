@@ -37,13 +37,15 @@ static func count() -> int:
 # -----------------------------------------------------------------------------
 
 static func sim_count() -> int:
-	return 1
+	return 2
 
 
 static func get_sim_level(index: int) -> Dictionary:
 	match index:
 		0:
 			return sim_level_one()
+		1:
+			return sim_level_two()
 		_:
 			push_error("LevelCatalog.get_sim_level: no sim level at index %d." % index)
 			return {}
@@ -92,6 +94,74 @@ static func sim_level_one() -> Dictionary:
 		},
 		# Position triggers that read the sim x each tick (design note:
 		# checkpoints stay Godot-side, fed by sim coordinates).
+		"checkpoints": [
+			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
+			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
+		],
+	}
+
+
+# SIM LEVEL 2 — HALL OF ECHOES (lighter cut, trim decision 2026-10-12: one
+# echo mechanism + one skill-0 duel). Same grammar as level 1 (drop, pit,
+# hang-climb) with the thesis beat moved to the START floor: a raise plate at
+# col 3 gates the door at col 20, and the route past it (pit jump, ledge,
+# guard duel) takes far longer than the §9 gate schedule allows a solo run —
+# only a memory released onto the plate (which RE-TRIGGERS the gate every
+# held tick, `seg007.c:764`, session 010 3a) holds it open all the way to the
+# exit door. The guard between the climb-out and the gate is the first
+# enemy on the sim path (SimGuard; reads sim snapshots/events only).
+#
+# The start floor spans cols 0-6 exactly as level 1 (the plate sits at col
+# 3): extending it even one column moves the fall edge past the measured
+# run-jump take-off window for the col-10 pit (session 010: the scripted
+# run died in the pit before this was caught — authored geometry follows
+# the measured window, never the reverse).
+#
+# Solo-impossibility arithmetic (test-pinned): the kid presses the plate
+# himself while recording, so the gate parks ~47 ticks after the press and
+# then falls −1/tick — passable for only 50 ticks — while the plate-to-gate
+# route (drop + pit jump + hang-climb + duel) needs ~200. With the echo
+# standing on the plate the gate re-parks every tick and never closes.
+static func sim_level_two() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# 0-6 start floor (plate 3) | 7-13 gap | 14-25 ledge (gate 20, exit 23-24)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.GATE, T.FLOOR,
+		 T.FLOOR, T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT, T.FLOOR],
+		# ground floor with the one-column spike pit at 10 (level 1's grammar)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR],
+		# spike floor under the pit, one column of drift margin each side
+		[T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY],
+	]
+	return {
+		"id": &"sim_echoes",
+		"title": "Hall of Echoes",
+		"objective": "Leave a memory on the plate, then cross the hall alive.",
+		"seed": 5252,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {"2,9": 3, "2,10": 3, "2,11": 3},
+		"entities": {
+			"gates": {"0,20": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,3": 0},
+			"links": [{"plate": "0,3", "gate": "0,20"}],
+			# static open (type -1): the level ends by walking in
+			"exit": {"row": 0, "col": 23, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# The first enemy that consumes sim events on the new path (SimGuard):
+		# skill 0, on the ledge between the climb-out and the gate.
+		"enemies": {
+			"guards": [{"x_sim": 327, "skill": 0, "seed_offset": 1}],
+		},
 		"checkpoints": [
 			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
 			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
