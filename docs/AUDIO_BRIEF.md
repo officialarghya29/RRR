@@ -63,5 +63,5 @@ Notes for whoever records or composes these:
 - **Music (stretch, Q4):** not scoped here. If it becomes real, it goes
   through the same licence row and should never gate the SFX pass.
 
-*Session 010, 2026-10-12. Hand-off written for Arghya (audio) or the
-maintainer; questions to the session log in `review.md`.*
+*Session 010, 2026-10-12. Hand-off written for the maintainer (D16: solo
+working); questions to the session log in `review.md`.*

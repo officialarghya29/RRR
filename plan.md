@@ -632,10 +632,18 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
 - [ ] **B2.2 [M]** Level 2 — "Hall of Echoes" (one recording, two mechanisms — the
       thesis; introduce the sword + skill-0 guard duel on PoP's 10-fps fight rules).
       **Accept:** same as B2.1 + duel teaches block/parry safely.
-- [ ] **B2.3 [M]** Level 5' — "The Time Warden" (boss: shield drops only while an echo
+- [x] **B2.3 [M]** Level 5' — "The Time Warden" (boss: shield drops only while an echo
       holds the arena plate; boss duel uses the guard-skill framework at high skill).
       **Accept:** boss beatable only via echo; fight ≤3 min; no softlocks on echo
       expiry (respawn logic tested).
+      **Status (S011 step 4, `verify.sh` 588/0):** shipped as the trimmed L3 (D15
+      renumber; catalog `sim_boss`). `SimBoss` = `SimGuard` + the echo-gated shield;
+      negative run: solo kid, gate closed — the shield NEVER drops and boss hp never
+      moves (provably pinned); scripted win at kid hp 1 in 249 fight ticks (~25 s,
+      well under the 3-min cap); expiry → shield returns → fresh-take recovery tested
+      (no softlock). Skill 4 (measured winnable; probed skills 5–7 unbeatable within
+      kid hp 3 for the scripted kid — B3.1's ~7–9 probe stays open). L3's post-boss
+      exit walk is playtest-only, not scripted.
 - [ ] **B2.4 [N]** Level 4' two-echo sanctum (12 s / 2 echoes tier) — cut from must-
       have; the *engine* supports it, add only if ahead of schedule.
 - [ ] **B2.5 [M]** HUD + boss bar re-skin to new art; checkpoint respawns audited for
@@ -646,6 +654,13 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
 - [ ] **B3.1 [M]** Boss = guard-archetype at skill ~7–9 with shield gating (existing
       `time_warden.gd` logic) but fighting through the sim duel rules.
       **Accept:** shield-nullified hits asserted in tests (existing boss tests ported).
+      **Status (S011 step 4): UNTICKED — partial.** The guard-archetype boss with
+      shield gating on the sim duel rules shipped (SimBoss, B2.3 above) and
+      shield-nullified hits ARE asserted in tests — but at skill 4 (measured), not
+      ~7–9: the probed 5–7 configurations beat the scripted kid within hp 3, so a
+      ~7–9 config needs a stronger scripted tactic or a design lever. Legacy
+      `time_warden.gd` tests were not ported (new SimBoss tests written instead).
+      Remaining: the skill 7–9 probe + the ported-test clause.
 - [ ] **B3.2 [M]** Hoverer archetypes (Shadow Echo, Temporal Sentinel) re-target
       sim-based entities; their motion stays Godot-side.
       **Accept:** baiting via echo still works (existing enemy tests).
