@@ -639,11 +639,14 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
       **Status (S011 step 4, `verify.sh` 588/0):** shipped as the trimmed L3 (D15
       renumber; catalog `sim_boss`). `SimBoss` = `SimGuard` + the echo-gated shield;
       negative run: solo kid, gate closed — the shield NEVER drops and boss hp never
-      moves (provably pinned); scripted win at kid hp 1 in 249 fight ticks (~25 s,
-      well under the 3-min cap); expiry → shield returns → fresh-take recovery tested
-      (no softlock). Skill 4 (measured winnable; probed skills 5–7 unbeatable within
-      kid hp 3 for the scripted kid — B3.1's ~7–9 probe stays open). L3's post-boss
-      exit walk is playtest-only, not scripted.
+      moves (provably pinned); the scripted run completes the level END TO END —
+      the Warden falls, the plate-linked exit gate (col 18) parks open, the kid
+      walks into the exit door (`level_completed` asserted; fight ≤ 1200 fight
+      ticks of the 10-fps clock asserted, cap 1800 = 3 min); expiry → shield
+      returns → re-record → finish tested (no softlock). Skill 4 (measured
+      winnable; probed skills 5–7 unbeatable within kid hp 3 for the scripted
+      kid — B3.1's ~7–9 probe stays open). Completability is scripted; fairness
+      and feel need the human playtest.
 - [ ] **B2.4 [N]** Level 4' two-echo sanctum (12 s / 2 echoes tier) — cut from must-
       have; the *engine* supports it, add only if ahead of schedule.
 - [ ] **B2.5 [M]** HUD + boss bar re-skin to new art; checkpoint respawns audited for
