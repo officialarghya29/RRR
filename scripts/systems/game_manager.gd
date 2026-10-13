@@ -248,8 +248,12 @@ func respawn_at_checkpoint() -> void:
 		restart_level()
 		return
 	TemporalManager.cancel_recording("respawn")
-	TemporalManager.clear_echoes()
+	# The echoes outlive the death (session 012 step 3): a fresh life starts
+	# with a fresh recording budget, not a wiped world-memory.
 	TemporalManager.reset_energy()
+	# A respawn supersedes any pending death auto-restart, or the timer would
+	# fire on top of it later.
+	_pending_death_restart = false
 	player.respawn(_checkpoint_position)
 	get_tree().paused = false
 	_menu.hide_all()
@@ -297,6 +301,9 @@ func _teardown_level() -> void:
 	TemporalManager.clear_echoes()
 	TemporalManager.clear_source()
 	TemporalManager.set_echo_container(null)
+	# A pending death auto-restart belongs to the level that died with it —
+	# it must never fire across a transition (menu or next level).
+	_pending_death_restart = false
 	player = null
 	_checkpoint_id = ""
 	if _hud != null:
@@ -336,7 +343,11 @@ func _on_player_died() -> void:
 	if state != State.PLAYING:
 		return
 	_set_state(State.DEAD)
-	TemporalManager.clear_echoes()
+	# Session 012 step 3: the echo is an INDEPENDENT participant — it keeps
+	# its position through the kid's death and the checkpoint respawn (its
+	# stance keeps pressing the world's plates). It ends of its own lifetime,
+	# of a fresh take over the echo cap, or of level teardown — never of the
+	# kid dying. Tested by tests/test_step3_kid_death.gd.
 	# A short beat before the retry prompt, so the death reads.
 	_pending_death_restart = true
 	_death_timer = 1.1

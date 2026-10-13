@@ -83,6 +83,20 @@ func _connect_world() -> void:
 	if world != null and is_instance_valid(world) \
 			and not world.logic_tick.is_connected(_on_logic_tick):
 		world.logic_tick.connect(_on_logic_tick)
+	if world != null and is_instance_valid(world) \
+			and not world.respawned.is_connected(_on_world_respawned):
+		world.respawned.connect(_on_world_respawned)
+
+
+## Session 012 step 3: the duel-side kid abstraction mirrors the KID'S life,
+## not the guard's — a resurrected kid re-enters at full hp, so his mirror
+## does too. Without this the boss would slay him with the phantom hits of
+## the previous life two touches after every respawn (measured by
+## tests/test_step3_kid_death.gd). The guard's own state persists — he is a
+## participant of the LEVEL, not of the kid's life.
+func _on_world_respawned(_pos_px: Vector2) -> void:
+	kid = PopGuard.initial_kid()
+	_ended = ""
 
 
 ## Per logic tick from the world (read-only snapshot + this tick's input

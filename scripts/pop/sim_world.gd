@@ -47,6 +47,10 @@ signal logic_tick(state: Dictionary, input_byte: int)
 signal checkpoint_hit(id: StringName, pos_px: Vector2)
 ## The kid reached the (open) level-exit door tile.
 signal exit_reached
+## Session 012 step 3: the world came back at a checkpoint/spawn — every
+## Godot-side participant that MIRRORS the kid's life re-arms its mirror
+## (SimGuard's duel-side kid abstraction; the guard's own state persists).
+signal respawned(pos_px: Vector2)
 
 var clock: SimClock
 var state: Dictionary = {}
@@ -190,6 +194,7 @@ func respawn_at(pos_px: Vector2) -> void:
 	_was_dead = 0
 	_last_hp = int(state["hp"])
 	sim_tick.emit(clock.curr)
+	respawned.emit(pos_px)
 
 
 ## Interface parity with the physics [Player]: GameManager's fall-out-of-bounds
