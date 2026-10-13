@@ -99,6 +99,15 @@ if [[ ${test_code} -ne 0 ]]; then
   failures=$((failures + 1))
 fi
 
+# Session 012 step 3: kid-death timings (echo/shield state around a death).
+step3_out="$(timeout 300 "${GODOT_BIN}" --headless --path . res://tests/test_step3_kid_death.tscn 2>&1)"
+step3_code=$?
+grep -E "PASS|FAIL|passed," <<<"${step3_out}" | sed 's/^/    /'
+if [[ ${step3_code} -ne 0 ]]; then
+  echo "FAIL: step-3 death-timing suite exited ${step3_code}"
+  failures=$((failures + 1))
+fi
+
 echo
 if [[ ${failures} -eq 0 ]]; then
   echo "ALL CHECKS PASSED"
