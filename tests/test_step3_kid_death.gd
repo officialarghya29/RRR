@@ -28,9 +28,15 @@ extends Node
 
 var _passed: int = 0
 var _failed: int = 0
+## Arena host for the multi-seed invariant test (worlds + bosses, freed per
+## seed — the scene-based tests above run through GameManager instead).
+var _sandbox: Node2D = null
 
 
 func _ready() -> void:
+	_sandbox = Node2D.new()
+	_sandbox.name = "Step3Sandbox"
+	add_child(_sandbox)
 	await get_tree().physics_frame
 
 	_section("Level 3 death timings — the echo outlives the kid (S012 step 3)")
@@ -38,6 +44,12 @@ func _ready() -> void:
 
 	_section("Level 2 death mid-duel — echo and held gate survive (S012 step 3, d)")
 	_test_b13_death_mid_duel()
+
+	_section("Respawn economy — energy and capacity across death/expiry (S012 step 2)")
+	await _test_b23_respawn_economy()
+
+	_section("Multi-seed death invariants — contract over many RNG phases (S012 step 2)")
+	_test_b23_multi_seed_deaths()
 
 	_finish()
 
@@ -99,6 +111,27 @@ func _l3_arena() -> Array:
 	var world: SimWorld = (GameManager.player as SimPlayer).world
 	var boss := world.get_parent().get_node_or_null("SimBoss") as SimBoss
 	return [world, boss]
+
+
+## Walk into the Warden's ACTIVATION range and settle to a stand, short of
+## the duel band. The kid must NOT chase into the band at speed: the
+## strike band is opp = abs + 13 in [12, 29), i.e. abs in [-1, 16) while
+## both fighters face each other, and the Warden's advance chains have no
+## collision in the duel abstraction — a close approached at speed ends
+## with him walked THROUGH the kid, after which opp goes negative and the
+## reference guard keeps walking away forever (measured in scenario (a)).
+func _l3_approach(world: SimWorld, boss: SimBoss) -> void:
+	var right := PopInput.make(1, 0)
+	var neutral := PopInput.neutral()
+	var t1 := 0
+	while absi(int(world.state["x"]) - boss.guard_x) > 60 \
+			and int(world.state["dead"]) == 0 and t1 < 400:
+		world.step_with(right)
+		t1 += 1
+	var t2 := 0
+	while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and t2 < 15:
+		world.step_with(neutral)
+		t2 += 1
 
 
 ## Tap-walk from wherever the kid stands onto the level-3 plate at col 4,
@@ -655,3 +688,230 @@ func _test_b13_death_mid_duel() -> void:
 	EventBus.level_completed.disconnect(on_done)
 	EventBus.player_died.disconnect(on_died)
 	GameManager.return_to_menu()
+
+
+# --- Respawn economy (S012 step 2 / D19) ------------------------------------
+
+## D19's economy clause, pinned end to end through the scene: the budget is
+## refilled on every respawn, capacity is enforced at spawn time only, an
+## EXPIRED echo is not resurrected by a restart-from-checkpoint, and a LIVE
+## echo survives the death + respawn and then yields its slot to the next
+## take (count stays at the cap, never above it).
+func _test_b23_respawn_economy() -> void:
+	var arena: Array = _l3_arena()
+	if arena[0] == null or arena[1] == null:
+		check(false, "economy: the scene builds the level-3 arena")
+		GameManager.return_to_menu()
+		return
+	var world: SimWorld = arena[0] as SimWorld
+	var boss: SimBoss = arena[1] as SimBoss
+	var died := [false]
+	var on_died := func() -> void: died[0] = true
+	EventBus.player_died.connect(on_died)
+
+	# Take 1: the release charges the budget.
+	check(TemporalManager.start_recording(), "economy: take 1 begins")
+	_record_plate_take(world)
+	TemporalManager.stop_recording()
+	check(TemporalManager.echo_count() == 1,
+		"economy: take 1 releases one echo (count %d)" % TemporalManager.echo_count())
+	check(is_equal_approx(TemporalManager.energy,
+			TemporalManager.config.energy_max - TemporalManager.config.energy_cost_per_echo),
+		"economy: the release charges the take (energy %s)" % str(TemporalManager.energy))
+
+	# The echo expires on its lifetime (the production path: _physics_process).
+	for echo: TemporalEcho in TemporalManager.active_sim_echoes():
+		echo._life_left = 0.01
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(TemporalManager.echo_count() == 0,
+		"economy: the echo expires on its lifetime (count %d)" % TemporalManager.echo_count())
+
+	# A restart-from-checkpoint AFTER the expiry (no death involved): the
+	# expired echo stays gone, the budget refills, and the shield reads the
+	# live echo state — none standing on the plate means UP.
+	GameManager.respawn_at_checkpoint()
+	check(GameManager.state == GameManager.State.PLAYING \
+			and int(world.state["tick"]) == 0 and int(world.state["hp"]) == PopTables.KID_HP_START,
+		"economy: the expiry restart restores the kid (tick %d, hp %d)" % [
+			int(world.state["tick"]), int(world.state["hp"])])
+	check(TemporalManager.echo_count() == 0,
+		"economy: the restart does not resurrect the expired echo (count %d)" % \
+			TemporalManager.echo_count())
+	check(is_equal_approx(TemporalManager.energy, TemporalManager.config.energy_max),
+		"economy: the restart refills the budget (energy %s)" % str(TemporalManager.energy))
+	_l3_neutral(world)
+	check(boss.shielded,
+		"economy: the shield reads the live echo state after the restart (UP, echoes %d)" % \
+			TemporalManager.echo_count())
+	check(TemporalManager.start_recording(), "economy: the refilled budget starts a new take")
+	_record_plate_take(world)
+	TemporalManager.stop_recording()
+	check(TemporalManager.echo_count() == 1,
+		"economy: the new take releases (count %d)" % TemporalManager.echo_count())
+
+	# Death while the echo holds, then the checkpoint respawn: the echo
+	# survives AND the budget refills again.
+	_l3_approach(world, boss)
+	var hp0 := int(world.state["hp"])
+	var w1 := 0
+	while int(world.state["hp"]) == hp0 and int(world.state["dead"]) == 0 and w1 < 600:
+		_l3_neutral(world)
+		w1 += 1
+	world.apply_duel_hit(int(world.state["hp"]))
+	_l3_neutral(world)
+	check(int(world.state["dead"]) == 1 and died[0],
+		"economy: the kid dies mid-fight with the echo holding (dead %d, player_died %s)" % [
+			int(world.state["dead"]), str(died[0])])
+	GameManager.respawn_at_checkpoint()
+	check(TemporalManager.echo_count() == 1,
+		"economy: the echo survived the death and the respawn (count %d)" % \
+			TemporalManager.echo_count())
+	check(is_equal_approx(TemporalManager.energy, TemporalManager.config.energy_max),
+		"economy: the respawn refills the budget again (energy %s)" % str(TemporalManager.energy))
+
+	# Capacity: a second live echo replaces the oldest AT SPAWN — the count
+	# stays at the configured cap, never above it.
+	check(TemporalManager.start_recording(),
+		"economy: the refilled budget buys a second take while the first echo lives")
+	_record_plate_take(world)
+	TemporalManager.stop_recording()
+	check(TemporalManager.echo_count() == int(TemporalManager.config.max_active_echoes),
+		"economy: capacity is enforced across the respawn (count %d, cap %d)" % [
+			TemporalManager.echo_count(), int(TemporalManager.config.max_active_echoes)])
+	check(is_equal_approx(TemporalManager.energy,
+			TemporalManager.config.energy_max - TemporalManager.config.energy_cost_per_echo),
+		"economy: the second release charges the take again (energy %s)" % str(TemporalManager.energy))
+
+	EventBus.player_died.disconnect(on_died)
+	GameManager.return_to_menu()
+
+
+# --- Multi-seed death invariants (S012 step 2 / D19 note) -------------------
+
+## Pinned duel outcomes at the shipped seeds characterize ONE RNG phase, so
+## this test asserts the step-3 CONTRACT across many duel seeds — never exact
+## outcomes: the take releases, the shield follows the live echo state, the
+## duel goes live, the death publishes, the echo survives death+respawn, no
+## phantom hits land on the resurrected kid, and the level stays completable
+## (bounded retries allowed: at an arbitrary phase the scripted cadence may
+## lose a given attempt — that is not a contract violation).
+func _test_b23_multi_seed_deaths() -> void:
+	var neutral := PopInput.neutral()
+	var right := PopInput.make(1, 0)
+	var data: Dictionary = LevelCatalog.get_sim_level(2)
+	var bundle: Dictionary = {
+		"tiles": data["tiles"],
+		"mods": data.get("mods", {}),
+		"entities": data.get("entities", {}),
+	}
+	var spawn_px: Vector2 = data["spawn"]
+	var gdata: Dictionary = ((data["enemies"] as Dictionary)["guards"] as Array)[0]
+	var plate_key := String((((data["entities"] as Dictionary)["plates"] as Dictionary).keys())[0])
+	var plate_col := int(plate_key.split(",")[1])
+	TemporalManager.set_echo_container(_sandbox)
+
+	for i: int in range(20):
+		var seed_n := int(data["seed"]) + i
+		TemporalManager.configure_for_level(data.get("temporal", {}))
+		TemporalManager.clear_echoes()
+		var world := SimWorld.new()
+		world.name = "SeedWorld%d" % i
+		_sandbox.add_child(world)
+		world.setup(bundle, seed_n, spawn_px, data.get("checkpoints", []))
+		var boss := SimBoss.new()
+		boss.name = "SeedBoss%d" % i
+		_sandbox.add_child(boss)
+		boss.setup_boss(world, int(gdata["x_sim"]), int(gdata["skill"]),
+			seed_n + int(gdata.get("seed_offset", 0)), plate_key)
+		var died := [false]
+		var on_died := func() -> void: died[0] = true
+		EventBus.player_died.connect(on_died)
+
+		# The take: walk onto the arena plate, settle, hold, release.
+		var started := TemporalManager.start_recording()
+		var t1 := 0
+		while PopSim._col_of(PopSim._foot_x(world.state)) != plate_col \
+				and int(world.state["dead"]) == 0 and t1 < 60:
+			world.step_with(right)
+			world.step_with(neutral)
+			t1 += 1
+		var t1b := 0
+		while String(world.state["seq"]) != "stand" and int(world.state["dead"]) == 0 and t1b < 15:
+			world.step_with(neutral)
+			t1b += 1
+		world.step_ticks(8, [neutral.to_byte()])
+		TemporalManager.stop_recording()
+		var ok_take := started and TemporalManager.echo_count() == 1 \
+				and PopSim._col_of(PopSim._foot_x(world.state)) == plate_col
+
+		# The echo's stance drops the shield.
+		var t2 := 0
+		while boss.shielded and t2 < 200:
+			world.step_with(neutral)
+			t2 += 1
+		var ok_shield_down := not boss.shielded
+
+		# The duel goes live, then the test takes the kid's life mid-fight.
+		_l3_approach(world, boss)
+		var hp0 := int(world.state["hp"])
+		var t3 := 0
+		while int(world.state["hp"]) == hp0 and int(world.state["dead"]) == 0 and t3 < 600:
+			world.step_with(neutral)
+			t3 += 1
+		var ok_duel_live := not (boss.transcript as Array).is_empty()
+		world.apply_duel_hit(int(world.state["hp"]))
+		world.step_with(neutral)
+		var ok_death := int(world.state["dead"]) == 1 and int(world.state["hp"]) == 0 and bool(died[0])
+		var ok_boss_alive := int(boss.guard["dead"]) == 0
+
+		# The contract after death + respawn (the respawned signal re-arms
+		# the duel-side kid mirror — no phantom hits from the previous life).
+		var ok_echo_after := TemporalManager.echo_count() == 1
+		world.respawn_at(spawn_px)
+		var ok_restore := int(world.state["hp"]) == PopTables.KID_HP_START \
+				and int(world.state["tick"]) == 0 and int(world.state["dead"]) == 0
+		var t4 := 0
+		while t4 < 30:
+			world.step_with(neutral)
+			t4 += 1
+		var ok_no_phantom := int(world.state["hp"]) == PopTables.KID_HP_START \
+				and int(world.state["dead"]) == 0
+		var ok_shield_live := not boss.shielded
+
+		# Completability with bounded retries (the echo outlives every death).
+		var attempts := 0
+		while int(boss.guard["dead"]) == 0 and attempts < 8:
+			var t5 := 0
+			while int(boss.guard["dead"]) == 0 and int(world.state["dead"]) == 0 and t5 < 1750:
+				world.step_with(_l3_cmd(boss, world))
+				t5 += 1
+			attempts += 1
+			if int(boss.guard["dead"]) == 0:
+				world.respawn_at(spawn_px)   # attempt lost; the echo survives
+		var ok_fell := int(boss.guard["dead"]) != 0
+
+		# And the level ends by walking into the door.
+		var reached := [false]
+		var on_exit := func() -> void: reached[0] = true
+		world.exit_reached.connect(on_exit)
+		var t6 := 0
+		while not reached[0] and int(world.state["dead"]) == 0 and t6 < 600:
+			world.step_with(right)
+			t6 += 1
+
+		check(ok_take and ok_shield_down and ok_duel_live and ok_death and ok_boss_alive \
+				and ok_echo_after and ok_restore and ok_no_phantom and ok_shield_live \
+				and ok_fell and reached[0],
+			"multi-seed %d: contract invariants hold (take %s, shield-down %s, duel-live %s, death %s, boss-alive %s, echo %s, restore %s, no-phantom %s, shield-live %s, fell in %d attempts %s, exit %s)" % [
+				seed_n, str(ok_take), str(ok_shield_down), str(ok_duel_live), str(ok_death),
+				str(ok_boss_alive), str(ok_echo_after), str(ok_restore), str(ok_no_phantom),
+				str(ok_shield_live), attempts, str(ok_fell), str(reached[0])])
+
+		EventBus.player_died.disconnect(on_died)
+		TemporalManager.clear_echoes()
+		boss.free()
+		world.free()
+
+	TemporalManager.register_sim_world(null)
+	TemporalManager.set_echo_container(null)
