@@ -20,7 +20,7 @@ import struct
 import wave
 
 SR = 22050                 # sample rate (Hz) — small files, enough bandwidth
-OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "audio", "sfx")
+OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "audio", "sfx")
 SEED = 0x5EC012            # one seed for the whole generator (S012)
 
 rng = random.Random(SEED)
