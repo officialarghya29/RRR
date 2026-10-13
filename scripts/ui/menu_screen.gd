@@ -74,7 +74,9 @@ func _build() -> void:
 
 func show_title() -> void:
 	show_all()
-	_title.text = "PRINCE OF PERSIA\nECHOES OF TIME"
+	# B5.2 accept clause: the title is "Echoes of Time" — the franchise name
+	# appears only as the descriptive credit line on the Credits screen.
+	_title.text = "ECHOES OF TIME"
 	_body.text = "\"Master your past to survive your present.\"\n\n[WASD / Arrows] move    [Space] jump    [J] light    [K] heavy\n[L] block   [Shift] dodge   [E] interact   [Q] record / release echo\n\nRRR — Rewind. Reimagine. Reconnect."
 	_set_buttons([
 		["Begin the descent", &"start"],
