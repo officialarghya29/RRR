@@ -673,7 +673,7 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
 
 ### B4 — Audio & art completion · ~6 h · [M]
 
-- [ ] **B4.1 [M]** SFX set via jsfxr covering the `internals_sounds.csv` cue list
+- [x] **B4.1 [M]** SFX set via jsfxr covering the `internals_sounds.csv` cue list
       subset you ship (footstep, land soft/med/hard, spike, gate open/close, plate,
       sword clash/strike/hurt, death, echo record/release, potion) → `audio/sfx/*.wav`,
       each logged in `docs/ASSET_LICENSES.md`.
