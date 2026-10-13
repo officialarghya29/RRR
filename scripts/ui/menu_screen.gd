@@ -78,7 +78,31 @@ func show_title() -> void:
 	_body.text = "\"Master your past to survive your present.\"\n\n[WASD / Arrows] move    [Space] jump    [J] light    [K] heavy\n[L] block   [Shift] dodge   [E] interact   [Q] record / release echo\n\nRRR — Rewind. Reimagine. Reconnect."
 	_set_buttons([
 		["Begin the descent", &"start"],
+		["Controls", &"controls"],
+		["Credits", &"credits"],
 		["Quit", &"quit"],
+	])
+
+
+## Session 012 step 4: the full binding table, straight from
+## [InputActions] — the title screen keeps only the summary line.
+func show_controls() -> void:
+	show_all()
+	_title.text = "CONTROLS"
+	_body.text = "[A / D or ← / →] move        [W / ↑] up, climb    [S / ↓] crouch\n\n[Space] jump                  [Shift] grab, hang, edge-walk\n[J] light attack              [K] heavy attack    [L] block\n\n[E] interact                  [Q] record — release a temporal echo\n\n[Esc] pause                   [R] restart level    [F3] debug overlay\n\nThe echo walks your recorded path — stand on a plate while recording,\nrelease, and your past will hold the gate for you."
+	_set_buttons([
+		["Back", &"menu"],
+	])
+
+
+## Session 012 step 4: the tribute line and the upstream credit the hand-off
+## protocol requires on screen.
+func show_credits() -> void:
+	show_all()
+	_title.text = "CREDITS"
+	_body.text = "Echoes of Time — an original tribute,\ninspired by the 1989 classic Prince of Persia.\n\nBuilt on the RRR project by Arghya Bose\n(github.com/officialarghya29/RRR), of which this work is a maintained fork.\n\nAll code, art and audio in this build are original or licence-cleared —\nsee docs/ASSET_LICENSES.md."
+	_set_buttons([
+		["Back", &"menu"],
 	])
 
 
@@ -113,6 +137,16 @@ func show_victory() -> void:
 		["Play again", &"start"],
 		["Quit", &"quit"],
 	])
+
+
+## Test-facing reads of the current screen (the flow test asserts on the
+## real text the player would see).
+func screen_title() -> String:
+	return _title.text
+
+
+func screen_body() -> String:
+	return _body.text
 
 
 func show_all() -> void:

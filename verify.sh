@@ -108,6 +108,15 @@ if [[ ${step3_code} -ne 0 ]]; then
   failures=$((failures + 1))
 fi
 
+# Session 012 step 4: whole-flow (title/controls/credits, L1-L3, victory).
+flow_out="$(timeout 300 "${GODOT_BIN}" --headless --path . res://tests/test_game_flow.tscn 2>&1)"
+flow_code=$?
+grep -E "PASS|FAIL|passed," <<<"${flow_out}" | sed 's/^/    /'
+if [[ ${flow_code} -ne 0 ]]; then
+  echo "FAIL: game-flow suite exited ${flow_code}"
+  failures=$((failures + 1))
+fi
+
 echo
 if [[ ${failures} -eq 0 ]]; then
   echo "ALL CHECKS PASSED"

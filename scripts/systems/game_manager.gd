@@ -370,6 +370,10 @@ func _on_menu_action(action: StringName) -> void:
 			respawn_at_checkpoint()
 		&"next_level":
 			load_level(current_level_index + 1)
+		&"controls":
+			_menu.show_controls()
+		&"credits":
+			_menu.show_credits()
 		&"menu":
 			return_to_menu()
 		&"quit":
