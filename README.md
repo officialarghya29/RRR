@@ -92,8 +92,14 @@ that echo expires mid-fight, you have to author a new one under fire.
 
 ## Current status
 
-This repository is a **complete, running vertical slice** (development Phases 0–6 of
-the project directive). It is honest about what exists:
+The **shipped game** runs on a deterministic simulation core (`PopSim`, 12 fps
+logic ticks, 10 fps duels — the original's measured rates, see
+[`docs/PARITY.md`](docs/PARITY.md)) with three levels: **The Sim Gate**, **Hall of
+Echoes** (the echo is mandatory) and **The Time Warden** boss. The earlier
+physics-based five-level slice is still runnable behind `--legacy-physics` as a
+documented fallback. [`docs/GDD.md`](docs/GDD.md) §0 maps design → shipped.
+
+It is honest about what exists:
 
 **Implemented and verified**
 
@@ -113,30 +119,39 @@ the project directive). It is honest about what exists:
   `TemporalSwitch`, driving `Door` / `TimedGate` / `MovingPlatform`, with
   multi-source all-of wiring
 - `Hazard`, `Checkpoint`, `Ladder`, `LevelExit`, `Projectile`
-- **Five data-driven levels**, ending in a boss whose shield only opens for a
-  Temporal Echo
-- HUD (with a boss health bar), title / pause / level-complete / victory screens
-- A headless test suite of **116 assertions**, plus a one-command verification gate
+- **Three data-driven sim levels**, ending in a boss whose shield only opens for a
+  Temporal Echo (plus the legacy five-level physics slice behind `--legacy-physics`)
+- HUD (with a boss health bar), title / controls / credits / pause / level-complete /
+  victory screens
+- **14 original procedural sound effects** (`audio/sfx/`, synthesised by
+  `tools/gen_sfx.py`) playing through a pooled audio layer with the echo treatment
+  (record rise, release resolve, hollow bus) — no music by decision
+- A headless test suite across three suites (main, death timings, whole game flow),
+  plus a one-command verification gate
 
 **Not yet implemented** (planned, not faked — see [Roadmap](#roadmap))
 
-- Audio of any kind (no audio assets exist yet)
+- Music (SFX ship; the music stretch is cut by recorded decision D15)
 - Persistence of checkpoint progress to disk
 - Gamepad support, sprite animation, export builds, and the gameplay video
-- A fourth level tier beyond the two-echo puzzles (the engine supports it; the
-  content does not exist yet)
+- Levels 4–5 of the design document on the sim path (the engine supports the
+  two-echo tier; the sim-path content does not exist yet)
 
 ---
 
 ## Levels
 
+**Shipped (default sim path):**
+
 | # | Name | Teaches / tests |
 |---|---|---|
-| 1 | The Collapsing Gate | Movement, gaps, hazards, interaction, the **first echo** — no combat |
-| 2 | Hall of Echoes | One recording satisfying **two mechanisms** |
-| 3 | The Broken Courtyard | Combat, hazards and an echo lock **combined** |
-| 4 | Clockwork Sanctum | **Two echoes**, three simultaneous sources (12 s / 2-echo tier) |
-| 5 | The Time Warden | Boss whose shield only opens for a memory |
+| 1 | The Sim Gate | Movement, spikes, and the **first echo** — a plate you cannot outrun |
+| 2 | Hall of Echoes | One recording satisfying **two mechanisms** — the echo is **mandatory** |
+| 3 | The Time Warden | Boss whose shield only opens for a memory |
+
+**Legacy fallback** (`--legacy-physics`): the five-level physics slice — Collapsing
+Gate, Hall of Echoes, Broken Courtyard, Clockwork Sanctum, Time Warden — kept
+runnable as the documented video-fallback path.
 
 Boot a specific level without the menu:
 
@@ -158,7 +173,8 @@ godot --path . -- --level=4      # 1-based
 | Interact | <kbd>E</kbd> |
 | **Record / release Temporal Echo** | <kbd>Q</kbd> |
 | Restart level | <kbd>R</kbd> |
-| Pause | <kbd>Esc</kbd> |
+| Pause (resume / restart / sound on-off / volume / quit to menu) | <kbd>Esc</kbd> |
+| Debug overlay (sim grid, live readout, legend) | <kbd>F3</kbd> |
 
 Bindings are registered at runtime from a single table in
 `scripts/systems/input_actions.gd`, so they are diffable in one place and cannot be
@@ -182,6 +198,7 @@ godot --path .
 
 ```bash
 godot --path . -- --level=2      # 1-based level index
+godot --path . -- --legacy-physics --level=4   # the legacy slice
 ```
 
 ---
@@ -195,14 +212,10 @@ use, imports the project, boots **every** level, and runs the assertion suite:
 ./verify.sh
 ```
 
-It exits non-zero on any failure, so it works as a CI step. Current status:
-
-```
-==> 1/3 Importing project          ok
-==> 2/3 Booting levels headless    levels 1-5 ok
-==> 3/3 Running test suite         116 passed, 0 failed
-ALL CHECKS PASSED
-```
+It exits non-zero on any failure, so it works as a CI step. It currently passes
+with **ALL CHECKS PASSED** (import, every level on both paths, and three assertion
+suites — main, kid-death timings, whole game flow). The exact count changes as
+sessions add coverage; the per-session number lives in `review.md`'s Change Index.
 
 Run the suite alone with:
 
@@ -217,15 +230,24 @@ game-breaking wiring defect and the memory leak the suite was written to catch.
 
 ## Building a release
 
-Export presets are **not** committed (they contain machine-specific paths). To build:
+The competition targets are **Linux and Windows**. Export presets are **not**
+committed (they contain machine-specific paths). To build:
 
-1. In the Godot editor, install the export templates for 4.7
-   (*Editor → Manage Export Templates*).
-2. *Project → Export…*, then add a **Windows Desktop** or **Web** preset.
-3. Export.
+1. In the Godot editor, install the export templates for 4.7.2
+   (*Editor → Manage Export Templates → Download and Install*).
+2. *Project → Export…*, then add a **Linux Desktop** and/or **Windows Desktop**
+   preset. Keep every path in the preset relative — do not commit an
+   `export_presets.cfg` containing an absolute machine path.
+3. Export to a gitignored `build/` directory.
 
-The project currently targets **desktop first**; the web build has not been
-validated and should be treated as untested.
+Then boot-test the Linux build headlessly before trusting it:
+
+```bash
+build/linux/echoes.x86_64 --headless --path build/linux --quit-after 400 -- --level=1
+```
+
+The project targets **desktop first**; the web build has not been validated and
+should be treated as untested.
 
 > `.tools/` and `export_presets.cfg` are git-ignored. The headless Godot binary used
 > by `verify.sh` is a 140 MB build artifact and is deliberately never committed.
@@ -345,10 +367,39 @@ admitted gap.
 - **All visual content** is drawn procedurally at runtime from the palette in
   `scripts/systems/palette.gd`. No third-party sprites, textures, fonts or artwork.
 - **Original icon** (`icon.svg`) is hand-authored for this project.
+- **All 14 sound effects** are procedurally synthesised by `tools/gen_sfx.py`
+  (original synthesis — no samples). Music: none shipped, by decision.
 - **No Prince of Persia asset of any kind** — sprite, map, sound, music, UI or
   character design — is included, reproduced or derived from.
 
 Full detail in [`docs/ASSET_LICENSES.md`](docs/ASSET_LICENSES.md).
+
+### Upstream credit
+
+This work is a **maintained fork of the RRR project** by Arghya Bose
+([github.com/officialarghya29/RRR](https://github.com/officialarghya29/RRR)).
+The upstream project provided the repository, the competition framing and the
+initial Godot slice this game was rebuilt on top of. The sim-path core, the levels,
+the audio and the documentation in this fork are the fork's own work; upstream's
+contribution is credited here, in the in-game Credits screen, and in the licence
+record.
+
+### Study references — and what was *not* taken
+
+The design is an original tribute to **Prince of Persia (1989)** (Brøderbund,
+designed by Jordan Mechner). During development the original's *behaviour* was
+studied as a **reference measurement exercise** — tick rates, tile geometry, duel
+decision odds, HP tables, sword-frame timings and RNG draw order — recorded with
+`file:line` citations in [`docs/PARITY.md`](docs/PARITY.md). Those measurements
+calibrated our own implementation; they are numbers describing behaviour, not
+assets.
+
+**Nothing from the original ships.** No code was transliterated (the sim core is an
+independent implementation), and no sprite, sound, level layout, map, text string
+or UI element is present, reproduced, traced or derived. The study source material
+is deliberately **gitignored** and excluded from every build and from the tracked
+tree; the one-command audit in `docs/ASSET_LICENSES.md` re-verifies that claim
+against the tracked files at any time.
 
 ---
 
@@ -367,9 +418,10 @@ Submission document status:
 | Deliverable | Status |
 |---|---|
 | Playable build (source) | ✅ This repository |
-| Game design document | ✅ [`docs/GDD.md`](docs/GDD.md) |
+| Game design document | ✅ [`docs/GDD.md`](docs/GDD.md) — shipped-build map in §0 |
 | Presentation | ✅ Outline in [`docs/PRESENTATION.md`](docs/PRESENTATION.md) |
 | QA report | ✅ [`docs/QA_REPORT.md`](docs/QA_REPORT.md) |
 | Asset / licence record | ✅ [`docs/ASSET_LICENSES.md`](docs/ASSET_LICENSES.md) |
-| Exported binary / APK | ⬜ Not produced |
-| Gameplay video (<2 min) | ⬜ Not produced |
+| Exported binary (Linux + Windows) | ⬜ Not produced — export templates not yet approved/installed |
+| Gameplay video (<2 min) | ⬜ Not produced — plan in [`docs/VIDEO_PLAN.md`](docs/VIDEO_PLAN.md) |
+| Submission checklist | ✅ [`docs/SUBMISSION_CHECKLIST.md`](docs/SUBMISSION_CHECKLIST.md) |

@@ -3,247 +3,270 @@
 
 *RRR — Rewind. Reimagine. Reconnect.*
 
-Slide count is **9**, inside the 10-slide limit. Each slide lists its on-screen copy
-and the speaker notes for it.
+**Draft for review — Session 013.** Slide count is **9**, inside the 10-slide limit,
+in the order the plan's deliverable list specifies (§9: title/hook → 1989 DNA →
+Temporal Echo → combat/duel → levels+pacing → boss → tech → playtest/QA →
+credits/licensing). Each slide carries on-screen copy and speaker notes.
 
 > **Standing rule:** every claim on these slides must correspond to something that
-> actually runs in the build. Nothing here is aspirational. The status of each
+> actually runs in the build. Numbers are **pointers**, not quotes: cite
+> `docs/PARITY.md` (measurements), the level catalogue (content) and `review.md`
+> (status) rather than restating figures that will drift. Status of each
 > deliverable is tracked in [`QA_REPORT.md`](QA_REPORT.md).
+
+**What only the user can supply (marked ⛅):** gameplay **screenshots** (the
+7-shot checklist lives in `review.md`, Session 013) and the **A5.2 side-by-side
+clip** (original-vs-ours, user-manual by decision). Slides marked ⛅ read fine
+without their image but land harder with it.
 
 ---
 
-## SLIDE 1 — Title
+## SLIDE 1 — Title and hook
 
 **On screen**
 
-> # PRINCE OF PERSIA: ECHOES OF TIME
+> # ECHOES OF TIME
 >
-> ### *Master your past to survive your present.*
+> ### *"Master your past to survive your present."*
 >
-> **Team:** [fill in]
 > **Event:** RRR — Rewind. Reimagine. Reconnect.
 > **Original inspiration:** Prince of Persia (1989)
+>
+> ⛅ [screenshot: level 1 mid-run]
 
 **Speaker notes**
 
 Open with the hook, not the backstory. One sentence: *"You play a man who can make
 his own recent past real — and solve problems with a version of himself that he
-choreographed thirty seconds ago."* Then stop talking and let slide 5 do its work.
+choreographed thirty seconds ago."* Then stop talking and let slide 3 do its work.
 
 ---
 
-## SLIDE 2 — Original inspiration
+## SLIDE 2 — The 1989 DNA (side-by-side)
 
 **On screen**
 
-> ### PRINCE OF PERSIA (1989)
-> Brøderbund · designed by Jordan Mechner
+> ### PRINCE OF PERSIA (1989) — WHAT WE KEPT, WHAT WE TOOK
 >
-> What inspired us — **and what we did not take:**
+> | Kept (design DNA) | Taken (assets) |
+> |---|---|
+> | side-scrolling palace traversal | **nothing** |
+> | precision platforming, lethal traps | **nothing** |
+> | sword combat, hostile architecture | **nothing** |
+> | 12 fps traversal / 10 fps duel feel *(measured — PARITY §2)* | — |
 >
-> - ✔ Side-scrolling palace traversal
-> - ✔ Precision platforming, lethal traps
-> - ✔ Sword combat, hostile ancient architecture
-> - ✘ No sprite, map, sound, UI or character from the original
+> ⛅ [A5.2 clip: original beside ours, same framing]
 >
 > *The connection is design. Everything else is new.*
 
 **Speaker notes**
 
-Be direct about this early — it is the question judges are already asking. The
-inspiration is chosen for its *systems*, which are ideas, not assets. Explicitly state
-that no original asset is present and point at the asset licence record.
+Be direct early — this is the question judges are already asking. The tick rates on
+the slide are **measured** values from the study pass and are cited in
+`docs/PARITY.md` §2; we rebuilt our simulation core to *run* at those rates so the
+game feels like the original in your hands, without a single original byte.
+Point at `docs/ASSET_LICENSES.md` for the one-command audit. If the A5.2 clip is
+ready, play it silently under this slide and let the framing speak.
 
 ---
 
-## SLIDE 3 — The reimagination
-
-**On screen**
-
-> ### TIME AS PRESSURE → TIME AS A TOOL
->
-> | | 1989 | Echoes of Time |
-> |---|---|---|
-> | Central system | A one-hour countdown | **Temporal Echo replay** |
-> | Combat | Turn-based duels | Real-time three-beat combat |
-> | Structure | One continuous dungeon | Levels, each built on one idea |
-> | Player fantasy | *Escape* | *Cooperate with yourself* |
->
-> ### We kept the DNA. We rebuilt the brain.
-
-**Speaker notes**
-
-The one-line version: *the original made time a deadline; we made it a resource you
-author.* Everything else in the reimagining follows from that single change.
-
----
-
-## SLIDE 4 — Core gameplay loop
-
-**On screen**
-
-> ```
-> EXPLORE → OBSERVE → PLATFORM → FIGHT OR AVOID
->    → DISCOVER PUZZLE
->    → ● RECORD YOURSELF ●
->    → RELEASE THE ECHO
->    → SOLVE IT WITH YOUR OWN PAST
->    → PROGRESS
-> ```
->
-> *The highlighted step is the only one no other game asks of you.*
-
-**Speaker notes**
-
-Walk the loop once, quickly, then land on the middle. The rest of the loop is familiar
-platformer grammar — deliberately so. The player already knows how to jump and fight;
-the game only has to teach one new idea.
-
----
-
-## SLIDE 5 — The Temporal Echo *(the important slide)*
+## SLIDE 3 — The Temporal Echo *(the important slide)*
 
 **On screen**
 
 > ### ONE RECORDING. TWO JOBS. NO PLAYER CAN DO IT ALONE.
 >
 > ```
->  press Q ──▶ record    (position, velocity, state, events, 8s cap)
->  press Q ──▶ release   (a real entity, not an afterimage)
+>  press Q ──▶ record    (input bytes, stamped events, capped take)
+>  press Q ──▶ release   (a second deterministic run — a real entity)
 >
->     ┌─ the echo replays your exact path, every time ─┐
->     │  trips pressure plates · throws levers         │
->     │  pulls enemy aggro · holds its final pose      │
->     └────────────────────────────────────────────────┘
+>     ┌─ the echo replays your exact inputs, every time ──┐
+>     │  stands where you stood · holds its final pose    │
+>     │  presses plates · visible to mechanisms, not walls│
+>     └──────────────────────────────────────────────────┘
 > ```
+>
+> ⛅ [screenshot: level 2 with an active echo]
 >
 > **"What if your past could fight beside you?"**
 
 **Speaker notes**
 
-This is the thesis. Emphasise three things a judge cannot see from a screenshot:
+This is the thesis. Three things a screenshot cannot show:
 
-1. **It is real** — not a visual clone. Deterministic replay of recorded transforms,
-   with its own collision volume that plates and enemies can see.
-2. **It holds its final pose** — which is what makes *"stand on the plate and leave a
+1. **It is a real second simulation, not an afterimage.** The echo replays the
+   recorded *input bytes* through the same deterministic step function from a state
+   snapshot — the suite pins that the same take always produces the same run.
+2. **It holds its final pose** — which makes *"stand on the plate and leave a
    memory there"* a stable solution rather than a lucky one.
-3. **It is limited** — costs energy, one echo at a time. The player cannot spam out of
-   a puzzle.
+3. **It is limited** — energy cost, capacity cap. The player cannot spam out of a
+   puzzle.
 
-Then give the concrete example from Level 2: one recording must pass through an
-echo-only rune *and* finish on a pressure plate, opening two different doors at once.
-
----
-
-## SLIDE 6 — Level and puzzle design
-
-**On screen**
-
-> ### TAUGHT, NOT TOLD
->
-> **Level 1 — The Collapsing Gate**
-> gaps → spikes → lever → **the plate you cannot outrun**
-> *the game makes the echo an obvious necessity, with no tutorial text*
->
-> **Level 2 — Hall of Echoes**
-> one recording, two mechanisms
-> *echo-only rune* + *pressure plate* → two doors, one memory
->
-> Every level: **introduce → practice → combine → challenge → payoff**
-> No puzzle is solvable without understanding the mechanic.
-
-**Speaker notes**
-
-The teaching method is the design point. Level 1 does not explain the echo; it places
-a plate and a door far enough apart that outrunning it is impossible, and lets the
-player conclude the answer themselves. Level 2 then demands the player author a route
-that serves two mechanisms — the moment they realise *one* recording can do both is
-the moment the game has taught itself.
+Then the concrete example: in level 2 the echo is **mandatory** — the level is
+scripted both ways headlessly (completable with the echo, provably pinned without
+it). Cite the test, don't quote the number.
 
 ---
 
-## SLIDE 7 — Combat and progression
+## SLIDE 4 — Combat and the duel
 
 **On screen**
 
 > ### COMBAT THAT PUNISHES POSITIONING
 >
-> Light 0.09s → 0.11s → 0.13s · Heavy 0.20s → 0.15s → 0.22s
-> Block (frontal, 25% damage) · Dodge & Roll (invulnerable, committed)
+> three-beat attacks · directional block · committed dodge
 >
-> **Two archetypes**
-> - **Palace Guard** — teaches the rules honestly; stops at ledges
-> - **Shadow Echo** — hovers; punishes relying on the floor
+> **The duel** — sword timing rebuilt at the original's 10 fps duel tick
+> *(measured: PARITY §12–§14 — decision odds, HP, sword frames, RNG draw order)*
 >
-> Both can be **baited by an echo** — your past is a decoy
+> **Bait with a memory:** enemies treat your echo as a target.
 >
-> ### Same skill as the puzzles: read the room, then plan.
+> ⛅ [screenshot: mid-duel, or the boss bar engaged]
 
 **Speaker notes**
 
-Combat exists to reinforce the puzzle skill, not to compete with it. Wind-ups are long
-enough to react to, so damage taken is a positioning error. And because enemies target
-echoes, the temporal mechanic feeds back into combat — bait a guard with a memory and
-reposition.
+Combat exists to reinforce the puzzle skill, not compete with it: wind-ups are long
+enough that damage taken is a positioning error. The duel is the parity showpiece —
+every decision band, HP value and sword frame chain is cited from the study pass in
+`docs/PARITY.md` §12–§14, including the RNG *draw order* the original used. Our
+guards decide from those tables; same seed, same duel, every time.
 
 ---
 
-## SLIDE 8 — Technology and implementation
+## SLIDE 5 — Levels and pacing
+
+**On screen**
+
+> ### TAUGHT, NOT TOLD — THREE LEVELS, ONE IDEA EACH
+>
+> **The Sim Gate** — gaps → spikes → the plate you cannot outrun
+> *the echo becomes an obvious necessity, with no tutorial text*
+>
+> **Hall of Echoes** — one recording, two mechanisms; the echo is mandatory
+>
+> **The Time Warden** — the thesis as a boss fight (slide 6)
+>
+> introduce → practice → combine → challenge → payoff
+>
+> ⛅ [screenshot: F3 overlay showing the sim grid — "levels are data"]
+
+**Speaker notes**
+
+The teaching method is the design point: no puzzle is solvable without understanding
+the mechanic, and no tutorial text teaches it. If you show the debug-overlay
+screenshot, use it to make the second point: levels are *data* — a catalogue entry
+of tiles, entities and links — so pacing iterations never touch engine code.
+
+---
+
+## SLIDE 6 — The Time Warden (boss)
+
+**On screen**
+
+> ### THE THESIS, STATED AS A BOSS FIGHT
+>
+> The Warden is permanently shielded. Hits are absorbed. It never staggers.
+>
+> The shield drops **only while your released echo holds the arena plate** —
+> and that plate sits outside your safe reach.
+>
+> - stand on the plate → safe, but you cannot fight
+> - fight → the shield nullifies everything
+>
+> ⛅ [screenshot: boss bar — shielded glow vs. health red]
+
+**Speaker notes**
+
+Attrition cannot work by design. The only answer is to leave a memory holding the
+plate and fight alongside your own past — and when that echo expires mid-fight, the
+shield returns and you must author a new one *under fire*. The scripted run does
+exactly that end to end, including the expiry-and-re-record path, so there is no
+softlock. Honest note if asked about difficulty: the shipped duel skill is the
+highest one our scripted fight measurably wins — feel tuning awaits the human
+playtest, and a harder variant is an open, recorded decision.
+
+---
+
+## SLIDE 7 — Technology: 12 fps simulation + determinism
 
 **On screen**
 
 > ### GODOT 4.7 · GDSCRIPT · ZERO DEPENDENCIES
 >
 > ```
-> PlayerStateMachine   13 states, deferred transitions
-> TemporalManager      recorder · snapshots · echo lifecycle · energy
-> EnemyBase FSM        IDLE→PATROL→ALERT→CHASE→ATTACK→HURT→DEAD
-> Activator pattern    plates / levers / runes → doors / gates / platforms
-> LevelBuilder         levels are DATA; the builder is CODE
+> PopSim         deterministic, engine-free core
+>                12 fps traverse · 10 fps duels (measured: PARITY §2)
+> Input-byte echo  a recorded take = input bytes + stamped events
+>                  release = a second run of the SAME step function
+> SimWorld        the single writer of sim state; views only read snapshots
+> verify.sh       import → boot every level, both paths → three suites
 > ```
 >
-> ### VERIFIED, NOT ASSUMED
-> `./verify.sh` → import · boot every level · **50 assertions**
->
-> *Caught a game-breaking defect (doors never opened) and a memory leak
-> (13 states per level load) before either could ship.*
+> ### VERIFIED, NOT ASSUMED — and reproducible: same seed, same run, forever.
 
 **Speaker notes**
 
-Keep this tight, but do not skip the verification gate — it is a genuine differentiator
-and it is the honest answer to *"how do you know it works?"* Mention one bug
-specifically: the door wiring defect produced a game that booted perfectly, looked
-correct, and was impossible to finish. Only executing the wiring found it.
-
-Mention the architecture principle: puzzles are **wired, not scripted** — a level says
-`"listens_to": ["plate_near"]` and nothing else, so a new puzzle is data, not code.
+The differentiator is not "we wrote tests" — it is that the *game core is a pure
+function*. Because the simulation is engine-free and steps from a packed input
+byte, a recording is not stored state: it is the inputs, and replaying it is
+re-simulating. That is why the echo can never desync, why the boss shield cannot
+stick, and why a whole playthrough can be scripted headlessly as a regression test.
+The verification gate is one command; invite the judges to run it.
 
 ---
 
-## SLIDE 9 — Gameplay and conclusion
+## SLIDE 8 — Playtest and QA story
 
 **On screen**
 
-> ### [GAMEPLAY — live demo or the <2 min capture]
+> ### HOW WE KNOW IT WORKS — AND WHAT WE HAVEN'T PROVEN
 >
-> Movement → spikes → lever → **first echo** → **the two-job recording** → combat
+> - every shipped level **completable by scripted input**, headlessly, in CI
+> - determinism gate: identical seeds → identical runs, across RNG phases
+> - defect log with root causes (`docs/QA_REPORT.md`) — incl. the one that made
+>   the game **unwinnable while looking completely fine**
 >
-> ---
+> ⛅ [screenshot: pause screen / victory screen]
 >
-> **Repo:** github.com/officialarghya29/RRR
-> **Run it:** open `project.godot` in Godot 4.7
-> **Verify it:** `./verify.sh`
->
-> ### Connect to the original, and it will teach you something it never could.
->
-> ## THANK YOU
+> **Open, stated plainly:** feel and fairness await a human playtest —
+> automation cannot verify joy.
 
 **Speaker notes**
 
-Close on the thesis, not on a feature list: the game is recognisably Prince of Persia
-in your hands within seconds, and within a minute it is asking you to do something the
-1989 game never could. Then invite them to open the repo and run `verify.sh` — the
-claim is checkable.
+Tell the door-wiring story: the game booted, looked correct, and was impossible to
+finish because one signal-bound signature mismatched. Only *executing* the wiring
+found it — which is why the gate boots and plays levels, not just compiles them.
+Then be honest about the boundary: scripted completability proves finishable, not
+fun. That is the one claim no suite can make, and it is why the human playtest is a
+first-class deliverable, not an afterthought.
+
+---
+
+## SLIDE 9 — Credits and licensing (the audit as a selling point)
+
+**On screen**
+
+> ### EVERY BYTE, TRACED
+>
+> - code, art, level design, story: original work for this project
+> - visuals: drawn procedurally at runtime — no image files at all
+> - audio: 14 procedurally synthesised SFX — no samples
+> - licence record: `docs/ASSET_LICENSES.md` — **one command re-audits the tree**
+>
+> **Inspired by** Prince of Persia (1989), Brøderbund / Jordan Mechner.
+> **Forked from** the RRR project (github.com/officialarghya29/RRR).
+>
+> **Run it:** Godot 4.7 → `project.godot` · **Verify it:** `./verify.sh`
+>
+> ### Connect to the original, and it will teach you something it never could.
+
+**Speaker notes**
+
+Close on the thesis, then hand them the check: the licence record is not a promise,
+it is a *command they can run* — it lists every shipped binary asset, and the answer
+is fourteen files we generated ourselves. Credit both debts plainly: the 1989 game
+for the design language, and the upstream RRR project this work is a maintained fork
+of. Then invite them to open the repo and run the gate — the claim is checkable.
 
 ---
 
@@ -252,23 +275,24 @@ claim is checkable.
 **"Isn't this just a re-skin?"**
 No. The original's central system was a countdown; this one is a replayable, physical
 recording. That change rewrites the core loop, the puzzle grammar and the level design
-method, and the slide 3 table shows the rest.
+method — and slide 2's clip shows we even rebuilt the *clock rate* the original ran
+at, measured from the study pass (`docs/PARITY.md` §2), without reusing a byte.
 
 **"Did you copy any assets?"**
-No. There are no image, audio or font files in the project at all — every visual is
-drawn procedurally at runtime from one palette file. `docs/ASSET_LICENSES.md` has a
-one-command audit to prove it.
+No. There are no image or font files in the project at all; the 14 audio files are
+procedurally synthesised from code. `docs/ASSET_LICENSES.md` re-audits the tracked
+tree with one command.
 
 **"How do you know the echo system actually works?"**
-It is covered by nine assertions: spawn position, deterministic replay, final-pose
-hold, plate activation, capacity enforcement and cleanup. Level 2's puzzle depends on
-all of it.
+The replay is a second deterministic simulation, so the suite scripts it both ways:
+the level completes with the echo, and *cannot* complete without it (the pinned
+state is asserted). Determinism is gated across RNG phases.
 
 **"What isn't finished?"**
-Stated plainly in the README: no audio yet, two of four levels built, no boss, no
-exported binary and no gameplay video. Three enemy archetypes were planned, two are
-done.
+Stated plainly in slide 8 and in the README: feel/fairness need the human playtest,
+music is deliberately cut (SFX-first trim decision), exports await template approval,
+and the gameplay video is the user-manual deliverable.
 
 **"What would you do next?"**
-Playtest with a display to tune movement feel — it is the one thing automated tests
-cannot verify — then audio, then Levels 3–4 and the Time Warden boss.
+The human playtest first — it is the one instrument no suite can replace — then
+exports, then the video cut, then a palette/feel pass on the SFX flagged as weak.
