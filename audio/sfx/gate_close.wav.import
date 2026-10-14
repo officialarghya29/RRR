@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://bu87ehh8174qr"
-path="res://.godot/imported/gate_close.wav-1cd232b6f8ad9e4b4763699aec744d8a.sample"
+path="res://.godot/imported/gate_close.wav-89dc966eb32f0cea4fc0a0fee1047a6c.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/gate_close.wav"
-dest_files=["res://.godot/imported/gate_close.wav-1cd232b6f8ad9e4b4763699aec744d8a.sample"]
+source_file="res://audio/sfx/gate_close.wav"
+dest_files=["res://.godot/imported/gate_close.wav-89dc966eb32f0cea4fc0a0fee1047a6c.sample"]
 
 [params]
 

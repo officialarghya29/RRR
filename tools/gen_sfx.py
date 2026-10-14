@@ -4,7 +4,7 @@
 Every sound here is ORIGINAL SYNTHESIS written for this project: tones,
 noise bursts, envelopes and a seeded jitter — no samples, no third-party
 audio, nothing derived from any existing work. Ids, durations and shapes
-follow docs/AUDIO_BRIEF.md; output lands in assets/audio/sfx/<id>.wav
+follow docs/AUDIO_BRIEF.md; output lands in audio/sfx/<id>.wav
 (16-bit mono PCM @ 22050 Hz), named after the id.
 
 Determinism: one fixed RNG seed for the whole run — regenerating always

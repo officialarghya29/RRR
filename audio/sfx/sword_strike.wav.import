@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://bb3o0rdjimxrr"
-path="res://.godot/imported/sword_strike.wav-127d31fe4871e386423c56962c9e7838.sample"
+path="res://.godot/imported/sword_strike.wav-521ac5e46dd5828eddc60466b0d2e6ec.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/sword_strike.wav"
-dest_files=["res://.godot/imported/sword_strike.wav-127d31fe4871e386423c56962c9e7838.sample"]
+source_file="res://audio/sfx/sword_strike.wav"
+dest_files=["res://.godot/imported/sword_strike.wav-521ac5e46dd5828eddc60466b0d2e6ec.sample"]
 
 [params]
 

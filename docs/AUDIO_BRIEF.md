@@ -60,7 +60,7 @@ Notes for whoever records or composes these:
   Useful for audio QA: the test suite asserts every id fires in its scenario
   (`tests/test_main.gd::_test_sound_events`).
 - **Placeholders welcome.** A `.wav` from any editor is fine as long as the
-  `ASSET_LICENSES.md` row exists. Keep files in `assets/audio/sfx/` (create
+  `ASSET_LICENSES.md` row exists. Keep files in `audio/sfx/` (create
   when the first file lands), name them after the id (`land_soft.wav`).
 - **Music (stretch, Q4):** not scoped here. If it becomes real, it goes
   through the same licence row and should never gate the SFX pass.

@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://culu6t848ghw5"
-path="res://.godot/imported/sword_clash.wav-22d7e602c09bbd9a9d76ba021920bfb6.sample"
+path="res://.godot/imported/sword_clash.wav-d0139d51c403cf3cd7eeb027828ffab4.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/sword_clash.wav"
-dest_files=["res://.godot/imported/sword_clash.wav-22d7e602c09bbd9a9d76ba021920bfb6.sample"]
+source_file="res://audio/sfx/sword_clash.wav"
+dest_files=["res://.godot/imported/sword_clash.wav-d0139d51c403cf3cd7eeb027828ffab4.sample"]
 
 [params]
 

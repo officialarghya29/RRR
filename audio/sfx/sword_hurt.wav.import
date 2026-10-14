@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://dscudf6nwn13j"
-path="res://.godot/imported/sword_hurt.wav-5d5e20964a6c1495096bcb88047fdfe7.sample"
+path="res://.godot/imported/sword_hurt.wav-14df8e708201ccf37568399aaacc9727.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/sword_hurt.wav"
-dest_files=["res://.godot/imported/sword_hurt.wav-5d5e20964a6c1495096bcb88047fdfe7.sample"]
+source_file="res://audio/sfx/sword_hurt.wav"
+dest_files=["res://.godot/imported/sword_hurt.wav-14df8e708201ccf37568399aaacc9727.sample"]
 
 [params]
 
