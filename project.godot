@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 EventBus="*res://scripts/systems/event_bus.gd"
 SoundEvents="*res://scripts/systems/sound_events.gd"
+SfxPlayer="*res://scripts/systems/sfx_player.gd"
 GameManager="*res://scripts/systems/game_manager.gd"
 TemporalManager="*res://scripts/temporal/temporal_manager.gd"
 

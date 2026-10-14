@@ -86,6 +86,9 @@ func _ready() -> void:
 	_section("SoundEvents hook points (session 010 step 4)")
 	_test_sound_events()
 
+	_section("SfxPlayer wiring: id -> stream, pool, echo treatment (session 013 step 1)")
+	_test_sfx_player()
+
 	_section("View: world-to-screen mapping (session 011 step 2; VIEW tests, not parity)")
 	_test_view_mapping()
 
@@ -4137,6 +4140,123 @@ func _test_sound_events() -> void:
 	seen.clear()
 
 	SoundEvents.sfx.disconnect(on_sfx)
+
+
+# --- Session 013 step 1: SfxPlayer wiring (plan B4.3) -----------------------
+#
+# Every id the sim emits must resolve to ITS OWN committed wav, played with
+# its table volume through the pool, and the echo pair must take the B4.3
+# treatment (rise/resolve pitch ramp, hollow EchoSFX bus). No audio device
+# is involved: the assertions read the sfx_play_requested decision signal
+# and the stream table, never audible output.
+func _test_sfx_player() -> void:
+	const IDS := ["land_soft", "land_medium", "land_hard", "spike", "death",
+		"plate", "gate_open", "gate_close", "sword_clash", "sword_strike",
+		"sword_hurt", "guard_death", "echo_record", "echo_release"]
+	var seen: Array = []
+	var on_play := func(id: StringName, path: String, volume_db: float,
+			bus: StringName, treatment: StringName, pitch: float) -> void:
+		seen.append({"id": String(id), "path": path, "volume_db": volume_db,
+			"bus": String(bus), "treatment": String(treatment), "pitch": pitch})
+	SfxPlayer.sfx_play_requested.connect(on_play)
+
+	# (1) Table completeness: every AUDIO_BRIEF id has an entry, and the table
+	# carries no stray ids the sim never emits.
+	var table_ids: Array = []
+	for id: StringName in SfxPlayer.EVENTS:
+		table_ids.append(String(id))
+	for id: String in IDS:
+		check(SfxPlayer.EVENTS.has(StringName(id)),
+			"SfxPlayer table covers '%s'" % id)
+	check(table_ids.size() == IDS.size(),
+		"SfxPlayer table has exactly the 14 brief ids (got %d)" % table_ids.size())
+
+	# (2) Each id requests playback of ITS OWN stream, with its table volume.
+	for id: String in IDS:
+		seen.clear()
+		check(SfxPlayer.play_id(StringName(id)),
+			"play_id('%s') succeeds" % id)
+		check(seen.size() == 1,
+			"'%s' requests exactly one playback (got %d)" % [id, seen.size()])
+		if seen.is_empty():
+			continue
+		var req: Dictionary = seen[0]
+		check(req["path"] == "res://audio/sfx/%s.wav" % id,
+			"'%s' requests its own stream (%s)" % [id, req["path"]])
+		check(is_equal_approx(float(req["volume_db"]),
+				float(SfxPlayer.EVENTS[StringName(id)]["volume_db"])),
+			"'%s' plays at its table volume (%s dB)" % [id, str(req["volume_db"])])
+		var stream: AudioStream = load(String(req["path"]))
+		check(stream is AudioStreamWAV,
+			"'%s' stream imports as AudioStreamWAV" % id)
+
+	# (3) Pitch jitter stays small (documented ±5% + the treatment's 0.8/1.2
+	# start offsets) — assert the resting pitch for plain sounds.
+	seen.clear()
+	SfxPlayer.play_id(&"land_soft")
+	if not seen.is_empty():
+		var pitch := float(seen[0]["pitch"])
+		check(absf(pitch - 1.0) <= SfxPlayer.PITCH_JITTER + 0.0001,
+			"plain sounds play within the jitter band (pitch %.3f)" % pitch)
+
+	# (4) The B4.3 echo treatment: record RISES from 0.8, release RESOLVES
+		# from 1.2, both on the hollow EchoSFX bus; everything else stays on SFX.
+	seen.clear()
+	SfxPlayer.play_id(&"echo_record")
+	check(not seen.is_empty() and is_equal_approx(float(seen[0]["pitch"]), 0.8)
+			and String(seen[0]["treatment"]) == "rise"
+			and String(seen[0]["bus"]) == "EchoSFX",
+		"echo_record rises from 0.8 on the EchoSFX bus (%s)" % str(seen))
+	seen.clear()
+	SfxPlayer.play_id(&"echo_release")
+	var release_pitch: float = 0.0
+	if not seen.is_empty():
+		release_pitch = float(seen[0]["pitch"])
+	check(release_pitch > 1.1 and release_pitch < 1.3
+			and String(seen[0]["treatment"]) == "resolve"
+			and String(seen[0]["bus"]) == "EchoSFX",
+		"echo_release resolves from ~1.2 on the EchoSFX bus (%s)" % str(seen))
+	seen.clear()
+	SfxPlayer.play_id(&"plate")
+	check(not seen.is_empty() and String(seen[0]["bus"]) == "SFX"
+			and String(seen[0]["treatment"]) == "",
+		"plain sounds bypass the echo treatment (%s)" % str(seen))
+
+	# (5) The pool: bounded voices, and the bus consumer fires for a bare
+	# SoundEvents emission (the wiring gameplay actually uses).
+	check(SfxPlayer.get_child_count() >= SfxPlayer.POOL_SIZE,
+		"the pool holds at least %d voices (got %d)" % [
+			SfxPlayer.POOL_SIZE, SfxPlayer.get_child_count()])
+	seen.clear()
+	SoundEvents.emit_sfx(&"spike", Vector2(120.0, 60.0))
+	check(seen.size() == 1 and String(seen[0]["id"]) == "spike",
+		"a bare SoundEvents emission reaches the player (got %s)" % str(seen))
+
+	# (6) Unknown ids refuse safely: no request, no crash.
+	seen.clear()
+	check(not SfxPlayer.play_id(&"not_a_sound"),
+		"an unknown id is refused")
+	check(seen.is_empty(),
+		"an unknown id requests no playback")
+
+	# (7) Master volume + mute drive bus 0 (what the pause menu shows).
+	var db0_before := AudioServer.get_bus_volume_db(0)
+	SfxPlayer.set_volume_step(1)
+	check(is_equal_approx(AudioServer.get_bus_volume_db(0), linear_to_db(0.75)),
+		"volume step 1 sets the master bus to 75%% (%.2f dB)" % AudioServer.get_bus_volume_db(0))
+	check(SfxPlayer.volume_percent() == 75,
+		"the pause-menu volume label reads 75")
+	SfxPlayer.set_volume_step(0)
+	check(is_equal_approx(AudioServer.get_bus_volume_db(0), db0_before),
+		"volume step 0 restores the master bus")
+	SfxPlayer.toggle_mute()
+	check(SfxPlayer.is_muted() and AudioServer.is_bus_mute(0),
+		"mute toggles the master bus")
+	SfxPlayer.toggle_mute()
+	check(not SfxPlayer.is_muted() and not AudioServer.is_bus_mute(0),
+		"unmuting restores the master bus")
+
+	SfxPlayer.sfx_play_requested.disconnect(on_play)
 
 
 # --- Plan 8 gate 5: the level completability smoke --------------------------

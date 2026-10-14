@@ -112,12 +112,22 @@ func show_pause() -> void:
 	show_all()
 	_title.text = "PAUSED"
 	_body.text = "The palace waits between moments."
+	# Session 013 step 1: the sound rows read the live SfxPlayer state, so the
+	# labels always show what the buttons will actually do.
+	var sound_label: String = "Sound: %s" % ("muted" if SfxPlayer.is_muted() else "on")
+	var volume_label: String = "Volume: %d%%" % SfxPlayer.volume_percent()
 	_set_buttons([
 		["Resume", &"resume"],
 		["Restart checkpoint", &"restart_checkpoint"],
 		["Restart level", &"restart_level"],
+		[sound_label, &"toggle_sound"],
+		[volume_label, &"volume_down"],
 		["Abandon to menu", &"menu"],
 	])
+	# Six rows don't fit the default 250/10 layout inside the 420px panel —
+	# start higher and tighten the gaps (show_all restores the baseline).
+	_buttons.position.y = 182.0
+	_buttons.add_theme_constant_override("separation", 6)
 
 
 func show_level_complete(next_title: String) -> void:
@@ -153,6 +163,10 @@ func screen_body() -> String:
 
 func show_all() -> void:
 	visible = true
+	# Baseline button layout; the pause screen tightens it for its six rows
+	# (session 013 step 1) and returns here on every other screen.
+	_buttons.position.y = 250.0
+	_buttons.add_theme_constant_override("separation", 10)
 
 
 func hide_all() -> void:

@@ -374,6 +374,14 @@ func _on_menu_action(action: StringName) -> void:
 			_menu.show_controls()
 		&"credits":
 			_menu.show_credits()
+		&"toggle_sound":
+			# Session 013 step 1: mute toggle + volume step live on the master
+			# bus (SfxPlayer); the pause screen rebuilds so the labels follow.
+			SfxPlayer.toggle_mute()
+			_menu.show_pause()
+		&"volume_down":
+			SfxPlayer.cycle_volume_down()
+			_menu.show_pause()
 		&"menu":
 			return_to_menu()
 		&"quit":
