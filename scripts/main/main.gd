@@ -7,7 +7,9 @@ extends Node2D
 ## without clicking through the menu — the same trick the headless smoke test
 ## relies on.
 
-const WINDOW_TITLE: String = "Prince of Persia: Echoes of Time"
+## Session 013 step 2: the OS window title is the game's own name — the
+## franchise credit lives on the Credits screen, not in the title bar.
+const WINDOW_TITLE: String = "Echoes of Time"
 
 
 func _ready() -> void:

@@ -122,6 +122,42 @@ The §9 standing order above stays the baseline (A4.4 → A4.5 → A5.3 → A5.4
 <!-- Newest first. Copy the template below for each new session. -->
 
 
+### Session 013: 2026-10-14 — Step 0 ✅ (709/0 both runs); **SFX playback wired (B4.3); build no longer silent**; window title = "Echoes of Time"; screenshot checklist persisted
+_(entry opened during the session; later steps appended as they land)_
+
+**Baseline at session start**
+- Branch `dev/pop-rebuild`, HEAD `e614a01` (S012 close); tracked tree clean; 3 deliberate untracked scratch files in `tools/`.
+- `./verify.sh` → **709 passed / 0 failed** (working tree) and a fresh clean clone of HEAD → same **709/0**, post-import `git status` clean; `git ls-files` legal grep **0**; live-branch `codebuff` footer count **0** (the 80 live only on tag `pre-footer-cleanup` + branch `backup/pre-footer-cleanup`, kept by design).
+
+**Inputs as pasted:** playtest = **not done yet**; export templates = **NOT approved** (→ Step 3 = manual steps); push = **NOT YET**; Q1 = **not read yet**; Q7 = **not read yet** (no disclosure wording drafted — pending the user's reading); hours = commit-timestamp estimates, labelled unconfirmed; **feature freeze from Oct 20 (D17 re-confirmed)**. Dates: today 2026-10-14 → **16 days** to Oct 31; **D14 (Oct 17 EOD): 2 days out** — scripted clause met (all three levels scripted end to end); **human clause open until the user plays**.
+
+**Step 1 — SFX playback wired (`e10c684`): the build is no longer silent**
+- **New autoload `SfxPlayer`** (`scripts/systems/sfx_player.gd`) — the single consumer of `SoundEvents.sfx` (the documented AUDIO_BRIEF hand-off): maps each of the 14 ids to `audio/sfx/<id>.wav`, plays through an **8-voice `AudioStreamPlayer` pool** (round-robin claim; a reused voice's stale treatment tween is killed first), **per-event dB** in one table, **±5% pitch jitter** from an OWN RNG (no sim/global RNG touched — determinism untouched).
+- **B4.3 echo treatment:** `echo_record` rises from 0.8× pitch, `echo_release` resolves down from 1.2× (cubic ease over the sample's own length), and both route through a runtime-created **`EchoSFX` bus** (300 Hz high-pass + 3.2 kHz low-pass → `SFX` → `Master`) — the "heard through time" hollow identity. Everything else plays on `SFX`.
+- **Pause menu:** "Sound: on/muted" toggle + "Volume: 100/75/50/25%" step (master bus volume/mute, labels read live state); the pause button stack tightens for its six rows and every other screen restores the baseline layout.
+- **Headless test (no audio device):** new section in `tests/test_main.gd` — table covers exactly the 14 brief ids; every id requests playback of ITS OWN stream at its table volume and loads as `AudioStreamWAV`; pitch band; echo rise/resolve + bus routing; bare `SoundEvents` emission reaches the player; unknown ids refuse safely; volume/mute drive bus 0. First run caught my own exact-float assertion (`0.8` vs float32 `0.80000001`) — fixed to `is_equal_approx`, not a code defect.
+- **Gate:** `./verify.sh` → **807 passed / 0 failed** (686 + 96 + 25), ALL CHECKS PASSED, exit 0; committed `e10c684`.
+- **Docs kept true:** AUDIO_BRIEF status + contract and ASSET_LICENSES "nothing plays these yet" rewritten to name `SfxPlayer`; `pos_px` panning is explicitly documented as NOT implemented (mono bus) rather than faked.
+
+**Step 2 — visual/polish items: what is verified, what is not**
+- **Window title → "Echoes of Time"** (per this session's prompt, resolving the S012 open item): `project.godot` `config/name` and `main.gd` `WINDOW_TITLE`. Headless-verified only (the constant and config are read by the boot; the visible bar needs a windowed run — screenshot request below).
+- **Icon:** `icon.svg` exists (hand-authored hourglass glyph, ASSET_LICENSES rows present) — **not visually verified by me** (headless has no renderer); needs your eye or a screenshot.
+- **F3 overlay:** state machine verified headlessly only indirectly (action registered; the 19 VIEW tests pin the geometry it draws). Whether the overlay *looks* right is **not verified — needs a screenshot**.
+- **Yellow arc:** still open from S011 — not reproducible from sim-path code (every arc painter is legacy-path-only). Needs your re-take or confirmation; ask below.
+- **Screenshot checklist (S011 said "delivered in the session reply" — never persisted; FIXED this session):** see "Screenshot checklist for the rendering pass" under Decisions/Requests below — it now lives in this file permanently.
+
+**Screenshot checklist for the rendering pass** (persisted per this session's Step 2; scene to capture → what I need to see)
+1. Title screen (`main.tscn` at boot) — title reads "ECHOES OF TIME", window bar reads "Echoes of Time", buttons present.
+2. Level 1 mid-run — tiles ~2:1 cells, kid fills most of a row, feet ON the floor line, P/G/E markers legible.
+3. Level 1 with F3 overlay on — grid + row/col numbers + readout panel + legend readable over the scene.
+4. Level 2 with an active echo — echo silhouette + trail distinct from the kid; record bar while recording.
+5. Level 3 boss engaged — boss bar (glow while shielded, red when down), Warden + kid silhouettes.
+6. Pause screen — SIX rows incl. "Sound: on" and "Volume: 100%", nothing clipped in the panel.
+7. The old yellow-arc shot's equivalent re-take (bottom-right of the level viewport) — or confirmation the arc came from `--legacy-physics`.
+
+**Decisions/requests needing you (this session):** the 7 screenshots above; B3.1 wording (from S012); Q1 + Q7 rules readings; playtest notes; hours; export-template approval or another "not approved"; push.
+
+
 ### Session 012: 2026-10-13 — Step 0 ✅ (green, 3 commits); **kid-death/respawn echo contract (D19)**; decisions + multi-seed tests; **game flow + Controls/Credits scripted**; **14 procedural SFX + licence rows (B4.1 ticked)**
 _(entry opened at close — process note: the in-session record landed live in the Decision Log (D19), the Phase tracker and the Change Index as each increment committed; this entry is written from those records and the commits, not from memory. Entries are opened at session start from now on.)_
 
