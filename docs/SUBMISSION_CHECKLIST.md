@@ -61,6 +61,45 @@ hand-off point between the two.
 | Thu Oct 30 | **Submit — a day early.** |
 | Fri Oct 31 | Deadline (buffer only). |
 
+## Feature freeze — what IS allowed after Mon Oct 20 (D17, exact list)
+
+**Allowed (in rough priority order):**
+
+1. **Bug fixes** — any defect found by the playtest (G1/G9) or the suites. Fix at
+   the cause + regression test; no behaviour changes beyond the defect.
+2. **Audio** — an SFX palette pass on sounds flagged as weak in G2; volume/mix
+   tweaks. No new music (D15).
+3. **Art** — the B4.4 procedural passes (prince/guard/warden proportions, palette
+   polish). Presentation-only; no gameplay hitboxes change.
+4. **Export** — presets, builds, boot-tests, the Windows leg of G9.
+5. **Video** — capture, cut, upload per `docs/VIDEO_PLAN.md`.
+6. **Docs** — review fixes to GDD/README/QA/slides, the final licence audit (G10),
+   the submission package assembly.
+
+**Not allowed (would be new features — cut instead of delaying):**
+
+- New levels, new mechanics, echo behaviour changes, the two-echo tier on the sim
+  path, gamepad support, persistence/save files, sprite animation, music, new
+  enemies, B3.3 polish (hit-stop/shake/shaders), A5.3/A5.4 parity extras.
+
+**Grey zone — needs my explicit yes, default NO:** feel/tuning changes to PARITY-
+sourced values (jump arcs, gate timings, duel odds). The rule from the session
+brief stands: no sim constant moves for a "feel" complaint without a source
+citation; authored geometry may move freely.
+
+### Release candidate 1 — proposed, awaiting my confirmation
+
+Once the freeze list is confirmed, RC1 = a commit + annotated tag on
+`dev/pop-rebuild`:
+
+- **Tag name:** `rc1` — message: `Release candidate 1 — three sim levels, SFX,
+  docs drafted; exports/video pending`.
+- **Preconditions (all must be green at that tree):** suite 0 failures; licence
+  audit 14/14; BUG-014-class doc claims all resolved; playtest defects (if any)
+  fixed or logged as wontfix-with-reason.
+- **What RC1 does NOT include:** exports (templates pending), the video, reviewed
+  docs — those land in rc2 at the packaged tree.
+
 ## Cut order if the week slips (never cut these gates: G1, G5, G10)
 
 1. B4.4 art passes (freeze allows, but they are polish).

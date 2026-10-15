@@ -22,8 +22,8 @@ Living record of every work session on *Prince of Persia: Echoes of Time* (RRR).
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-14 (Session 013) |
-| Days to deadline | 17 (as of 2026-10-14) |
+| Last updated | 2026-10-15 (Session 014) |
+| Days to deadline | 16 (as of 2026-10-15) |
 | Current stage / phase | Stage A / **A1 Done** · **A2 Done** · **A3 in progress** (feel **not verified, needs human playtest**) · **A4.1–A4.3 Done** · **A5.1 Done** (S007) · **B0 Done (S009)** · **B1 Done (S010)** · **B2 in progress** — all three sim levels scripted end to end (L1; L2 mandatory echo + duel; L3 Warden boss) · **S012: D19 echo-death contract; game flow + Controls/Credits; 14 procedural SFX (B4.1)** · **S013: SFX PLAYBACK WIRED (B4.3 ticked — build no longer silent); window title = "Echoes of Time"; submission docs drafted (GDD/PRESENTATION/QA/README/checklist) awaiting review; VIDEO_PLAN.md; gate 807/0** |
 | Sessions logged | 13 entries (000, 002–013). Session 001 has no entry — see Time Ledger |
 | Hours used / budget | 10.3 / 34 (S000 1.5 + S001 1.0 + S002 4.8 + S003 3.0) — 23.7 h remaining (upper bound). S004–S013 hours pending the user's confirmed figures (not estimated here; S011–S013 carry unconfirmed commit-timestamp estimates in the Time Ledger). |
@@ -121,6 +121,37 @@ The §9 standing order above stays the baseline (A4.4 → A4.5 → A5.3 → A5.4
 ## Session Log
 
 <!-- Newest first. Copy the template below for each new session. -->
+
+
+### Session 014: 2026-10-15 — Step 0 ✅ (807/0 twice); **inputs pasted as placeholders → playtest still not done; export NOT approved; Q1/Q7 not read**; docs review pass; freeze plan
+_(entry opened during the session; later steps appended as they land)_
+
+**Baseline at session start**
+- Branch `dev/pop-rebuild`, HEAD `305127a` (S013 close); tracked tree clean; 3 deliberate untracked scratch files in `tools/`.
+- `./verify.sh` → **807 passed / 0 failed** (686 + 96 + 25), exit 0; fresh clean clone of HEAD → same **807/0**, post-import status clean.
+- Legal greps: reference binaries (`.dat/.bin/.exe`) **0**; media outside `audio/sfx/` **0** (S013 grep form) / `icon.svg` only in the broader form (own icon, licensed).
+- **`codebuff` on every ref:** commit-message footers **0 on `main` (a9837c8)** and **0 on `dev/pop-rebuild` (305127a)** — pushable; `review.md` mentions "codebuff" on both (cleanup history documentation, by design). **`pre-footer-cleanup` tag = `backup/pre-footer-cleanup` (8cda44a): 80 footer lines — safety copy, NEVER push.** Remotes: `origin` (your fork), `original` (upstream).
+- Dates: today 2026-10-15 → **16 days** to Oct 31; **D14 (Oct 17 EOD): 2 days out** — scripted clause met, **human clause OPEN**.
+
+**Inputs as pasted (authoritative):** all template placeholders — playtest notes `[PASTE…]` → **not done** (no findings to work from; Step 1 blocked on real notes); export `[APPROVED / NOT approved]` → **NOT approved** (Step 2 = manual steps re-issued); push `[DONE / NOT YET]` → **NOT YET**; Q1/Q7 `[PASTE / "not read yet"]` → **not read yet** (no disclosure wording drafted); hours S004–S013 = **[N]** (commit-timestamp estimates stay labelled unconfirmed). Feature freeze **Oct 20 confirmed**.
+
+**Step 1 — playtest findings: NONE TO WORK FROM.** The pasted notes are the template placeholder (`[PASTE: deaths, confusion, feel issues, …]`). Nothing to reproduce, nothing to fix, nothing I could not reproduce — reported exactly as the brief requires. **D14's human clause stays open** (2 days out). Paste the real notes any time and Step 1 runs as specified (scripted reproduction → cause → fix at the cause → regression test; PARITY values untouched without a source citation; clarity issues → in-level hints; movement-feel complaints → STOP and report measured-vs-source).
+
+**Step 2 — export: NOT approved (placeholder) → manual steps restated.** 1. Godot 4.7.2 templates once: *Editor → Manage Export Templates → Download and Install* (or the `.tpz` → *Install from File…*). 2. *Project → Export… → Add… → Linux Desktop* + *Windows Desktop*; relative paths only — no absolute machine path in `export_presets.cfg`. 3. Export to gitignored `build/`. 4. Boot-test Linux: `build/linux/echoes.x86_64 --headless --path build/linux --quit-after 400 -- --level=1` (then 2, 3), then a windowed minute (listen for the SFX). 5. Nothing depends on `.godot/` or outside the export filter.
+
+**Step 3 — docs review pass vs the code (`cf27495`): the shipped-L2 lie, found and fixed (BUG-014)**
+- **The defect:** the shipped sim L2 (`sim_level_one/two/three` in `level_catalog.gd`) is the **D15 lighter cut** — one plate `0,3` → one gate `0,20` + a skill-0 guard, solo provably pinned. Six documents described the *legacy-slice* L2 (echo-only rune + bridge + pressure plate — "one recording, two mechanisms") as the shipped game: README ×2 spots, GDD §0/§8/§11, PRESENTATION slide 5, VIDEO_PLAN shot ③, SUBMISSION_CHECKLIST deliverable 2.
+- **Two more stale claims:** README Known-limitations said "**No audio**… the audio phase has not begun" while its own Implemented list shipped the 14 SFX; and README/GDD echo sections described the legacy **transform-replay** echo ("every physics frame sampled… position, rotation, velocity") as the default, when the shipped default is the **input-byte** echo (a second `PopSim.step` run from a snapshot).
+- **All six rewritten to shipped reality:** input-byte echo as default (legacy echo labelled behind `--legacy-physics`); L2 = "echo mandatory, solo provably impossible" WITH the catalog's own arithmetic (~50 ticks passable vs ~200 needed); Warden = Level 3 (design Level 5 kept as the legacy-slice name); "No music (D15)" replacing "No audio"; QA coverage table split into sim/legacy paths + a playtest-pending note; **BUG-014** logged in full format.
+- **Licence audit re-run:** the `git ls-files` command from `docs/ASSET_LICENSES.md` → **exactly the 14 tracked wavs, 14 rows, 0 other** (the doc's own expected output holds).
+- **Verified claims (no change needed):** GDD §9 attack numbers = `attack_state.gd` (0.09/0.11/0.13, 0.20/0.15/0.22); block 25% = `player.gd:47`; dodge i-frames = `dodge_state.gd:20`; controls tables = `input_actions.gd` (incl. Esc pause 6-row menu, F3); echo config 8 s/0.3 s/24 s/1 echo + `advanced_variant()` = `temporal_config.gd`; renderer/GL Compatibility + 10 layers + 60 Hz = `project.godot`.
+- **No playtest defects to add** (no notes) — QA_REPORT says so explicitly.
+
+**Step 4 — freeze plan (D17, exact list) + RC1 proposal: written into `docs/SUBMISSION_CHECKLIST.md`.**
+- **Allowed after Oct 20:** bug fixes (cause + regression test), audio (SFX palette/mix pass, no new music), art (B4.4 procedural passes), export, video, docs (incl. final licence audit G10).
+- **Not allowed:** new levels/mechanics/echo changes/two-echo tier, gamepad, persistence, sprite animation, music, new enemies, B3.3 polish, A5.3/A5.4.
+- **Grey zone (your yes required, default NO):** feel/tuning moves on PARITY-sourced values — geometry may move freely, sim constants may not without a citation.
+- **RC1 = annotated tag `rc1` on `dev/pop-rebuild`** once the freeze list is confirmed and the tree is green (suite 0 failures, audit 14/14, doc claims resolved). RC1 excludes exports/video/reviewed-docs — those land in rc2 at the packaged tree. **Awaiting your confirmation.**
 
 
 ### Session 013: 2026-10-14 — Step 0 ✅ (709/0 both runs); **SFX playback wired (B4.3); build no longer silent**; window title = "Echoes of Time"; submission docs drafted; VIDEO_PLAN; gate ✅ 807/0
