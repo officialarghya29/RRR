@@ -10,7 +10,7 @@ cut). Steps marked **SESSION** can be prepared by a working session (the scripte
 input run, scene automation, the draft cut if a headless frame pipeline is set up).
 
 **Cut-off plan:** if time collapses, the four MUST shots are ② record/release,
-③ the two-mechanism puzzle, ⑤ the boss, ⑥ the credits card. Drop ① and ④ first.
+③ the echo-mandatory puzzle, ⑤ the boss, ⑥ the credits card. Drop ① and ④ first.
 
 ---
 
@@ -20,7 +20,7 @@ input run, scene automation, the draft cut if a headless frame pipeline is set u
 |---|---|---|---|---|
 | ① | Title + hook | 6 s | Title screen: "ECHOES OF TIME", tagline, menu | live capture |
 | ② | Record → release | 15 s | Kid runs a short route; **Q** starts (rising tone, record bar); **Q** again releases (resolve tone, echo appears, hollow bell) | live capture |
-| ③ | The two-mechanism puzzle (Level 2) | 25 s | Record standing on the plate, release, walk through BOTH gates — the echo visibly holds one while you take the other | live capture |
+| ③ | The echo-mandatory puzzle (Level 2) | 25 s | Kid records standing on the entrance plate, releases, crosses pit + hang-climb + **guard duel** while the echo holds the gate open, walks out | live capture |
 | ④ | The duel | 15 s | Skill-0 duel in Level 2: parry (clash), hit, guard falls (guard_death sting) | live capture |
 | ⑤ | The boss (Level 3) | 25 s | Boss bar engages **shielded** (glow) → hits absorbed → echo released on the arena plate → shield drops (bar turns red) → Warden falls | live capture |
 | ⑥ | The exit + victory card | 10 s | Walk into the exit door; "THE PALACE REMEMBERS" | live capture |

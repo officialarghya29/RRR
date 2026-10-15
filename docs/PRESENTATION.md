@@ -119,7 +119,8 @@ it). Cite the test, don't quote the number.
 > **The duel** — sword timing rebuilt at the original's 10 fps duel tick
 > *(measured: PARITY §12–§14 — decision odds, HP, sword frames, RNG draw order)*
 >
-> **Bait with a memory:** enemies treat your echo as a target.
+> **Bait with a memory:** in the duel, the echo's run can press plates while you fight
+> *(enemy-baiting targeting ships in the legacy slice)*
 >
 > ⛅ [screenshot: mid-duel, or the boss bar engaged]
 
@@ -142,7 +143,8 @@ guards decide from those tables; same seed, same duel, every time.
 > **The Sim Gate** — gaps → spikes → the plate you cannot outrun
 > *the echo becomes an obvious necessity, with no tutorial text*
 >
-> **Hall of Echoes** — one recording, two mechanisms; the echo is mandatory
+> **Hall of Echoes** — the echo is mandatory; solo is provably impossible
+> *the gate stays open only while your memory holds the plate*
 >
 > **The Time Warden** — the thesis as a boss fight (slide 6)
 >

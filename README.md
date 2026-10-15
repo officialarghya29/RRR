@@ -55,38 +55,44 @@ in a collapsing ancient place.
 
 This is the game's thesis, and it is a **real system, not a visual effect**.
 
-Press <kbd>Q</kbd> to begin recording. Every physics frame, the recorder captures
-your position, rotation, velocity, animation state and facing, plus any gameplay
-events (an interaction press, for example). Press <kbd>Q</kbd> again to stop, and
-the take is released as a **Temporal Echo**.
+Press <kbd>Q</kbd> to begin recording. On the shipped (default) sim path the
+capture is the **packed input byte per logic tick** plus stamped gameplay events —
+your intent, not your position. Press <kbd>Q</kbd> again to stop, and the take is
+released as a **Temporal Echo**: a second deterministic simulation run from a state
+snapshot, replaying those exact bytes through the same step function.
 
 An echo is a genuine gameplay entity:
 
-- It has its own collision volume and is **visible to pressure plates, triggers and
-  enemy detection** — geometry ignores it, mechanisms do not.
-- It **replays the exact recorded transforms**, so it walks the same path at the
-  same speed every time. This is what makes "my past self opens the door for me" a
-  deterministic puzzle rather than a physics lottery.
-- It **re-emits recorded gameplay events**, so it can throw a lever you pressed
-  during the take.
+- It **replays recorded inputs through the real simulation**, so the same take
+  always produces the same run — not a transform tape but a re-simulation. This is
+  what makes "my past self opens the door for me" a deterministic puzzle rather
+  than a physics lottery.
+- It **presses pressure plates** — and a held plate re-triggers its links every
+  tick (the original's held-plate rule, cited in `docs/PARITY.md` §9), which is what
+  lets a memory hold a gate open indefinitely.
 - When a non-looping take ends, the echo **holds its final pose** until it expires.
   That single decision is what makes standing on a pressure plate a stable solution.
-- Enemies can target an echo, so a memory can be used as bait.
 - It costs **Temporal Energy**, which regenerates, and the number of simultaneous
-  echoes is capped.
+  echoes is capped; a take can always be re-recorded after it expires (no softlock).
 
-**Level 2 — Hall of Echoes — is built to prove it.** One recording must do two jobs
-at once: pass through an echo-only rune to open the far gate *and* start the bridge
-platform, then finish standing on a pressure plate to raise the near gate. Neither
-the player alone nor a single-purpose recording can solve it.
+(The legacy physics slice behind `--legacy-physics` still carries the earlier
+echo — transform capture, event replay, enemy baiting — and the four enemy
+archetypes. Those behaviours are real and tested, but they are not on the default
+path.)
 
-**Level 5 — The Time Warden — is the endgame.** The boss is permanently shielded:
+**Level 2 — Hall of Echoes — is built to prove it.** The plate at the hall's
+entrance parks the gate only briefly, while the route to it (pit jump, hang-climb,
+a guard duel) takes far longer than the gate schedule allows a solo run — the level
+is **provably unsolvable alone** and the suite pins both runs. Only a memory
+released onto the plate holds the gate open all the way to the exit.
+
+**Level 3 — The Time Warden — is the endgame.** The boss is permanently shielded:
 every hit is nullified and it never staggers, so it cannot be worn down. Its shield
-drops only while an arena plate is held, and that plate sits far outside the
-Warden's firing envelope. Standing on it yourself means you cannot reach the boss;
-fighting the boss means the shield nullifies everything. The only answer is to
-**leave a memory holding the plate and fight alongside your own past** — and when
-that echo expires mid-fight, you have to author a new one under fire.
+drops only while an arena plate is held, and that plate sits outside the Warden's
+wake range. Standing on it yourself means you cannot reach the boss; fighting the
+boss means the shield nullifies everything. The only answer is to **leave a memory
+holding the plate and fight alongside your own past** — and when that echo expires
+mid-fight, you have to author a new one under fire.
 
 ---
 
@@ -129,6 +135,11 @@ It is honest about what exists:
 - A headless test suite across three suites (main, death timings, whole game flow),
   plus a one-command verification gate
 
+*Bullets above cover both paths: the legacy slice behind `--legacy-physics`
+contributes the physics player state machine, the four enemy archetypes and the
+transform-replay echo; the default sim path contributes `PopSim`, the input-byte
+echo, `SimGuard` duels and the three shipped levels.*
+
 **Not yet implemented** (planned, not faked — see [Roadmap](#roadmap))
 
 - Music (SFX ship; the music stretch is cut by recorded decision D15)
@@ -145,8 +156,8 @@ It is honest about what exists:
 
 | # | Name | Teaches / tests |
 |---|---|---|
-| 1 | The Sim Gate | Movement, spikes, and the **first echo** — a plate you cannot outrun |
-| 2 | Hall of Echoes | One recording satisfying **two mechanisms** — the echo is **mandatory** |
+| 1 | The Sim Gate | Movement, spikes, and the first plate→gate puzzle (solo-completable; the echo makes it trivial) |
+| 2 | Hall of Echoes | The echo is **mandatory** — solo is provably impossible; only a memory holds the gate |
 | 3 | The Time Warden | Boss whose shield only opens for a memory |
 
 **Legacy fallback** (`--legacy-physics`): the five-level physics slice — Collapsing
@@ -300,9 +311,11 @@ the machine applies it after the current state's update finishes. This makes it
 structurally impossible to swap the active state mid-execution, which is the usual
 source of one-frame glitches.
 
-**4. The echo replays transforms, not physics.** It reproduces recorded positions
-exactly. That is the whole basis of the puzzle design — the same memory produces the
-same result, every time.
+**4. The echo replays inputs, not state.** On the sim path a recording *is* the
+packed input bytes, and releasing it re-runs the same deterministic step function
+from a snapshot — the same memory produces the same result, every time, because it
+is literally the same simulation. (The legacy slice's echo replays recorded
+transforms instead; both are tested, only the sim one is the default.)
 
 Two implementation details worth flagging:
 
@@ -321,7 +334,8 @@ Two implementation details worth flagging:
 Stated plainly, because a claim of completeness that is not true is worse than an
 admitted gap.
 
-- **No audio.** No sound effects or music exist yet; the audio phase has not begun.
+- **No music.** The 14 procedural SFX ship and play (pause menu has mute/volume);
+  music was cut by recorded decision (D15) — not an oversight, a scope call.
 - **Visuals are procedural.** Every character and prop is drawn with `_draw()` in a
   coherent palette, not sprite animation. This is a deliberate art direction, but it
   is not final-production art.
@@ -332,13 +346,14 @@ admitted gap.
   determinism, but no automated test can confirm the game *feels* good to play, and
   none can confirm that a level is actually completable by a person. The feel values
   (acceleration, coyote time, jump height), the jump distances between platforms, and
-  the difficulty curve of all five levels are tuned by reasoning and arithmetic and
-  **must** be play-tested before submission. Analysis of every jump arc is recorded
-  in [`docs/QA_REPORT.md`](docs/QA_REPORT.md).
+  the difficulty curve of the shipped levels are tuned by reasoning and arithmetic
+  and **must** be play-tested before submission. Analysis of every jump arc is
+  recorded in [`docs/QA_REPORT.md`](docs/QA_REPORT.md).
 - **Export builds untested.** No Windows or web build has been produced from this
   repository.
-- **The gameplay video does not exist.** Recording it requires running the game with
-  a display, which was not available in the environment this was built in.
+- **The gameplay video does not exist yet.** Automated sessions have no display; the
+  capture plan lives in [`docs/VIDEO_PLAN.md`](docs/VIDEO_PLAN.md) and needs a
+  windowed run by a human.
 
 ---
 
@@ -353,7 +368,7 @@ admitted gap.
 | 6 | Vertical slice (Levels 1–2) | Done |
 | 7 | Levels 3–4, ranged archetype, Time Warden boss | Done |
 | 8 | Visual polish, transitions | Not started |
-| 9 | Audio integration | Not started |
+| 9 | Audio integration | SFX integrated (`SfxPlayer`, S013); music cut by decision (D15) |
 | 10 | Persistence | Not started |
 | 11+ | QA, performance profiling, builds, video, GDD, presentation | Partially done (QA harness exists) |
 

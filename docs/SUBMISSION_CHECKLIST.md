@@ -21,7 +21,7 @@ hand-off point between the two.
 | # | Deliverable | Owner | Status | Due by | Notes / blocker |
 |---|---|---|---|---|---|
 | 1 | **Playable build** — Linux + Windows exports, boot-validated, title→victory without developer cheats | both | ⬜ source green; **exports not built** | **Sat Oct 25** | Templates NOT approved (recurring blank → treated as not approved). User: install templates + export (manual steps in `review.md` S013 Step 3, ~20 min). Session: verify + boot-test both binaries. |
-| 2 | **Gameplay video** (<2:00, 1080p, watermark-free, echo record/release + two-mechanism puzzle + duel + boss + credits; SFX audible) | user | ⬜ not recorded | **Mon Oct 27** | Plan in `docs/VIDEO_PLAN.md` (scripted input run + OBS + Kdenlive). Needs the exported build or a windowed run. |
+| 2 | **Gameplay video** (<2:00, 1080p, watermark-free, echo record/release + echo-mandatory L2 puzzle + duel + boss + credits; SFX audible) | user | ⬜ not recorded | **Mon Oct 27** | Plan in `docs/VIDEO_PLAN.md` (scripted input run + OBS + Kdenlive). Needs the exported build or a windowed run. |
 | 3 | **GDD** — describes the shipped game + "measured from the original" appendix citing PARITY | session | ✅ drafted (S013 Step 4a; §0 shipped-map + appendix) | reviewed by user **Sun Oct 19** | Awaiting your review. |
 | 4 | **Presentation** — 9 slides with speaker notes | session | ✅ drafted (S013 Step 4b) | reviewed by user **Sun Oct 19** | Needs ⛅ screenshots + the A5.2 clip from you before it is final. |
 | 5 | **Licence record** — every shipped file has a row | session | ✅ audit re-run S013 (14 tracked wavs, 14 rows, 0 other binary assets; one-command audit in the doc) | re-run at freeze **Oct 24** | Re-run after any asset lands. |
