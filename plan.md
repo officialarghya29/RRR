@@ -678,8 +678,13 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
       sword clash/strike/hurt, death, echo record/release, potion) → `audio/sfx/*.wav`,
       each logged in `docs/ASSET_LICENSES.md`.
 - [ ] **B4.2 [M]** Music: 2 LMMS loops (title/explore, boss/tension) → OGG; logged.
-- [ ] **B4.3 [M]** Echo audio identity: record-start rising tone, release resolve,
+- [x] **B4.3 [M]** Echo audio identity: record-start rising tone, release resolve,
       hollow EQ on echo SFX (GDD §14).
+      **Status (S013 step 1):** wired end to end — `SfxPlayer` plays `echo_record`
+      rising (0.8× pitch sweep), `echo_release` resolving (1.2×→1.0×), both through
+      the runtime `EchoSFX` bus (300 Hz HPF + 3.2 kHz LPF); asserted headlessly
+      (pitch band, bus routing, per-event volume). GDD §14 updated to the shipped
+      state; no music bed (B4.2 still open, D15 = SFX-first).
 - [ ] **B4.4 [M]** Aseprite final passes: prince (run/jump/hang/fight sets), guard,
       warden; environment procedural polish.
 - [ ] **B4.5 [N]** Ambient room tone; echo afterimage shader.
@@ -698,6 +703,12 @@ Rebuild 3 levels (cut from 5 — see §10) as room-grid data in the new schema, 
 - [ ] **B5.4 [M]** Update GDD (§8 mechanic now input-replay; §11 levels; §17
       reinterpretation table), QA_REPORT (new defect log), PRESENTATION (9 slides
       updated; add the A5.2 side-by-side clip as the "Reimagine" proof).
+      **Status (S013 step 4; UNTICKED — partial):** QA_REPORT (BUG-012/013 in the
+      log format + corrected result block), PRESENTATION (rewritten to the §9 slide
+      order, speaker notes, ⛅ markers for your screenshots/A5.2 clip) and GDD
+      (§0 shipped-map, §14 audio, §15/§18, measured-from-original appendix) are
+      drafted — **awaiting your review**; GDD §8/§11/§17 not yet re-expressed and
+      the A5.2 side-by-side clip does not exist yet. Ticks only after review.
 - [ ] **B5.5 [M]** Final `docs/ASSET_LICENSES.md` audit re-run (the find-command block
       in that doc) + parity doc cross-linked.
 - [ ] **B5.6 [N]** Gamepad bindings (keyboard-only is acceptable for submission).
