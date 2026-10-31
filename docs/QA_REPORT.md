@@ -1,10 +1,10 @@
 # QA REPORT
 ## Prince of Persia: Echoes of Time
 
-**Build:** five-level slice, Phases 0–7
-**Engine:** Godot 4.7.2 stable (`4.7.2.stable.official.ed1daf0bf`)
-**Method:** headless verification — import, boot every level, run the assertion suite
-**Date:** 2026-09-29
+**Build:** the shipped slice — three sim-path levels (Gate / Echoes / Warden), deterministic `PopSim` core; the legacy five-level physics slice remains runnable behind `--legacy-physics`
+**Engine:** Godot 4.7.2 stable
+**Method:** headless verification — import, boot every level on both paths, run the assertion suites (`./verify.sh`)
+**Date:** 2026-09-29 (original); maintained since — the current suite count lives in `review.md`'s Change Index, not here
 
 ---
 
@@ -18,36 +18,47 @@
 | **2. Level boot** | Every level is constructed and simulated headless for 400 frames. Catches runtime errors, engine warnings, leaked objects and orphaned resources. |
 | **3. Test suite** | Assertions across the temporal system, combat components, puzzle wiring, enemy statistics, boss behaviour, level data and the player state machine. |
 
-**Current result**
+**Current result** — `./verify.sh` exits 0 with ALL CHECKS PASSED (three suites:
+main, kid-death timings, whole game flow). The exact assertion count changes every
+time a session adds coverage; the Change Index in `review.md` carries the number
+per session. Re-derive any time with one command.
 
-```
-==> 1/3 Importing project          ok
-==> 2/3 Booting levels headless    levels 1-5 ok
-==> 3/3 Running test suite         116 passed, 0 failed
+Every level boots and simulates with **zero** script errors, warnings, leaked
+`ObjectDB` instances or dangling resources — 3 sim-path levels on the default
+path plus the 5 legacy-slice levels behind `--legacy-physics` (8 boot checks per
+run).
 
-ALL CHECKS PASSED
-```
-
-All five levels boot and simulate with **zero** script errors, warnings, leaked
-`ObjectDB` instances or dangling resources.
+**Playtest status:** no human playtest defects logged yet — the playtest input
+was pasted as a placeholder (S014). Defects from the human playtest will be added
+here first, in the same BUG-xxx format.
 
 ---
 
 ## Automated coverage
 
-| Area | Notes |
-|---|---|
-| Input map | Actions exist, keys bound, `ensure_defaults()` idempotent |
-| Health component | Damage, i-frame refusal, heal, `kill()` bypassing i-frames |
-| Temporal recorder | Start/stop, **duration cap enforced**, minimum-length rejection, event attachment |
-| Level data (all 5) | Well-formed spawn/bounds/platforms; **no dangling `listens_to` refs**; every wiring target actually supports `bind_sources` |
-| Puzzle wiring | Plate → door open/close; rune → far door *and* bridge |
-| Advanced levels | Three-source `require_all` door: 1 and 2 of 3 sources insufficient, all 3 opens, losing any one closes |
-| Temporal rule tiers | Per-level overrides apply, and stock rules are restored afterwards |
-| Boss | Starts shielded; shielded hits fully nullified; plate drops the shield; hits then land; phase thresholds at 60% / 25%; shield restored on release |
-| Enemy statistics | 4 archetypes; melee reach inside attack range; ranged stand-off inside firing envelope; disengage ≥ detection |
-| Player state machine | All 13 states, unknown-state rejection, deferred transitions |
-| Temporal echo | Spawn position, **deterministic replay**, **final-pose hold**, echoes trip plates, capacity enforced, cleanup |
+Coverage spans both paths — the **sim path** (the shipped default) and the
+**legacy slice** behind `--legacy-physics` (kept green as the documented fallback).
+
+| Area | Path | Notes |
+|---|---|---|
+| Input map | both | Actions exist, keys bound, `ensure_defaults()` idempotent |
+| Determinism | sim | Double-run hash equality over hundreds of ticks; different seeds differ; invariants held across RNG phases (multi-seed death run) |
+| Parity acceptance | sim | P1–P8 family: jumps, falls, grab/climb frame counts, held-plate re-park (`seg007.c:764`), tick model 12/10 fps — values cited in `docs/PARITY.md` |
+| Level completability | sim | All 3 shipped levels scripted end-to-end headlessly; L2 solo run **provably pinned** (gate closes, level unsolvable); L3 solo pinned (shield never drops) and completed with the echo incl. expiry → re-record (no softlock) |
+| Duel framework | sim | Seeded skill-0 transcript reproducibility; boss shield-nullified hits asserted; boss skill = measured-winnable maximum; fight fits inside one take + 3-min cap |
+| Death / respawn contract | sim | Echo persists through death (D19); respawn refills energy and enforces capacity, incl. after an echo expiry |
+| SFX playback | both | 14 ids → own streams at table volume; pitch band; echo rise/resolve + `EchoSFX` bus routing; unknown ids refuse safely; pause-menu volume/mute drive bus 0 |
+| Game flow | both | Title → controls/credits → L1 → L2 (pause, death, restart-from-checkpoint) → L3 → victory → title, through the real scene transitions |
+| Health component | legacy | Damage, i-frame refusal, heal, `kill()` bypassing i-frames |
+| Temporal recorder | legacy | Start/stop, **duration cap enforced**, minimum-length rejection, event attachment |
+| Level data (all 5) | legacy | Well-formed spawn/bounds/platforms; **no dangling `listens_to` refs**; every wiring target actually supports `bind_sources` |
+| Puzzle wiring | legacy | Plate → door open/close; rune → far door *and* bridge |
+| Advanced levels | legacy | Three-source `require_all` door: 1 and 2 of 3 sources insufficient, all 3 opens, losing any one closes |
+| Temporal rule tiers | legacy | Per-level overrides apply, and stock rules are restored afterwards |
+| Boss (legacy archetype) | legacy | Starts shielded; shielded hits fully nullified; plate drops the shield; hits then land; phase thresholds at 60% / 25%; shield restored on release |
+| Enemy statistics | legacy | 4 archetypes; melee reach inside attack range; ranged stand-off inside firing envelope; disengage ≥ detection |
+| Player state machine | legacy | All 13 states, unknown-state rejection, deferred transitions |
+| Temporal echo (legacy) | legacy | Spawn position, **deterministic replay**, **final-pose hold**, echoes trip plates, capacity enforced, cleanup |
 
 The coverage deliberately concentrates on the two failure modes that are easy to
 introduce and hard to notice: **puzzle wiring** (a door that silently never opens)
@@ -211,6 +222,53 @@ bug format.
 | **Root cause** | Retreat-on-crowd is correct for a hovering skirmisher and wrong for a boss. The behaviour was in shared code with no way to opt out. |
 | **Fix** | Added `EnemyStats.retreat_when_crowded` (default `true`, so the `TemporalSentinel` keeps its skirmisher identity; the `TimeWarden` sets `false` and holds its ground at any range). |
 | **Regression test** | `the Warden stays grounded, inside melee reach` plus the `Enemy statistics` reach assertions. |
+
+---
+
+### BUG-012 — Committed `.import` metadata pointed at the pre-move asset path
+
+| Field | Detail |
+|---|---|
+| **ID** | BUG-012 |
+| **Severity** | **Medium** — clean-clone drift (a fresh clone imported differently from the committed metadata) |
+| **Found by** | The clean-clone leg of the S012 close gate: clone HEAD, run the import pass, `git status` was expected empty and the committed `.import` files for the moved wavs still named the old `assets/audio/sfx/` `source_file`. |
+| **Reproduction** | `git clone <repo> /tmp/x && cd /tmp/x && ./verify.sh`, then `git status --short`. |
+| **Expected** | Post-import tree identical to HEAD. |
+| **Actual** | The 14 `audio/sfx/*.import` files showed as modified — only the working tree had been regenerated by the import pass; the regenerated files had never been committed. |
+| **Root cause** | The asset-path normalization (S012 close) moved the wavs and re-ran the import in the working tree, but the regenerated `.import` files were not staged. |
+| **Fix** | Regenerate with the import pass and commit the `.import` files; the close gate's clean-clone `git status` step is now the standing regression check for this class. |
+| **Regression test** | The clean-clone leg of the close protocol (`review.md`); a drift here fails the clone gate by definition. |
+
+---
+
+### BUG-013 — Exact-float assertion in the SFX wiring test
+
+| Field | Detail |
+|---|---|
+| **ID** | BUG-013 |
+| **Severity** | **Low** — test-only; no shipped behaviour was wrong |
+| **Found by** | First run of the Session 013 `SfxPlayer` section (the gate caught it before commit). |
+| **Reproduction** | Run the main suite: `FAIL echo_record rises from 0.8 on the EchoSFX bus` — the emitted pitch was `0.80000001192093`. |
+| **Expected / Actual** | The assertion used `==` against the literal `0.8`; float32 storage of the treatment's start offset makes exact equality invalid. The playback decision itself was correct on every other axis (path, volume, bus, treatment id). |
+| **Root cause** | Test authoring: comparing engine-processed floats with `==`. |
+| **Fix** | Assertion switched to `is_equal_approx`. |
+| **Regression test** | The same `_test_sfx_player` section, now green across the whole gate. |
+
+---
+
+### BUG-014 — Submission docs described the unshipped Level 2 as the shipped one
+
+| Field | Detail |
+|---|---|
+| **ID** | BUG-014 |
+| **Severity** | **Medium** — a judge-facing claim not backed by the build ("one recording, two mechanisms" with a rune + bridge + plate) described the *legacy-slice* L2; the shipped sim L2 is the D15 lighter cut (one plate→gate mechanism + duel, echo mandatory). README additionally still said "No audio" while its own Implemented list listed the 14 SFX, and the echo sections described the legacy transform-replay echo as the default. |
+| **Found by** | S014 Step 3 — documentation review pass against the code (no playtest needed; the catalogue and `sim_level_two()` contradict the prose directly). |
+| **Reproduction** | Read `data/levels/level_catalog.gd` `sim_level_two()` (one plate `0,3` → one gate `0,20`, one skill-0 guard) against README L78/L149, GDD §0/§8/§11, PRESENTATION slide 5, VIDEO_PLAN shot ③, SUBMISSION_CHECKLIST deliverable 2. |
+| **Expected** | Docs describe the shipped sim levels and the default echo (input-byte replay). |
+| **Actual** | Six documents presented the legacy two-mechanism L2 as shipped; README's Known-limitations contradicted its own status list on audio. |
+| **Root cause** | The D15 trim (S010) changed the shipped L2 and the S013 draft reused the design-level L2 description; docs were written incrementally across sessions without a full cross-check against `level_catalog.gd`. |
+| **Fix** | All six documents rewritten to the shipped reality (lighter L2 with the solo-impossibility arithmetic, input-byte echo as default with the legacy echo labelled, "No music" replacing "No audio", Level 3 numbering for the Warden with the design's Level 5 kept as the legacy-slice name). |
+| **Regression test** | The S014 review-pass rule: every judge-facing claim must point at a catalogue entry, a test or a PARITY row; the final audit is the human doc review due Sun Oct 19 (`docs/SUBMISSION_CHECKLIST.md`). |
 
 ---
 

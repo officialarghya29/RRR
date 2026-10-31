@@ -1,0 +1,27 @@
+# Plan §8 CI: run the verification gate on every push and pull request.
+# The Godot version is pinned inside verify.sh (GODOT_VERSION=4.7.2-stable);
+# the cache key below mirrors that pin — bump both together.
+# This workflow needs nothing but the tracked tree: no reference folders
+# (4dprinceprsia/, SDLPoP-1.23/), no study/, no local binary — verify.sh
+# downloads the pinned headless Godot into .tools/ on first use.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Cache the pinned Godot build
+        uses: actions/cache@v4
+        with:
+          path: .tools/godot
+          key: godot-4.7.2-stable-linux-x86_64
+
+      - name: Run ./verify.sh (import + level boots + assertion suite)
+        run: ./verify.sh

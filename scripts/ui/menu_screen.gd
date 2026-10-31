@@ -74,11 +74,37 @@ func _build() -> void:
 
 func show_title() -> void:
 	show_all()
-	_title.text = "PRINCE OF PERSIA\nECHOES OF TIME"
+	# B5.2 accept clause: the title is "Echoes of Time" — the franchise name
+	# appears only as the descriptive credit line on the Credits screen.
+	_title.text = "ECHOES OF TIME"
 	_body.text = "\"Master your past to survive your present.\"\n\n[WASD / Arrows] move    [Space] jump    [J] light    [K] heavy\n[L] block   [Shift] dodge   [E] interact   [Q] record / release echo\n\nRRR — Rewind. Reimagine. Reconnect."
 	_set_buttons([
 		["Begin the descent", &"start"],
+		["Controls", &"controls"],
+		["Credits", &"credits"],
 		["Quit", &"quit"],
+	])
+
+
+## Session 012 step 4: the full binding table, straight from
+## [InputActions] — the title screen keeps only the summary line.
+func show_controls() -> void:
+	show_all()
+	_title.text = "CONTROLS"
+	_body.text = "[A / D or ← / →] move        [W / ↑] up, climb    [S / ↓] crouch\n\n[Space] jump                  [Shift] grab, hang, edge-walk\n[J] light attack              [K] heavy attack    [L] block\n\n[E] interact                  [Q] record — release a temporal echo\n\n[Esc] pause                   [R] restart level    [F3] debug overlay\n\nThe echo walks your recorded path — stand on a plate while recording,\nrelease, and your past will hold the gate for you."
+	_set_buttons([
+		["Back", &"menu"],
+	])
+
+
+## Session 012 step 4: the tribute line and the upstream credit the hand-off
+## protocol requires on screen.
+func show_credits() -> void:
+	show_all()
+	_title.text = "CREDITS"
+	_body.text = "Echoes of Time — an original tribute,\ninspired by the 1989 classic Prince of Persia.\n\nBuilt on the RRR project by Arghya Bose\n(github.com/officialarghya29/RRR), of which this work is a maintained fork.\n\nAll code, art and audio in this build are original or licence-cleared —\nsee docs/ASSET_LICENSES.md."
+	_set_buttons([
+		["Back", &"menu"],
 	])
 
 
@@ -86,12 +112,22 @@ func show_pause() -> void:
 	show_all()
 	_title.text = "PAUSED"
 	_body.text = "The palace waits between moments."
+	# Session 013 step 1: the sound rows read the live SfxPlayer state, so the
+	# labels always show what the buttons will actually do.
+	var sound_label: String = "Sound: %s" % ("muted" if SfxPlayer.is_muted() else "on")
+	var volume_label: String = "Volume: %d%%" % SfxPlayer.volume_percent()
 	_set_buttons([
 		["Resume", &"resume"],
 		["Restart checkpoint", &"restart_checkpoint"],
 		["Restart level", &"restart_level"],
+		[sound_label, &"toggle_sound"],
+		[volume_label, &"volume_down"],
 		["Abandon to menu", &"menu"],
 	])
+	# Six rows don't fit the default 250/10 layout inside the 420px panel —
+	# start higher and tighten the gaps (show_all restores the baseline).
+	_buttons.position.y = 182.0
+	_buttons.add_theme_constant_override("separation", 6)
 
 
 func show_level_complete(next_title: String) -> void:
@@ -115,8 +151,22 @@ func show_victory() -> void:
 	])
 
 
+## Test-facing reads of the current screen (the flow test asserts on the
+## real text the player would see).
+func screen_title() -> String:
+	return _title.text
+
+
+func screen_body() -> String:
+	return _body.text
+
+
 func show_all() -> void:
 	visible = true
+	# Baseline button layout; the pause screen tightens it for its six rows
+	# (session 013 step 1) and returns here on every other screen.
+	_buttons.position.y = 250.0
+	_buttons.add_theme_constant_override("separation", 10)
 
 
 func hide_all() -> void:

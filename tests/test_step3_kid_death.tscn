@@ -1,0 +1,10 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/pop/pop_tables.gd" id="1_pt"]
+[ext_resource type="Script" path="res://scripts/pop/pop_input.gd" id="2_pi"]
+[ext_resource type="Script" path="res://scripts/pop/pop_sim.gd" id="3_ps"]
+[ext_resource type="Script" path="res://scripts/pop/pop_rng.gd" id="4_pr"]
+[ext_resource type="Script" path="res://tests/test_step3_kid_death.gd" id="5_tests"]
+
+[node name="TestStep3KidDeath" type="Node"]
+script = ExtResource("5_tests")

@@ -52,7 +52,7 @@ else
   echo "    ok"
 fi
 
-echo "==> 2/3 Booting levels headless"
+echo "==> 2/3 Booting levels headless (plan B0.1: sim path + legacy path)"
 level_count="$(python3 - <<'PY'
 import re, pathlib
 src = pathlib.Path("data/levels/level_catalog.gd").read_text()
@@ -60,14 +60,33 @@ body = src.split("static func count()", 1)[1]
 print(re.search(r"return\s+(\d+)", body).group(1))
 PY
 )"
-for ((i = 1; i <= level_count; i++)); do
+sim_count="$(python3 - <<'PY'
+import re, pathlib
+src = pathlib.Path("data/levels/level_catalog.gd").read_text()
+body = src.split("static func sim_count()", 1)[1]
+print(re.search(r"return\s+(\d+)", body).group(1))
+PY
+)"
+# Sim path (default): boots the room-grid levels on PopSim via SimWorld.
+for ((i = 1; i <= sim_count; i++)); do
   boot_out="$(timeout 180 "${GODOT_BIN}" --headless --path . --quit-after 400 -- "--level=${i}" 2>&1)"
   if grep -qE "SCRIPT ERROR|Parse Error|leaked|still in use" <<<"${boot_out}"; then
     echo "${boot_out}" | grep -E "SCRIPT ERROR|Parse Error|leaked|still in use"
-    echo "FAIL: level ${i} booted dirty"
+    echo "FAIL: sim level ${i} booted dirty"
     failures=$((failures + 1))
   else
-    echo "    level ${i} ok (${level_count} total)"
+    echo "    sim level ${i} ok (${sim_count} total)"
+  fi
+done
+# Legacy path (--legacy-physics): the original physics stack, video fallback.
+for ((i = 1; i <= level_count; i++)); do
+  boot_out="$(timeout 180 "${GODOT_BIN}" --headless --path . --quit-after 400 -- "--legacy-physics" "--level=${i}" 2>&1)"
+  if grep -qE "SCRIPT ERROR|Parse Error|leaked|still in use" <<<"${boot_out}"; then
+    echo "${boot_out}" | grep -E "SCRIPT ERROR|Parse Error|leaked|still in use"
+    echo "FAIL: legacy level ${i} booted dirty"
+    failures=$((failures + 1))
+  else
+    echo "    legacy level ${i} ok (${level_count} total)"
   fi
 done
 
@@ -77,6 +96,24 @@ test_code=$?
 grep -E "PASS|FAIL|passed," <<<"${test_out}" | sed 's/^/    /'
 if [[ ${test_code} -ne 0 ]]; then
   echo "FAIL: test suite exited ${test_code}"
+  failures=$((failures + 1))
+fi
+
+# Session 012 step 3: kid-death timings (echo/shield state around a death).
+step3_out="$(timeout 300 "${GODOT_BIN}" --headless --path . res://tests/test_step3_kid_death.tscn 2>&1)"
+step3_code=$?
+grep -E "PASS|FAIL|passed," <<<"${step3_out}" | sed 's/^/    /'
+if [[ ${step3_code} -ne 0 ]]; then
+  echo "FAIL: step-3 death-timing suite exited ${step3_code}"
+  failures=$((failures + 1))
+fi
+
+# Session 012 step 4: whole-flow (title/controls/credits, L1-L3, victory).
+flow_out="$(timeout 300 "${GODOT_BIN}" --headless --path . res://tests/test_game_flow.tscn 2>&1)"
+flow_code=$?
+grep -E "PASS|FAIL|passed," <<<"${flow_out}" | sed 's/^/    /'
+if [[ ${flow_code} -ne 0 ]]; then
+  echo "FAIL: game-flow suite exited ${flow_code}"
   failures=$((failures + 1))
 fi
 

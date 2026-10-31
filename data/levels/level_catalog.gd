@@ -30,6 +30,201 @@ static func count() -> int:
 	return 5
 
 
+# -----------------------------------------------------------------------------
+# Sim-path levels (plan B0.1). The new core runs its own level list built from
+# room-grid data (tile ids + entity bundle, PopSim shape); the five rect-based
+# levels above stay on the legacy path behind --legacy-physics.
+# -----------------------------------------------------------------------------
+
+static func sim_count() -> int:
+	return 3
+
+
+static func get_sim_level(index: int) -> Dictionary:
+	match index:
+		0:
+			return sim_level_one()
+		1:
+			return sim_level_two()
+		2:
+			return sim_level_three()
+		_:
+			push_error("LevelCatalog.get_sim_level: no sim level at index %d." % index)
+			return {}
+
+
+# SIM LEVEL 1 — the vertical-slice room (plan B0.1 step 2; layout is our own,
+# informed by B2.1 "The Collapsing Gate"): run and drop off the start floor,
+# jump the spike pit, hang-climb the ledge, press the plate, wait out the gate,
+# walk into the open level-exit door. Grid rows are PopTables.Tile ids;
+# entities are the PopSim bundle (gates/plates/links/exit), mods are spike
+# harm classes (PARITY §8).
+static func sim_level_one() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# 0-6 start floor | 7-13 gap | 14-25 ledge (plate 16, gate 19, exit 21-22)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR, T.GATE, T.FLOOR,
+		 T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT, T.FLOOR, T.FLOOR, T.FLOOR],
+		# ground floor with the one-column spike pit at 10
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR],
+		# spike floor under the pit, one column of drift margin each side
+		[T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY],
+	]
+	return {
+		"id": &"sim_gate",
+		"title": "The Sim Gate",
+		"objective": "Cross the gate room and reach the exit door.",
+		"seed": 4242,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {"2,9": 3, "2,10": 3, "2,11": 3},
+		"entities": {
+			"gates": {"0,19": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,16": 0},
+			"links": [{"plate": "0,16", "gate": "0,19"}],
+			# static open (type -1): the slice level ends by walking in
+			"exit": {"row": 0, "col": 21, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# Position triggers that read the sim x each tick (design note:
+		# checkpoints stay Godot-side, fed by sim coordinates).
+		"checkpoints": [
+			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
+			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
+		],
+	}
+
+
+# SIM LEVEL 2 — HALL OF ECHOES (lighter cut, trim decision 2026-10-12: one
+# echo mechanism + one skill-0 duel). Same grammar as level 1 (drop, pit,
+# hang-climb) with the thesis beat moved to the START floor: a raise plate at
+# col 3 gates the door at col 20, and the route past it (pit jump, ledge,
+# guard duel) takes far longer than the §9 gate schedule allows a solo run —
+# only a memory released onto the plate (which RE-TRIGGERS the gate every
+# held tick, `seg007.c:764`, session 010 3a) holds it open all the way to the
+# exit door. The guard between the climb-out and the gate is the first
+# enemy on the sim path (SimGuard; reads sim snapshots/events only).
+#
+# The start floor spans cols 0-6 exactly as level 1 (the plate sits at col
+# 3): extending it even one column moves the fall edge past the measured
+# run-jump take-off window for the col-10 pit (session 010: the scripted
+# run died in the pit before this was caught — authored geometry follows
+# the measured window, never the reverse).
+#
+# Solo-impossibility arithmetic (test-pinned): the kid presses the plate
+# himself while recording, so the gate parks ~47 ticks after the press and
+# then falls −1/tick — passable for only 50 ticks — while the plate-to-gate
+# route (drop + pit jump + hang-climb + duel) needs ~200. With the echo
+# standing on the plate the gate re-parks every tick and never closes.
+static func sim_level_two() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# 0-6 start floor (plate 3) | 7-13 gap | 14-25 ledge (gate 20, exit 23-24)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.GATE, T.FLOOR,
+		 T.FLOOR, T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT, T.FLOOR],
+		# ground floor with the one-column spike pit at 10 (level 1's grammar)
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.EMPTY, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR],
+		# spike floor under the pit, one column of drift margin each side
+		[T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.SPIKES, T.SPIKES, T.SPIKES, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY,
+		 T.EMPTY, T.EMPTY, T.EMPTY],
+	]
+	return {
+		"id": &"sim_echoes",
+		"title": "Hall of Echoes",
+		"objective": "Leave a memory on the plate, then cross the hall alive.",
+		"seed": 5252,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {"2,9": 3, "2,10": 3, "2,11": 3},
+		"entities": {
+			"gates": {"0,20": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,3": 0},
+			"links": [{"plate": "0,3", "gate": "0,20"}],
+			# static open (type -1): the level ends by walking in
+			"exit": {"row": 0, "col": 23, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# The first enemy that consumes sim events on the new path (SimGuard):
+		# skill 0, on the ledge between the climb-out and the gate.
+		"enemies": {
+			"guards": [{"x_sim": 327, "skill": 0, "seed_offset": 1}],
+		},
+		"checkpoints": [
+			{"id": &"ground", "pos_px": Vector2(660.0, 354.0), "x_sim": 220},
+			{"id": &"ledge", "pos_px": Vector2(786.0, 165.0), "x_sim": 262},
+		],
+	}
+
+
+# SIM LEVEL 3 — THE TIME WARDEN (plan B2.3/B3.1; session 011 step 4).
+# Flat boss arena on the sim path: the Warden (SimBoss = the guard framework
+# at high skill) wears a SHIELD that drops ONLY while an ECHO holds the arena
+# plate at col 4. Geometry enforces the rule: the plate sits outside the
+# boss's wake range (ACTIVATE_RANGE 90 — he sleeps while you stand on it),
+# so you cannot fight from the plate yourself; leave it and the shield is up
+# until a released take re-presses it. No softlock: the take can be recorded
+# again after it expires (test-proven). One row, no hazards — the boss IS
+# the challenge. Fight budget: at most 3 minutes (1800 ticks of the 10 fps
+# fight clock). FAIRNESS AND DIFFICULTY NOT VERIFIED — needs human playtest.
+static func sim_level_three() -> Dictionary:
+	const T := PopTables.Tile
+	var tiles: Array = [
+		# spawn 0-6 (plate at 4) | arena | gate 18 | exit doors 19-20
+		[T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.BUTTON_RAISE, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR, T.FLOOR,
+		 T.FLOOR, T.FLOOR, T.FLOOR, T.GATE, T.EXIT_DOOR_LEFT, T.EXIT_DOOR_RIGHT],
+	]
+	return {
+		"id": &"sim_boss",
+		"title": "The Time Warden",
+		"objective": "Record your stand on the arena plate, release, and beat the Warden while your echo holds it.",
+		"seed": 9401,
+		"spawn": Vector2(195.0, 165.0),                    # sim (65, 55) row 0
+		"bounds": Rect2(0.0, -200.0, 1500.0, 1350.0),
+		"tiles": tiles,
+		"mods": {},
+		"entities": {
+			# The exit sits behind a gate LINKED to the arena plate: the echo's
+			# hold keeps it parked open (S010's held-plate re-park), so the door
+			# is only reachable WHILE the shield is down. Without the echo the
+			# gate never opens — the Warden's room cannot be walked past (the
+			# sim stops the kid at a closed gate). The kid's own press cannot
+			# buy the crossing either: leaving the plate closes the §9 window
+			# long before col 19.
+			"gates": {"0,18": {"mod": PopTables.GATE_CLOSED, "type": -1}},
+			"plates": {"0,4": 0},
+			"links": [{"plate": "0,4", "gate": "0,18"}],
+			# static open (type -1): the level ends by walking in
+			"exit": {"row": 0, "col": 19, "mod": PopTables.LEVELDOOR_START, "type": -1},
+		},
+		# The first boss on the sim path (SimBoss): high skill, boss pool,
+		# shield keyed on the echo-held plate "0,4". seed 9401 + 0 = 9401 is
+		# the PROBED duel seed (the scripted counter wins 5 -> 0, kid hp 1).
+		"enemies": {
+			"guards": [{"x_sim": 247, "skill": 4, "seed_offset": 0, "boss": true, "plate": "0,4"}],
+		},
+		# Long hold: a single take can cover the whole fight (120 s at the
+		# 10 fps fight tick = 1200 fight ticks, well over the 3-minute cap).
+		"temporal": {"echo_lifetime": 120.0},
+		"checkpoints": [],
+	}
+
+
 static func get_level(index: int) -> Dictionary:
 	match index:
 		0:

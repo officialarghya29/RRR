@@ -7,13 +7,29 @@ extends Node2D
 ## without clicking through the menu — the same trick the headless smoke test
 ## relies on.
 
-const WINDOW_TITLE: String = "Prince of Persia: Echoes of Time"
+## Session 013 step 2: the OS window title is the game's own name — the
+## franchise credit lives on the Credits screen, not in the title bar.
+const WINDOW_TITLE: String = "Echoes of Time"
 
 
 func _ready() -> void:
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_title(WINDOW_TITLE)
+	_apply_boot_flags()
 	_apply_level_shortcut()
+
+
+## Supports [code]--legacy-physics[/code] on the command line (plan B0.1,
+## approval condition c): selects the original physics stack — kept runnable
+## as the video fallback — instead of the default PopSim path. Applied before
+## the level shortcut so a combined [code]--legacy-physics --level=N[/code]
+## boots level N on the legacy stack.
+func _apply_boot_flags() -> void:
+	var args: PackedStringArray = OS.get_cmdline_args()
+	args.append_array(OS.get_cmdline_user_args())
+	if args.has("--legacy-physics"):
+		GameManager.use_legacy_physics = true
+		print("[Main] Boot flag: --legacy-physics (physics stack, video fallback).")
 
 
 ## Supports [code]--level=N[/code] (1-based) on the command line.
